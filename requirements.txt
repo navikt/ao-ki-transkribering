@@ -1,0 +1,16 @@
+fastapi>=0.115
+uvicorn>=0.30
+httpx>=0.27
+numpy>=1.26
+soundfile>=0.12
+torch>=2.1
+torchaudio>=2.1
+transformers>=4.40
+faster-whisper>=1.0
+ctranslate2>=4.0
+huggingface_hub>=0.23
+resemblyzer>=0.1.4
+scikit-learn>=1.4
+librosa>=0.10
+pydantic>=2.6
+websockets>=12.0
