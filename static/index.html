@@ -1,0 +1,1433 @@
+<!DOCTYPE html>
+<html lang="nb">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Møtetranskribering – Nav</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: "Source Sans Pro", system-ui, sans-serif;
+      background: #f7f7f7;
+      color: #262626;
+      min-height: 100vh;
+      display: flex;
+      align-items: flex-start;
+      justify-content: center;
+      padding: 2rem 1rem;
+    }
+
+    .kort {
+      background: #fff;
+      border-radius: 8px;
+      box-shadow: 0 2px 8px rgba(0,0,0,.10);
+      max-width: 720px;
+      width: 100%;
+      padding: 2rem;
+    }
+
+    h1 { font-size: 1.5rem; color: #0067c5; margin-bottom: .25rem; }
+    .ingress { color: #555; margin-bottom: 2rem; font-size: .95rem; }
+
+    /* Seksjoner */
+    .seksjon { display: none; }
+    .seksjon.aktiv { display: block; }
+
+    /* Samtykke */
+    .samtykke-boks {
+      background: #e8f0fb;
+      border: 1px solid #0067c5;
+      border-radius: 6px;
+      padding: 1.25rem;
+      margin-bottom: 1.5rem;
+      font-size: .9rem;
+      line-height: 1.6;
+    }
+    .samtykke-boks ul { padding-left: 1.25rem; margin-top: .5rem; }
+
+    /* Knapper */
+    .knapp {
+      display: inline-block;
+      padding: .65rem 1.5rem;
+      border: none;
+      border-radius: 4px;
+      font-size: 1rem;
+      cursor: pointer;
+      font-weight: 600;
+      transition: background .15s;
+    }
+    .knapp-primær  { background: #0067c5; color: #fff; }
+    .knapp-primær:hover  { background: #0052a3; }
+    .knapp-fare    { background: #ba3a26; color: #fff; }
+    .knapp-fare:hover    { background: #9c2f1f; }
+    .knapp-sekundær { background: #e8e8e8; color: #262626; }
+    .knapp-sekundær:hover { background: #d5d5d5; }
+    .knapp:disabled { opacity: .45; cursor: not-allowed; }
+
+    /* Opptaksseksjon */
+    .opptaks-rad { display: flex; gap: 1rem; align-items: center; flex-wrap: wrap; margin-bottom: 1rem; }
+
+    .timer {
+      font-size: 1.4rem;
+      font-variant-numeric: tabular-nums;
+      color: #ba3a26;
+      font-weight: 700;
+      min-width: 5ch;
+    }
+
+    .puls {
+      display: inline-block;
+      width: 12px; height: 12px;
+      border-radius: 50%;
+      background: #ba3a26;
+      margin-right: .4rem;
+      animation: puls 1s infinite;
+    }
+    @keyframes puls { 0%,100%{opacity:1} 50%{opacity:.2} }
+
+    /* Fremgangsindikator */
+    .fremdrift {
+      margin: 1.5rem 0;
+      display: none;
+    }
+    .fremdrift.synlig { display: block; }
+    .fremdrift-tekst { font-size: .9rem; color: #555; margin-bottom: .4rem; }
+    .fremdrift-meta {
+      display: flex; justify-content: space-between;
+      font-size: .82rem; color: #777; margin-bottom: .35rem;
+    }
+    .fremdrift-bar-ytre {
+      background: #e8e8e8; border-radius: 4px; height: 8px; overflow: hidden;
+    }
+    .fremdrift-bar-indre {
+      background: #0067c5; height: 100%;
+      width: 0%; transition: width .6s ease;
+    }
+    .fremdrift-bar-indre.ubestemt {
+      animation: ubestemt 1.5s infinite;
+      width: 30%;
+    }
+    @keyframes ubestemt {
+      0%   { margin-left: 0%;    width: 30%; }
+      50%  { margin-left: 70%;   width: 30%; }
+      100% { margin-left: 100%;  width: 0%;  }
+    }
+
+    /* Resultat */
+    .resultat-tekst {
+      background: #f4f4f4;
+      border-radius: 6px;
+      padding: 1rem;
+      font-size: .95rem;
+      line-height: 1.7;
+      white-space: pre-wrap;
+      margin-bottom: 1.5rem;
+      max-height: 400px;
+      overflow-y: auto;
+    }
+
+    .segment-liste {
+      border-collapse: collapse;
+      width: 100%;
+      font-size: .85rem;
+      margin-bottom: 1.5rem;
+    }
+    .segment-liste th {
+      text-align: left;
+      background: #f0f0f0;
+      padding: .4rem .6rem;
+    }
+    .segment-liste td { padding: .35rem .6rem; border-bottom: 1px solid #eee; }
+
+    .detaljer-toggle {
+      color: #0067c5; cursor: pointer; font-size: .85rem;
+      background: none; border: none; padding: 0;
+      margin-bottom: .5rem; text-decoration: underline;
+    }
+
+    .feil-boks {
+      background: #fde8e4; border: 1px solid #ba3a26;
+      border-radius: 6px; padding: 1rem; color: #7a1f10;
+      margin-bottom: 1rem; font-size: .9rem;
+    }
+
+    /* Faner */
+    .faner { display: flex; gap: 0; margin-bottom: 1.5rem; border-bottom: 2px solid #e8e8e8; }
+    .fane {
+      padding: .6rem 1.2rem; background: none; border: none;
+      font-size: .95rem; font-weight: 600; color: #555; cursor: pointer;
+      border-bottom: 3px solid transparent; margin-bottom: -2px;
+    }
+    .fane.aktiv { color: #0067c5; border-bottom-color: #0067c5; }
+    .fane:hover:not(.aktiv) { color: #262626; }
+
+    /* Dialogvisning */
+    .dialog-container {
+      margin-bottom: 1.25rem;
+      max-height: 520px;
+      overflow-y: auto;
+      border: 1px solid #e8e8e8;
+      border-radius: 6px;
+      padding: .75rem;
+    }
+    .dialog-linje {
+      display: flex;
+      gap: .75rem;
+      margin-bottom: .6rem;
+      align-items: flex-start;
+    }
+    .dialog-taler-brikke {
+      flex-shrink: 0;
+      font-size: .78rem;
+      font-weight: 700;
+      border-radius: 4px;
+      padding: .2rem .5rem;
+      min-width: 90px;
+      text-align: center;
+      margin-top: .1rem;
+    }
+    .taler-0 { background: #dbeafe; color: #1e40af; }
+    .taler-1 { background: #dcfce7; color: #15803d; }
+    .taler-2 { background: #fde8d8; color: #9a3412; }
+    .taler-3 { background: #f3e8ff; color: #6b21a8; }
+    .taler-ukjent { background: #f3f4f6; color: #555; }
+    .dialog-tekst { font-size: .93rem; line-height: 1.6; }
+    .dialog-tid { font-size: .75rem; color: #888; margin-top: .1rem; }
+
+    /* Navnefelter for talere */
+    .taler-navn-rad {
+      display: flex; gap: 1rem; margin-bottom: 1.25rem; flex-wrap: wrap;
+    }
+    .taler-navn-felt {
+      display: flex; align-items: center; gap: .5rem; font-size: .875rem; flex-wrap: wrap;
+    }
+    .taler-navn-felt input {
+      border: 1px solid #ccc; border-radius: 4px; padding: .3rem .5rem;
+      font-size: .875rem; width: 130px;
+    }
+    .taler-navn-farge {
+      width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0;
+    }
+    .rolle-chips { display: flex; gap: .3rem; }
+    .rolle-chip {
+      font-size: .72rem; padding: .15rem .45rem; border-radius: 10px;
+      border: 1px solid #ccc; background: #f5f5f5; cursor: pointer; color: #444;
+      transition: background .15s, color .15s;
+    }
+    .rolle-chip:hover { background: #e0e0e0; }
+    .rolle-chip.aktiv { background: #0067c5; color: #fff; border-color: #0067c5; }
+
+    /* Sanntid dialog */
+    .sanntid-dialog {
+      background: #f4f4f4; border-radius: 6px; padding: 1rem;
+      min-height: 120px; max-height: 420px; overflow-y: auto; margin-bottom: 1rem;
+    }
+
+    /* Møtereferat-panel */
+    .referat-panel {
+      margin-top: 1.5rem;
+      border: 1px solid #0067c5;
+      border-radius: 6px;
+      overflow: hidden;
+    }
+    .referat-panel-header {
+      background: #e8f0fb;
+      padding: .65rem 1rem;
+      font-weight: 700;
+      font-size: .95rem;
+      color: #0052a3;
+      display: flex;
+      align-items: center;
+      gap: .5rem;
+    }
+    .referat-panel-body {
+      padding: 1rem;
+      font-size: .93rem;
+      line-height: 1.75;
+      white-space: pre-wrap;
+      background: #fff;
+      max-height: 480px;
+      overflow-y: auto;
+    }
+    .referat-panel-body strong { font-weight: 700; }
+    .referat-laster {
+      display: flex; align-items: center; gap: .75rem;
+      padding: 1.25rem 1rem .5rem; color: #555; font-size: .9rem;
+    }
+    .referat-progress-wrap {
+      padding: 0 1rem .75rem; display: none;
+    }
+    .referat-progress-bg {
+      width: 100%; height: 5px; background: #e0e0e0;
+      border-radius: 3px; overflow: hidden;
+    }
+    .referat-progress-bar {
+      height: 100%; background: #0067c5;
+      border-radius: 3px; width: 0%;
+      transition: width 0.6s linear;
+    }
+    .spinner {
+      width: 20px; height: 20px; border-radius: 50%;
+      border: 3px solid #e0e0e0;
+      border-top-color: #0067c5;
+      animation: snurr .8s linear infinite;
+      flex-shrink: 0;
+    }
+    @keyframes snurr { to { transform: rotate(360deg); } }
+    .referat-footer {
+      padding: .6rem 1rem;
+      border-top: 1px solid #e0e0e0;
+      background: #fafafa;
+      display: flex; gap: .75rem; align-items: center;
+      font-size: .8rem; color: #888;
+    }
+    /* Live referat under pågående sanntidsopptak */
+    .live-referat-wrap {
+      margin-top: 1rem; border: 1px solid #c5d8ef;
+      border-radius: 6px; overflow: hidden;
+    }
+    .live-referat-header {
+      background: #e8f1fb; padding: .5rem 1rem;
+      display: flex; align-items: center; gap: .6rem;
+      cursor: pointer; user-select: none; font-size: .9rem;
+    }
+    .live-referat-header:hover { background: #d8e8f7; }
+    .live-referat-status {
+      font-size: .75rem; color: #0067c5; margin-left: .25rem;
+    }
+    .live-referat-puls {
+      width: 8px; height: 8px; border-radius: 50%;
+      background: #0067c5; flex-shrink: 0;
+      animation: puls 1.4s ease-in-out infinite;
+    }
+    .live-referat-body {
+      padding: .75rem 1rem 1rem;
+      font-size: .88rem; line-height: 1.7; background: #fff;
+      max-height: 380px; overflow-y: auto; white-space: pre-wrap;
+    }
+    .live-referat-tom { color: #999; font-style: italic; }
+    .live-referat-footer {
+      padding: .4rem .75rem; background: #f5f5f5;
+      border-top: 1px solid #ddeaf7;
+      display: flex; gap: .5rem; align-items: center; flex-wrap: wrap;
+    }
+  </style>
+</head>
+<body>
+<div class="kort">
+  <h1>Møtetranskribering</h1>
+  <p class="ingress">Verktøy for transkribering av §14 a-møter. Kjører lokalt – ingen data forlater maskinen.</p>
+
+  <!-- ===== JURIDISK INFORMASJON ===== -->
+  <div id="seksjon-samtykke" class="seksjon aktiv">
+    <div class="samtykke-boks">
+      <strong>Behandlingsgrunnlag og begrensninger</strong>
+      <ul>
+        <li>Behandlingen skjer med hjemmel i <strong>nav-loven §14 a</strong> (arbeidsevnevurdering), jf. GDPR art. 6 (1) e. Samtykke er ikke behandlingsgrunnlag.</li>
+        <li>Et §14 a-møte kan også inneholde informasjon om kommunale tjenester (§15-vurdering). <strong>Slik informasjon kan ikke lagres i NAV-statlige systemer</strong> og må ikke bevares i transkripsjonen.</li>
+        <li>Lydfilen slettes automatisk etter transkribering. Transkripsjonen eksisterer kun i denne nettleserøkten og lagres ikke på server.</li>
+        <li>Transkripsjonen må gjennomgås av veileder før eventuell bruk – informasjon om kommunale tjenester skal fjernes manuelt.</li>
+        <li>Verktøyet kjører <strong>utelukkende lokalt</strong>. Ingen tale- eller tekstdata sendes til eksterne tjenester.</li>
+      </ul>
+    </div>
+    <label style="display:flex; gap:.6rem; align-items:flex-start; margin-bottom:1.5rem; cursor:pointer; font-size:.95rem">
+      <input type="checkbox" id="samtykke-hake" style="margin-top:.2rem; width:16px; height:16px; flex-shrink:0" />
+      Jeg har lest og forstått begrensningene ovenfor, og bekrefter at møtet gjennomføres med hjemmel i nav-loven §14 a.
+    </label>
+    <button class="knapp knapp-primær" id="samtykke-knapp" onclick="bekreftSamtykke()" disabled>
+      Gå videre
+    </button>
+  </div>
+
+  <!-- ===== OPPTAK / OPPLASTING ===== -->
+  <div id="seksjon-opptak" class="seksjon">
+    <!-- Faner -->
+    <div class="faner">
+      <button class="fane aktiv" id="fane-batch" onclick="byttFane('batch')">Batch-opptak</button>
+      <button class="fane" id="fane-sanntid" onclick="byttFane('sanntid')">Sanntid</button>
+    </div>
+
+    <!-- Batch-panel -->
+    <div id="panel-batch">
+      <h2 style="font-size:1.1rem; margin-bottom:1rem">Ta opp møte</h2>
+      <div class="opptaks-rad">
+        <button class="knapp knapp-fare" id="knapp-start" onclick="startOpptak()">
+          ● Start opptak
+        </button>
+        <button class="knapp knapp-sekundær" id="knapp-stopp" onclick="stoppOpptak()" disabled>
+          ■ Stopp og transkriber
+        </button>
+        <span class="timer" id="timer" style="display:none">
+          <span class="puls"></span><span id="timer-tekst">0:00</span>
+        </span>
+      </div>
+      <hr />
+      <h2 style="font-size:1.1rem; margin-bottom:.75rem">… eller last opp lydfil</h2>
+      <div style="display:flex; gap:1rem; align-items:center; flex-wrap:wrap">
+        <input type="file" id="fil-input" accept="audio/*,video/webm"
+               style="font-size:.9rem" onchange="lastOppFil()" />
+        <label style="font-size:.9rem; color:#444">
+          Antall talere:
+          <select id="n-talere-velger" style="margin-left:.4rem; font-size:.9rem; padding:.2rem .4rem; border:1px solid #ccc; border-radius:4px">
+            <option value="0">Auto-detekter</option>
+            <option value="2" selected>2 (typisk Nav-møte)</option>
+            <option value="3">3</option>
+            <option value="4">4</option>
+          </select>
+        </label>
+      </div>
+      <div class="fremdrift" id="fremdrift">
+        <p class="fremdrift-tekst" id="fremdrift-tekst">Transkriberer …</p>
+        <div class="fremdrift-meta">
+          <span id="fremdrift-fase"></span>
+          <span id="fremdrift-tid"></span>
+        </div>
+        <div class="fremdrift-bar-ytre">
+          <div class="fremdrift-bar-indre ubestemt" id="fremdrift-bar"></div>
+        </div>
+      </div>
+      <div class="feil-boks" id="feil-boks" style="display:none"></div>
+    </div>
+
+    <!-- Sanntid-panel -->
+    <div id="panel-sanntid" style="display:none">
+      <div class="samtykke-boks" style="background:#fff8e6; border-color:#f5a623; margin-bottom:1rem; font-size:.85rem;">
+        Sanntidsmodus transkriberer fortløpende i 10-sekunders segmenter (2–5 sek forsinkelse).
+        §15-advarselen gjelder fortsatt – gjennomgå teksten etter møtet.
+      </div>
+
+      <div class="opptaks-rad">
+        <button class="knapp knapp-fare" id="sanntid-start-knapp" onclick="startSanntid()">
+          ● Start sanntid
+        </button>
+        <button class="knapp knapp-sekundær" id="sanntid-stopp-knapp" onclick="stoppSanntid()" disabled>
+          ■ Stopp
+        </button>
+        <span class="timer" id="sanntid-timer" style="display:none">
+          <span class="puls"></span><span id="sanntid-timer-tekst">0:00</span>
+        </span>
+      </div>
+
+      <div class="sanntid-status" id="sanntid-status" style="display:none">
+        <span class="puls" style="background:#0067c5"></span>
+        <span id="sanntid-status-tekst">Kobler til …</span>
+      </div>
+
+      <div class="sanntid-dialog" id="sanntid-tekst" style="display:none"></div>
+
+      <!-- Rollemerking for sanntid (vises etter at talere er identifisert) -->
+      <div class="taler-navn-rad" id="sanntid-taler-rad" style="margin-top:.75rem"></div>
+
+      <!-- Live referat: oppdateres automatisk under pågående opptak -->
+      <div class="live-referat-wrap" id="live-referat-wrap" style="display:none">
+        <div class="live-referat-header" onclick="toggleLiveReferat()">
+          <span class="live-referat-puls" id="live-referat-puls" style="display:none"></span>
+          <span>📝 Utkast referat</span>
+          <span class="live-referat-status" id="live-referat-status"></span>
+          <span style="margin-left:auto" id="live-referat-chevron">▼</span>
+        </div>
+        <div id="live-referat-body" style="display:none">
+          <div class="live-referat-body" id="live-referat-tekst">
+            <span class="live-referat-tom">Utkast vises her etter ca. 2–3 minutters tale …</span>
+          </div>
+          <div class="live-referat-footer">
+            <button class="knapp knapp-sekundær"
+                    style="font-size:.78rem; padding:.25rem .7rem"
+                    onclick="oppdaterLiveReferatNaa()">Oppdater nå</button>
+            <button class="knapp knapp-sekundær"
+                    style="font-size:.78rem; padding:.25rem .7rem"
+                    id="live-referat-auto-knapp"
+                    onclick="toggleLiveReferatAuto()">⏸ Pause auto</button>
+            <button class="knapp knapp-sekundær"
+                    style="font-size:.78rem; padding:.25rem .7rem"
+                    onclick="kopierLiveReferat()">Kopier</button>
+            <span id="live-referat-tid" style="font-size:.75rem; color:#999; margin-left:auto"></span>
+          </div>
+        </div>
+      </div>
+
+      <div id="sanntid-knapper" style="display:none; gap:1rem; flex-wrap:wrap">
+        <button class="knapp knapp-primær" onclick="kopierSanntidTekst()">Kopier referat</button>
+        <button class="knapp knapp-sekundær" id="sanntid-sammendrag-knapp" onclick="hentSammendrag()">📋 Sammendrag</button>
+        <button class="knapp knapp-sekundær" id="sanntid-referat-knapp" onclick="hentReferat('sanntid')">📝 Skriv referat</button>
+        <button class="knapp knapp-sekundær" onclick="nullstillSanntid()">Nullstill</button>
+      </div>
+      <p style="margin-top:1rem; font-size:.8rem; color:#888; display:none" id="sanntid-footer">
+        Transkripsjonen lagres ikke og forsvinner når du lukker siden.
+      </p>
+    </div>
+  </div>
+
+  <!-- ===== RESULTAT ===== -->
+  <div id="seksjon-resultat" class="seksjon">
+    <h2 style="font-size:1.1rem; margin-bottom:.75rem">Transkripsjon</h2>
+    <div class="feil-boks" id="paragraf15-advarsel" style="background:#fff3cd; border-color:#f5a623; color:#7a5c00; margin-bottom:1rem;">
+      <strong>⚠️ Gjennomgå før bruk:</strong> Transkripsjonen kan inneholde informasjon om kommunale tjenester (jf. nav-loven §15) som <strong>ikke kan lagres i NAV-statlige systemer</strong>. Fjern slik informasjon før eventuell videre bruk.
+    </div>
+
+    <!-- Navnefelter (fylles dynamisk basert på antall talere i resultatet) -->
+    <div class="taler-navn-rad" id="taler-navn-rad"></div>
+
+
+    <!-- Dialogvisning (standard) -->
+    <div class="dialog-container" id="dialog-container"></div>
+
+    <!-- Rå tekst (deaktivert, for kopiering) -->
+    <div class="resultat-tekst" id="resultat-tekst" style="display:none"></div>
+
+    <button class="detaljer-toggle" onclick="toggleSegmenter()">Vis tidsstempler</button>
+    <div id="segment-wrapper" style="display:none">
+      <table class="segment-liste" id="segment-tabell">
+        <thead><tr><th>Start</th><th>Slutt</th><th>Taler</th><th>Tekst</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+
+    <div style="display:flex; gap:1rem; flex-wrap:wrap; margin-top:1rem">
+      <button class="knapp knapp-primær" onclick="kopierDialog()">Kopier transkripsjon</button>
+      <button class="knapp knapp-sekundær" onclick="hentReferat('batch')">📝 Skriv møtereferat</button>
+      <button class="knapp knapp-sekundær" onclick="nyttOpptak()">Nytt opptak</button>
+    </div>
+    <p style="margin-top:1rem; font-size:.8rem; color:#888;">
+      Transkripsjonen lagres ikke og forsvinner når du lukker eller laster siden på nytt.
+    </p>
+  </div>
+</div>
+
+<!-- Møtereferat-panel – utenfor seksjoner, vises i begge modi -->
+<div id="referat-panel" class="referat-panel" style="display:none; margin: 1rem auto; max-width: 820px; padding: 0 1rem 1.5rem;">
+  <div class="referat-panel-header">
+    <span id="referat-panel-tittel">📝 Møtereferat</span>
+  </div>
+  <div id="referat-panel-innhold">
+    <div class="referat-laster" id="referat-laster">
+      <div class="spinner"></div>
+      <span id="referat-laster-tekst">Genererer referat …</span>
+    </div>
+    <div class="referat-progress-wrap" id="referat-progress-wrap">
+      <div class="referat-progress-bg">
+        <div class="referat-progress-bar" id="referat-progress-bar"></div>
+      </div>
+    </div>
+    <div class="referat-panel-body" id="referat-tekst" style="display:none"></div>
+  </div>
+  <div class="referat-footer" style="display:none" id="referat-footer">
+    <button class="knapp knapp-sekundær" style="padding:.4rem 1rem; font-size:.85rem"
+            onclick="kopierReferat()">Kopier</button>
+    <span id="referat-modell-info"></span>
+    <span style="margin-left:auto; font-size:.78rem; color:#aaa">
+      ⚠️ Gjennomgå alltid referatet før du lagrer det i Modia
+    </span>
+  </div>
+</div>
+
+<script>
+// ---- Samtykke ----
+document.getElementById("samtykke-hake").addEventListener("change", function () {
+  document.getElementById("samtykke-knapp").disabled = !this.checked;
+});
+
+function bekreftSamtykke() {
+  visSeksjon("opptak");
+}
+
+// ---- Seksjonsnavigasjon ----
+function visSeksjon(navn) {
+  document.querySelectorAll(".seksjon").forEach(s => s.classList.remove("aktiv"));
+  document.getElementById("seksjon-" + navn).classList.add("aktiv");
+}
+
+// ---- MediaRecorder-opptak ----
+let mediaRecorder = null;
+let opptakChunks = [];
+let timerIntervall = null;
+let opptakSekunder = 0;
+
+async function startOpptak() {
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    opptakChunks = [];
+    mediaRecorder = new MediaRecorder(stream);
+    mediaRecorder.ondataavailable = e => { if (e.data.size > 0) opptakChunks.push(e.data); };
+    mediaRecorder.onstop = () => {
+      stream.getTracks().forEach(t => t.stop());
+      const blob = new Blob(opptakChunks, { type: "audio/webm" });
+      sendTilServer(blob, "opptak.webm");
+    };
+    mediaRecorder.start(1000);
+
+    document.getElementById("knapp-start").disabled = true;
+    document.getElementById("knapp-stopp").disabled = false;
+    document.getElementById("timer").style.display = "inline";
+    opptakSekunder = 0;
+    oppdaterTimer();
+    timerIntervall = setInterval(() => { opptakSekunder++; oppdaterTimer(); }, 1000);
+  } catch (err) {
+    viseFeil("Mikrofontilgang nektet: " + err.message);
+  }
+}
+
+function stoppOpptak() {
+  clearInterval(timerIntervall);
+  document.getElementById("knapp-start").disabled = false;
+  document.getElementById("knapp-stopp").disabled = true;
+  document.getElementById("timer").style.display = "none";
+  if (mediaRecorder && mediaRecorder.state !== "inactive") mediaRecorder.stop();
+}
+
+function oppdaterTimer() {
+  const m = Math.floor(opptakSekunder / 60);
+  const s = String(opptakSekunder % 60).padStart(2, "0");
+  document.getElementById("timer-tekst").textContent = m + ":" + s;
+}
+
+// ---- Filopplasting ----
+function lastOppFil() {
+  const fil = document.getElementById("fil-input").files[0];
+  if (!fil) return;
+  sendTilServer(fil, fil.name);
+}
+
+// ---- Send til server ----
+async function sendTilServer(blob, filnavn) {
+  document.getElementById("feil-boks").style.display = "none";
+  const fremdrift = document.getElementById("fremdrift");
+  fremdrift.classList.add("synlig");
+  settFremdriftTekst("Laster opp …");
+
+  const skjema = new FormData();
+  skjema.append("lydfil", blob, filnavn);
+  const nTalere = document.getElementById("n-talere-velger")?.value ?? "2";
+  skjema.append("n_talere", nTalere);
+
+  let jobbId;
+  try {
+    const res = await fetch("/transkriber", { method: "POST", body: skjema });
+    if (!res.ok) throw new Error("Opplasting feilet: " + res.status);
+    const data = await res.json();
+    jobbId = data.jobb_id;
+  } catch (err) {
+    fremdrift.classList.remove("synlig");
+    viseFeil(err.message);
+    return;
+  }
+
+  settFremdriftTekst("Transkriberer …");
+  pollStatus(jobbId, Date.now());
+}
+
+// ---- Polling ----
+let _timerIntervall = null;
+
+function _formaterTid(sekunder) {
+  const s = Math.round(sekunder);
+  if (s < 60) return `${s}s`;
+  return `${Math.floor(s/60)}m ${s%60}s`;
+}
+
+async function pollStatus(jobbId, startMs) {
+  const bar  = document.getElementById("fremdrift-bar");
+  const fase = document.getElementById("fremdrift-fase");
+  const tid  = document.getElementById("fremdrift-tid");
+
+  // Oppdater timer hvert sekund
+  if (_timerIntervall) clearInterval(_timerIntervall);
+  _timerIntervall = setInterval(() => {
+    const elapsed = (Date.now() - startMs) / 1000;
+    const current = tid.dataset.estimert ? parseFloat(tid.dataset.estimert) : null;
+    if (current) {
+      const gjenstår = Math.max(0, current - elapsed);
+      tid.textContent = `${_formaterTid(elapsed)} · ca. ${_formaterTid(gjenstår)} igjen`;
+    } else {
+      tid.textContent = _formaterTid(elapsed);
+    }
+  }, 1000);
+
+  const FASE_TEKST = { konverterer: "Forbereder lyd", transkriberer: "Transkriberer", diariserer: "Identifiserer talere" };
+
+  const intervall = setInterval(async () => {
+    try {
+      const res  = await fetch("/status/" + jobbId);
+      const data = await res.json();
+
+      if (data.status === "ferdig") {
+        clearInterval(intervall);
+        clearInterval(_timerIntervall);
+        hentResultat(jobbId);
+        return;
+      } else if (data.status === "feil") {
+        clearInterval(intervall);
+        clearInterval(_timerIntervall);
+        document.getElementById("fremdrift").classList.remove("synlig");
+        viseFeil("Transkribering feilet på server.");
+        return;
+      }
+
+      // Oppdater fase-tekst
+      if (data.fase) fase.textContent = FASE_TEKST[data.fase] || data.fase;
+
+      // Oppdater progress-bar
+      if (data.fremdrift != null) {
+        bar.classList.remove("ubestemt");
+        bar.style.width = (data.fremdrift * 100).toFixed(1) + "%";
+      }
+
+      // Lagre estimert total for timeren
+      if (data.estimert_total_s) tid.dataset.estimert = data.estimert_total_s;
+
+    } catch { /* ignorer nettverksfeil under polling */ }
+  }, 2000);
+}
+
+async function hentResultat(jobbId) {
+  const res = await fetch("/resultat/" + jobbId);
+  const data = await res.json();
+  document.getElementById("fremdrift").classList.remove("synlig");
+  // Nullstill progress-elementer for neste kjøring
+  const bar = document.getElementById("fremdrift-bar");
+  bar.classList.add("ubestemt");
+  bar.style.width = "0%";
+  document.getElementById("fremdrift-fase").textContent = "";
+  document.getElementById("fremdrift-tid").textContent = "";
+  delete document.getElementById("fremdrift-tid").dataset.estimert;
+  visResultat(data);
+}
+
+// ---- Vis resultat (batch) ----
+let _sistResultat = null;  // cache for navnebytte
+
+const TALER_FARGER = ["#3b82f6", "#22c55e", "#f97316", "#a855f7"];
+const TALER_STANDARDNAVN = ["Nav-veileder", "Bruker", "Tolk/Observatør", "Taler 4"];
+
+function talerNavn(id) {
+  const match = id && id.match(/SPEAKER_(\d+)/);
+  if (match) {
+    const n = parseInt(match[1]);
+    // Prøv batch-prefix først, deretter legacy (sanntid bruker sanntid-prefix)
+    const el = document.getElementById(`batch-taler-${n}-navn`)
+            || document.getElementById(`sanntid-taler-${n}-navn`)
+            || document.getElementById(`taler-${n}-navn`);
+    return el ? (el.value || TALER_STANDARDNAVN[n] || `Taler ${n+1}`) : (TALER_STANDARDNAVN[n] || `Taler ${n+1}`);
+  }
+  return id;
+}
+
+function talerKlasse(id) {
+  const match = id && id.match(/SPEAKER_(\d+)/);
+  if (match) {
+    const n = parseInt(match[1]);
+    return n < 4 ? `taler-${n}` : "taler-ukjent";
+  }
+  return "taler-ukjent";
+}
+
+function settTalerRolle(n, rolle, radId) {
+  const input = document.getElementById(`${radId}-taler-${n}-navn`);
+  if (!input) return;
+  input.value = rolle;
+  oppdaterTalerNavn();
+  // Oppdater aktiv chip
+  const felt = input.closest(".taler-navn-felt");
+  if (felt) felt.querySelectorAll(".rolle-chip").forEach(c =>
+    c.classList.toggle("aktiv", c.dataset.rolle === rolle));
+}
+
+function _byggRolleChips(n, radId) {
+  return ["Veileder", "Bruker", "Tolk"].map(rolle =>
+    `<button class="rolle-chip${rolle === _chipAktivRolle(n, radId) ? ' aktiv' : ''}"
+       data-rolle="${rolle}"
+       onclick="settTalerRolle(${n}, '${rolle}', '${radId}')">${rolle}</button>`
+  ).join("");
+}
+
+function _chipAktivRolle(n, radId) {
+  const el = document.getElementById(`${radId}-taler-${n}-navn`);
+  return el ? el.value : "";
+}
+
+function byggTalerNavnefelter(segmenter) {
+  const unike = [...new Set((segmenter || []).map(s => s.taler).filter(Boolean))].sort();
+  _byggTalerRad(unike, "taler-navn-rad", "batch");
+}
+
+function _byggTalerRad(unike, radElId, radId) {
+  const rad = document.getElementById(radElId);
+  if (!rad) return;
+  rad.innerHTML = "";
+  unike.forEach(id => {
+    const match = id.match(/SPEAKER_(\d+)/);
+    if (!match) return;
+    const n = parseInt(match[1]);
+    const farge = TALER_FARGER[n] || "#999";
+    const felt = document.createElement("div");
+    felt.className = "taler-navn-felt";
+    felt.innerHTML = `
+      <span class="taler-navn-farge" style="background:${farge}"></span>
+      <label>Taler ${n+1}:</label>
+      <input type="text" id="${radId}-taler-${n}-navn"
+             value="${TALER_STANDARDNAVN[n] || `Taler ${n+1}`}"
+             placeholder="Veileder, Bruker …"
+             oninput="oppdaterTalerNavn()" />
+      <div class="rolle-chips">${_byggRolleChips(n, radId)}</div>
+    `;
+    rad.appendChild(felt);
+  });
+}
+
+function visResultat(data) {
+  _sistResultat = data;
+
+  // Bygg navnefelter dynamisk basert på talere i resultatet
+  const harTaler = (data.segmenter || []).some(s => s.taler);
+  if (harTaler) {
+    byggTalerNavnefelter(data.segmenter);
+  }
+
+  // Bygg dialogvisning
+  byggDialog(data.segmenter || [], data.tekst);
+
+  // Populer segment-tabell (skjult som standard)
+  const tbody = document.querySelector("#segment-tabell tbody");
+  tbody.innerHTML = "";
+  (data.segmenter || []).forEach(s => {
+    const rad = tbody.insertRow();
+    rad.insertCell().textContent = formaterTid(s.start);
+    rad.insertCell().textContent = formaterTid(s.slutt);
+    const talerCell = rad.insertCell();
+    if (s.taler) {
+      talerCell.textContent = talerNavn(s.taler);
+      talerCell.className = talerKlasse(s.taler);
+      talerCell.style.fontWeight = "600";
+    }
+    rad.insertCell().textContent = s.tekst;
+  });
+
+  // Oppdater rå tekst (for kopiering)
+  document.getElementById("resultat-tekst").textContent = data.tekst;
+
+  visSeksjon("resultat");
+}
+
+function byggDialog(segmenter, fallbackTekst) {
+  const container = document.getElementById("dialog-container");
+  container.innerHTML = "";
+
+  if (!segmenter.length) {
+    container.textContent = fallbackTekst || "";
+    return;
+  }
+
+  // Slå sammen påfølgende segmenter fra samme taler
+  const linjer = [];
+  for (const seg of segmenter) {
+    const taler = seg.taler || "SPEAKER_00";
+    if (linjer.length && linjer[linjer.length - 1].taler === taler) {
+      linjer[linjer.length - 1].tekst += " " + seg.tekst;
+      linjer[linjer.length - 1].slutt = seg.slutt;
+    } else {
+      linjer.push({ taler, tekst: seg.tekst, start: seg.start, slutt: seg.slutt });
+    }
+  }
+
+  for (const linje of linjer) {
+    const div = document.createElement("div");
+    div.className = "dialog-linje";
+    div.dataset.taler = linje.taler;
+
+    const brikke = document.createElement("div");
+    brikke.className = `dialog-taler-brikke ${talerKlasse(linje.taler)}`;
+    brikke.textContent = talerNavn(linje.taler);
+
+    const høyre = document.createElement("div");
+    const tekst = document.createElement("div");
+    tekst.className = "dialog-tekst";
+    tekst.textContent = linje.tekst;
+    const tid = document.createElement("div");
+    tid.className = "dialog-tid";
+    tid.textContent = formaterTid(linje.start);
+    høyre.appendChild(tekst);
+    høyre.appendChild(tid);
+
+    div.appendChild(brikke);
+    div.appendChild(høyre);
+    container.appendChild(div);
+  }
+}
+
+function oppdaterTalerNavn() {
+  // Oppdater brikker i dialogvisning uten å gjenoppbygge
+  document.querySelectorAll(".dialog-linje").forEach(div => {
+    const brikke = div.querySelector(".dialog-taler-brikke");
+    if (brikke) brikke.textContent = talerNavn(div.dataset.taler);
+  });
+  // Oppdater segment-tabell
+  const tbody = document.querySelector("#segment-tabell tbody");
+  Array.from(tbody.rows).forEach((rad, i) => {
+    const seg = (_sistResultat?.segmenter || [])[i];
+    if (seg?.taler) rad.cells[2].textContent = talerNavn(seg.taler);
+  });
+}
+
+function kopierDialog() {
+  const container = document.getElementById("dialog-container");
+  const linjer = [];
+  container.querySelectorAll(".dialog-linje").forEach(div => {
+    const navn = talerNavn(div.dataset.taler);
+    const tekst = div.querySelector(".dialog-tekst")?.textContent || "";
+    const tid = div.querySelector(".dialog-tid")?.textContent || "";
+    linjer.push(`[${tid}] ${navn}: ${tekst}`);
+  });
+  // Sjekk sanntid om batch-container er tom
+  if (!linjer.length) {
+    navigator.clipboard.writeText(kopierSanntidTekstRaw());
+    return;
+  }
+  navigator.clipboard.writeText(linjer.join("\n"));
+}
+
+function formaterTid(sek) {
+  const m = Math.floor(sek / 60), s = Math.floor(sek % 60);
+  return m + ":" + String(s).padStart(2, "0");
+}
+
+// ---- Hjelpefunksjoner ----
+function toggleSegmenter() {
+  const w = document.getElementById("segment-wrapper");
+  const btn = document.querySelector(".detaljer-toggle");
+  const synlig = w.style.display !== "none";
+  w.style.display = synlig ? "none" : "block";
+  btn.textContent = synlig ? "Vis tidsstempler" : "Skjul tidsstempler";
+}
+
+function nyttOpptak() {
+  document.getElementById("fil-input").value = "";
+  visSeksjon("opptak");
+}
+
+function settFremdriftTekst(tekst) {
+  document.getElementById("fremdrift-tekst").textContent = tekst;
+  document.getElementById("fremdrift-fase").textContent = "";
+  document.getElementById("fremdrift-tid").textContent = "";
+}
+
+function viseFeil(melding) {
+  const boks = document.getElementById("feil-boks");
+  boks.textContent = "⚠️ " + melding;
+  boks.style.display = "block";
+}
+
+// ---- Fanebytte ----
+function byttFane(fane) {
+  document.getElementById("panel-batch").style.display   = fane === "batch"   ? "block" : "none";
+  document.getElementById("panel-sanntid").style.display = fane === "sanntid" ? "block" : "none";
+  document.getElementById("fane-batch").classList.toggle("aktiv",   fane === "batch");
+  document.getElementById("fane-sanntid").classList.toggle("aktiv", fane === "sanntid");
+}
+
+// ============================================================
+// SANNTIDSMODUS – AudioWorklet + PCM-streaming + server-side VAD
+// ============================================================
+let sanntidWs        = null;
+let sanntidStream    = null;
+let sanntidAktivt    = false;
+let sanntidTimer     = null;
+let sanntidSekunder  = 0;
+let audioCtx         = null;
+let workletNode      = null;
+let pcmBuffer        = [];
+const PCM_SEND_SAMPLES = 2560;
+
+// ---- Live rullerende referat ----
+let _liveReferatAktivt       = true;   // auto-oppdatering på/av
+let _liveReferatOppdaterer   = false;  // LLM-kall pågår
+let _liveReferatOrdTalt      = 0;      // ord i transcript ved sist trigger
+let _liveReferatTekst        = "";     // siste ferdigstilte utkast
+let _liveReferatReader       = null;   // aktiv fetch-reader
+const _LIVE_REFERAT_TERSKEL  = 200;    // ord før første oppdatering
+const _LIVE_REFERAT_DELTA    = 150;    // min nye ord mellom oppdateringer
+
+function _telSanntidOrd() {
+  const boks = document.getElementById("sanntid-tekst");
+  if (!boks) return 0;
+  return boks.innerText.trim().split(/\s+/).filter(Boolean).length;
+}
+
+function _hentSanntidTranskripsjonTekst() {
+  const boks = document.getElementById("sanntid-tekst");
+  if (!boks) return "";
+  const linjer = [];
+  boks.querySelectorAll(".dialog-linje").forEach(div => {
+    const navn = talerNavn(div.dataset.taler || "");
+    const tekst = div.querySelector(".dialog-tekst")?.textContent?.trim() || "";
+    if (tekst) linjer.push(`${navn}: ${tekst}`);
+  });
+  return linjer.join("\n");
+}
+
+function toggleLiveReferat() {
+  const body = document.getElementById("live-referat-body");
+  const chevron = document.getElementById("live-referat-chevron");
+  const synlig = body.style.display !== "none";
+  body.style.display = synlig ? "none" : "block";
+  chevron.textContent = synlig ? "▼" : "▲";
+}
+
+function toggleLiveReferatAuto() {
+  _liveReferatAktivt = !_liveReferatAktivt;
+  const knapp = document.getElementById("live-referat-auto-knapp");
+  knapp.textContent = _liveReferatAktivt ? "⏸ Pause auto" : "▶ Start auto";
+}
+
+function kopierLiveReferat() {
+  if (_liveReferatTekst) navigator.clipboard.writeText(_liveReferatTekst);
+}
+
+function oppdaterLiveReferatNaa() {
+  const transkripsjon = _hentSanntidTranskripsjonTekst();
+  if (!transkripsjon.trim()) return;
+  _triggerLiveReferat(transkripsjon);
+}
+
+function _settLiveReferatStatus(tekst, oppdaterer) {
+  document.getElementById("live-referat-status").textContent = tekst;
+  const puls = document.getElementById("live-referat-puls");
+  puls.style.display = oppdaterer ? "block" : "none";
+}
+
+async function _triggerLiveReferat(transkripsjon) {
+  if (_liveReferatOppdaterer) return; // allerede pågår
+  _liveReferatOppdaterer = true;
+  _liveReferatOrdTalt = _telSanntidOrd();
+
+  const wrap = document.getElementById("live-referat-wrap");
+  const body = document.getElementById("live-referat-body");
+  const tekstEl = document.getElementById("live-referat-tekst");
+  wrap.style.display = "block";
+  body.style.display = "block";
+  document.getElementById("live-referat-chevron").textContent = "▲";
+  _settLiveReferatStatus("oppdaterer …", true);
+
+  let buffer = "";
+  tekstEl.innerHTML = '<span class="live-referat-tom">Genererer …</span>';
+
+  try {
+    const res = await fetch("/referat/rullerende/stream", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ transkripsjon })
+    });
+    if (!res.ok) throw new Error("HTTP " + res.status);
+    const reader = res.body.getReader();
+    _liveReferatReader = reader;
+    const dec = new TextDecoder();
+    let rest = "";
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      const chunk = rest + dec.decode(value, { stream: true });
+      const linjer = chunk.split("\n");
+      rest = linjer.pop();
+      for (const linje of linjer) {
+        if (!linje.startsWith("data: ")) continue;
+        try {
+          const evt = JSON.parse(linje.slice(6));
+          if (evt.type === "token") {
+            buffer += evt.tekst;
+            tekstEl.textContent = buffer;
+            tekstEl.scrollTop = tekstEl.scrollHeight;
+          } else if (evt.type === "ferdig") {
+            buffer = evt.tekst;
+            _liveReferatTekst = evt.tekst;
+            tekstEl.textContent = buffer;
+            _settLiveReferatStatus(
+              "sist oppdatert " + new Date().toLocaleTimeString("nb-NO", {hour:"2-digit",minute:"2-digit"}),
+              false
+            );
+            document.getElementById("live-referat-tid").textContent =
+              "Modell: " + (evt.modell || "");
+          } else if (evt.type === "feil") {
+            tekstEl.textContent = "⚠️ " + evt.melding;
+            _settLiveReferatStatus("feil", false);
+          }
+        } catch {}
+      }
+    }
+  } catch (e) {
+    if (!e.message.includes("abort")) {
+      tekstEl.textContent = "⚠️ Kunne ikke oppdatere: " + e.message;
+      _settLiveReferatStatus("feil", false);
+    }
+  } finally {
+    _liveReferatOppdaterer = false;
+    _liveReferatReader = null;
+  }
+}
+
+function _sjekkLiveReferatTerskel() {
+  if (!sanntidAktivt || !_liveReferatAktivt) return;
+  const ord = _telSanntidOrd();
+  const forsteGang = _liveReferatOrdTalt === 0 && ord >= _LIVE_REFERAT_TERSKEL;
+  const oppdatering = _liveReferatOrdTalt > 0 && (ord - _liveReferatOrdTalt) >= _LIVE_REFERAT_DELTA;
+  if ((forsteGang || oppdatering) && !_liveReferatOppdaterer) {
+    _triggerLiveReferat(_hentSanntidTranskripsjonTekst());
+  }
+}
+
+async function startSanntid() {
+  try {
+    sanntidStream = await navigator.mediaDevices.getUserMedia({ audio: true, sampleRate: 16000 });
+  } catch (err) {
+    document.getElementById("feil-boks").style.display = "block";
+    document.getElementById("feil-boks").textContent = "⚠️ Mikrofontilgang nektet: " + err.message;
+    return;
+  }
+
+  sanntidAktivt    = true;
+  sanntidSegmenter = [];
+  sanntidSekunder  = 0;
+  pcmBuffer        = [];
+
+  document.getElementById("sanntid-start-knapp").disabled = true;
+  document.getElementById("sanntid-stopp-knapp").disabled = false;
+  document.getElementById("sanntid-timer").style.display  = "inline";
+  document.getElementById("sanntid-status").style.display = "flex";
+  document.getElementById("sanntid-tekst").style.display  = "block";
+  document.getElementById("sanntid-knapper").style.display = "flex";
+  document.getElementById("sanntid-footer").style.display  = "block";
+  settSanntidStatus("Kobler til …");
+
+  sanntidTimer = setInterval(() => {
+    sanntidSekunder++;
+    const m = Math.floor(sanntidSekunder / 60);
+    const s = String(sanntidSekunder % 60).padStart(2, "0");
+    document.getElementById("sanntid-timer-tekst").textContent = m + ":" + s;
+  }, 1000);
+
+  // WebSocket til server
+  const wsUrl = `ws://${location.host}/ws/sanntid`;
+  sanntidWs = new WebSocket(wsUrl);
+  sanntidWs.binaryType = "arraybuffer";
+
+  sanntidWs.onopen = async () => {
+    settSanntidStatus("Tar opp …");
+    await startAudioWorklet();
+  };
+
+  sanntidWs.onmessage = (evt) => {
+    const data = JSON.parse(evt.data);
+    if (data.type === "feil") {
+      settSanntidStatus("Feil: " + data.melding);
+      stoppSanntid();
+      return;
+    }
+    if (data.type === "segment" && data.tekst) {
+      // Legg til segmenter fra dette chunk-et i dialogvisningen
+      const boks = document.getElementById("sanntid-tekst");
+      for (const seg of (data.segmenter || [{ tekst: data.tekst, taler: "SPEAKER_00" }])) {
+        if (!seg.tekst) continue;
+        const taler = seg.taler || "SPEAKER_00";
+
+        // Prøv å slå sammen med siste linje hvis samme taler
+        const siste = boks.lastElementChild;
+        if (siste && siste.dataset.taler === taler) {
+          const tekst = siste.querySelector(".dialog-tekst");
+          if (tekst) tekst.textContent += " " + seg.tekst;
+        } else {
+          const div = document.createElement("div");
+          div.className = "dialog-linje";
+          div.dataset.taler = taler;
+
+          const brikke = document.createElement("div");
+          brikke.className = `dialog-taler-brikke ${talerKlasse(taler)}`;
+          brikke.textContent = talerNavn(taler);
+
+          const høyre = document.createElement("div");
+          const tekst = document.createElement("div");
+          tekst.className = "dialog-tekst";
+          tekst.textContent = seg.tekst;
+          høyre.appendChild(tekst);
+          div.appendChild(brikke);
+          div.appendChild(høyre);
+          boks.appendChild(div);
+
+          // Oppdater sanntid-rollerad med nye talere
+          const unike = [...new Set(
+            [...boks.querySelectorAll(".dialog-linje")].map(d => d.dataset.taler)
+          )].sort();
+          _byggTalerRad(unike, "sanntid-taler-rad", "sanntid");
+        }
+        boks.scrollTop = boks.scrollHeight;
+      }
+      settSanntidStatus("Tar opp …");
+      _sjekkLiveReferatTerskel();
+    }
+  };
+
+  sanntidWs.onerror = () => settSanntidStatus("WebSocket-feil");
+  sanntidWs.onclose = () => {
+    sanntidWs = null;
+    if (!sanntidAktivt) {
+      settSanntidStatus("Opptak avsluttet");
+    } else {
+      settSanntidStatus("Tilkobling avbrutt");
+    }
+  };
+}
+
+async function startAudioWorklet() {
+  // AudioContext – be om 16 kHz (støttes ikke alltid, men AudioWorklet resample
+  // eller vi sender til server som resampler)
+  audioCtx = new AudioContext({ sampleRate: 16000 });
+
+  await audioCtx.audioWorklet.addModule("/static/audio-processor.js");
+
+  const kilde = audioCtx.createMediaStreamSource(sanntidStream);
+  workletNode = new AudioWorkletNode(audioCtx, "audio-processor");
+
+  workletNode.port.onmessage = (evt) => {
+    if (!sanntidAktivt) return;
+    const samples = evt.data;  // Float32Array
+    for (let i = 0; i < samples.length; i++) pcmBuffer.push(samples[i]);
+
+    // Send til server i batcher
+    while (pcmBuffer.length >= PCM_SEND_SAMPLES) {
+      const chunk = new Float32Array(pcmBuffer.splice(0, PCM_SEND_SAMPLES));
+      if (sanntidWs && sanntidWs.readyState === WebSocket.OPEN) {
+        sanntidWs.send(chunk.buffer);
+      }
+    }
+  };
+
+  kilde.connect(workletNode);
+  workletNode.connect(audioCtx.destination);
+}
+
+function stoppSanntid() {
+  sanntidAktivt = false;
+  clearInterval(sanntidTimer);
+
+  // Send eventuell rest-buffer
+  if (pcmBuffer.length > 0 && sanntidWs && sanntidWs.readyState === WebSocket.OPEN) {
+    const rest = new Float32Array(pcmBuffer.splice(0));
+    sanntidWs.send(rest.buffer);
+  }
+
+  // Rydd opp AudioWorklet
+  if (workletNode) { workletNode.disconnect(); workletNode = null; }
+  if (audioCtx)    { audioCtx.close(); audioCtx = null; }
+  if (sanntidStream) { sanntidStream.getTracks().forEach(t => t.stop()); sanntidStream = null; }
+
+  // Be server om å flush VAD-buffer – behold WS åpen til server lukker
+  if (sanntidWs && sanntidWs.readyState === WebSocket.OPEN) {
+    sanntidWs.send(JSON.stringify({ type: "stopp" }));
+    // Ikke null-still sanntidWs her – server kan sende siste segment(er) før den lukker
+  }
+
+  document.getElementById("sanntid-start-knapp").disabled = false;
+  document.getElementById("sanntid-stopp-knapp").disabled = true;
+  document.getElementById("sanntid-timer").style.display  = "none";
+  settSanntidStatus("Avslutter …");
+}
+
+function settSanntidStatus(tekst) {
+  document.getElementById("sanntid-status-tekst").textContent = tekst;
+}
+
+function kopierSanntidTekstRaw() {
+  const boks = document.getElementById("sanntid-tekst");
+  const linjer = [];
+  boks.querySelectorAll(".dialog-linje").forEach(div => {
+    const navn = talerNavn(div.dataset.taler);
+    const tekst = div.querySelector(".dialog-tekst")?.textContent || "";
+    linjer.push(`${navn}: ${tekst}`);
+  });
+  return linjer.join("\n");
+}
+
+function kopierSanntidTekst() {
+  navigator.clipboard.writeText(kopierSanntidTekstRaw());
+}
+
+function nullstillSanntid() {
+  document.getElementById("sanntid-tekst").innerHTML = "";
+  document.getElementById("sanntid-taler-rad").innerHTML = "";
+  // Skjul referat-panelet hvis det vises fra sanntid
+  document.getElementById("referat-panel").style.display = "none";
+  // Avbryt evt. pågående live-referat og nullstill tilstand
+  if (_liveReferatReader) { try { _liveReferatReader.cancel(); } catch {} }
+  _liveReferatOppdaterer = false;
+  _liveReferatOrdTalt    = 0;
+  _liveReferatTekst      = "";
+  _liveReferatAktivt     = true;
+  document.getElementById("live-referat-wrap").style.display = "none";
+  document.getElementById("live-referat-body").style.display = "none";
+  document.getElementById("live-referat-tekst").innerHTML =
+    '<span class="live-referat-tom">Utkast vises her etter ca. 2–3 minutters tale …</span>';
+  document.getElementById("live-referat-status").textContent = "";
+  document.getElementById("live-referat-puls").style.display = "none";
+  document.getElementById("live-referat-auto-knapp").textContent = "⏸ Pause auto";
+}
+
+// ============================================================
+// MØTEREFERAT OG SAMMENDRAG – Ollama-integrasjon
+// ============================================================
+
+function _hentTranskripsjonTekst(kilde) {
+  if (kilde === "batch") {
+    // Fra batch-resultat: bruk formatert dialog (taler: tekst)
+    const container = document.getElementById("dialog-container");
+    const linjer = [];
+    container.querySelectorAll(".dialog-linje").forEach(div => {
+      const navn = talerNavn(div.dataset.taler);
+      const tekst = div.querySelector(".dialog-tekst")?.textContent || "";
+      if (tekst.trim()) linjer.push(`${navn}: ${tekst.trim()}`);
+    });
+    return linjer.join("\n");
+  } else {
+    // Fra sanntid: samme som kopierSanntidTekstRaw
+    return kopierSanntidTekstRaw();
+  }
+}
+
+function _visReferatPanel(tittel) {
+  const panel = document.getElementById("referat-panel");
+  panel.style.display = "block";
+  document.getElementById("referat-panel-tittel").textContent = tittel;
+  document.getElementById("referat-laster").style.display = "flex";
+  document.getElementById("referat-laster-tekst").textContent = "Kobler til …";
+  document.getElementById("referat-progress-wrap").style.display = "none";
+  document.getElementById("referat-progress-bar").style.width = "0%";
+  document.getElementById("referat-tekst").style.display = "none";
+  document.getElementById("referat-tekst").textContent = "";
+  document.getElementById("referat-footer").style.display = "none";
+  setTimeout(() => panel.scrollIntoView({ behavior: "smooth", block: "start" }), 50);
+}
+
+let _referatProgressTimer = null;
+
+function _startReferatProgress(estimertSek, modell) {
+  document.getElementById("referat-progress-wrap").style.display = "block";
+  const bar = document.getElementById("referat-progress-bar");
+  const lasterTekst = document.getElementById("referat-laster-tekst");
+  const start = Date.now();
+  if (_referatProgressTimer) clearInterval(_referatProgressTimer);
+  _referatProgressTimer = setInterval(() => {
+    const elapsed = (Date.now() - start) / 1000;
+    const pct = Math.min((elapsed / estimertSek) * 100, 95);
+    bar.style.width = pct + "%";
+    const gjenst = Math.max(0, Math.round(estimertSek - elapsed));
+    lasterTekst.textContent = gjenst > 0
+      ? `Genererer … (~${gjenst} sek igjen)`
+      : "Fullfører …";
+  }, 500);
+}
+
+function _stopReferatProgress() {
+  if (_referatProgressTimer) { clearInterval(_referatProgressTimer); _referatProgressTimer = null; }
+  document.getElementById("referat-progress-bar").style.width = "100%";
+  setTimeout(() => { document.getElementById("referat-progress-wrap").style.display = "none"; }, 400);
+}
+
+function _visReferatStream(tekst) {
+  const boks = document.getElementById("referat-tekst");
+  boks.textContent = tekst;   // rå tekst under generering
+  boks.style.display = "block";
+}
+
+function _visReferatResultat(tekst, modell) {
+  _stopReferatProgress();
+  document.getElementById("referat-laster").style.display = "none";
+  const boks = document.getElementById("referat-tekst");
+  boks.innerHTML = tekst
+    .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+    .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
+    .replace(/^(#{1,3}) (.+)$/gm, (_, h, t) => `<strong>${t}</strong>`)
+    .replace(/\n/g, "<br>");
+  boks.style.display = "block";
+  const footer = document.getElementById("referat-footer");
+  footer.style.display = "flex";
+  document.getElementById("referat-modell-info").textContent = `Modell: ${modell}`;
+}
+
+function _visReferatFeil(melding) {
+  _stopReferatProgress();
+  document.getElementById("referat-laster").style.display = "none";
+  const boks = document.getElementById("referat-tekst");
+  boks.innerHTML = `<span style="color:#ba3a26">⚠️ ${melding}</span>`;
+  boks.style.display = "block";
+}
+
+async function _streamReferat(endepunkt, tekst, tittel) {
+  const res = await fetch(endepunkt, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ transkripsjon: tekst }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: res.statusText }));
+    _visReferatFeil(err.detail || "Ukjent feil");
+    return;
+  }
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let samletTekst = "";
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    const linjer = buffer.split("\n");
+    buffer = linjer.pop();
+    for (const linje of linjer) {
+      if (!linje.startsWith("data: ")) continue;
+      let data;
+      try { data = JSON.parse(linje.slice(6)); } catch { continue; }
+      if (data.type === "start") {
+        _startReferatProgress(data.estimert_sek, data.modell);
+      } else if (data.type === "token") {
+        samletTekst += data.tekst;
+        _visReferatStream(samletTekst);
+      } else if (data.type === "ferdig") {
+        _visReferatResultat(data.tekst, data.modell);
+      } else if (data.type === "feil") {
+        _visReferatFeil(data.melding);
+      }
+    }
+  }
+}
+
+async function hentSammendrag() {
+  const tekst = _hentTranskripsjonTekst("sanntid");
+  if (!tekst.trim()) { alert("Ingen transkripsjon å oppsummere ennå."); return; }
+  _visReferatPanel("📋 Løpende sammendrag");
+  document.getElementById("referat-panel").scrollIntoView({ behavior: "smooth", block: "start" });
+  try {
+    await _streamReferat("/sammendrag/stream", tekst, "📋 Løpende sammendrag");
+  } catch (err) {
+    _visReferatFeil("Nettverksfeil: " + err.message);
+  }
+}
+
+async function hentReferat(kilde) {
+  const tekst = _hentTranskripsjonTekst(kilde);
+  if (!tekst.trim()) { alert("Ingen transkripsjon å generere referat fra."); return; }
+  _visReferatPanel("📝 Møtereferat");
+  document.getElementById("referat-panel").scrollIntoView({ behavior: "smooth", block: "start" });
+  try {
+    await _streamReferat("/referat/stream", tekst, "📝 Møtereferat");
+  } catch (err) {
+    _visReferatFeil("Nettverksfeil: " + err.message);
+  }
+}
+
+function kopierReferat() {
+  const boks = document.getElementById("referat-tekst");
+  // Hent ren tekst (uten HTML-tagger)
+  navigator.clipboard.writeText(boks.innerText || boks.textContent);
+}
+</script>
+</body>
+</html>
