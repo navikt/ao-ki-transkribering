@@ -3,11 +3,12 @@ __pycache__/
 *.pyc
 modeller/
 *.gguf
-*.wav
-*.mp3
-*.webm
-*.json
 transkribering_*/
 nohup.out
 .DS_Store
 =*
+# Lydfiler i rotkatalogen ignoreres, men testdata/ er inkludert
+/*.wav
+/*.mp3
+*.webm
+*.json
