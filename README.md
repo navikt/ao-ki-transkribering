@@ -4,7 +4,7 @@ Lokalt transkriberings- og referatverktøy for NAV §14a-brukermøter.
 
 Bruker [nb-whisper](https://huggingface.co/NbAiLab/nb-whisper-medium) for norsk tale-til-tekst,
 høyttalerdiarisering (identifiserer hvem som sier hva), og
-[Ollama](https://ollama.com) med [qwen3:32b](https://ollama.com/library/qwen3) for automatisk
+[Ollama](https://ollama.com) med [qwen3.6:35b](https://ollama.com/library/qwen3.6) for automatisk
 møtereferat og sammendrag etter NAVs §14a-mal.
 
 **Ingen data forlater maskinen.** Alt kjøres lokalt.
@@ -132,13 +132,13 @@ ollama serve
 
 Kjør dette i et eget terminalvindu, eller som bakgrunnsprosess. Ollama lytter på `http://localhost:11434`.
 
-### Last ned qwen3:32b
+### Last ned qwen3.6:35b
 
 ```bash
-ollama pull qwen3:32b
+ollama pull qwen3.6:35b
 ```
 
-Modellen er ~20 GB. Nedlasting tar tid avhengig av internettforbindelsen.
+Modellen er ~30 GB. Nedlasting tar tid avhengig av internettforbindelsen.
 
 > **Mindre maskin?** Bruk en mindre modell og sett miljøvariabelen:
 > ```bash
@@ -160,12 +160,12 @@ uvicorn server:app --host 127.0.0.1 --port 8765
 
 ### Valgfrie miljøvariabler
 
-| Variabel | Standard | Beskrivelse |
-|----------|----------|-------------|
-| `WHISPER_MODELL` | `NbAiLab/nb-whisper-medium` | Modell for batch-transkripsjon |
+| Variabel | Standard                     | Beskrivelse |
+|----------|------------------------------|-------------|
+| `WHISPER_MODELL` | `NbAiLab/nb-whisper-medium`  | Modell for batch-transkripsjon |
 | `WHISPER_SANNTID_MODELL` | `modeller/nb-whisper-medium` | Modell for sanntidsmodus |
-| `OLLAMA_URL` | `http://localhost:11434` | Ollama-endepunkt |
-| `OLLAMA_MODELL` | `qwen3:32b` | LLM for møtereferat |
+| `OLLAMA_URL` | `http://localhost:11434`     | Ollama-endepunkt |
+| `OLLAMA_MODELL` | `qwen3.6:35b`                | LLM for møtereferat |
 
 Eksempel:
 ```bash

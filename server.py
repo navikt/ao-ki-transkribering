@@ -47,7 +47,7 @@ ARBEIDSMAPPE   = Path(tempfile.mkdtemp(prefix="transkribering_"))
 
 # Ollama-konfigurasjon
 OLLAMA_URL            = os.getenv("OLLAMA_URL",            "http://localhost:11434")
-OLLAMA_MODELL         = os.getenv("OLLAMA_MODELL",         "qwen3:32b")
+OLLAMA_MODELL         = os.getenv("OLLAMA_MODELL",         "qwen3.6:35b")
 
 # ---------------------------------------------------------------------------
 # LLM-prompts for møtereferat (§14a) – basert på NAVs retningslinjer fra Navet

@@ -14,3 +14,4 @@ scikit-learn>=1.4
 librosa>=0.10
 pydantic>=2.6
 websockets>=12.0
+python-multipart>=0.0.9
