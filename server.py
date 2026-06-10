@@ -349,8 +349,31 @@ _jobbkø: multiprocessing.Queue = _mp_ctx.Queue()
 # Hjelpefunksjoner
 # ---------------------------------------------------------------------------
 
+# Kjente norske Whisper-hallusinasjoner under stillhet – filtreres bort.
+# Whisper fyller stille segmenter med høyfrekvente fraser fra treningsdata.
+_HALLUSINASJON_BLOCKLIST = {
+    "det er en god idé",
+    "takk for at du så på",
+    "takk for at du så med",
+    "takk for at du hørte på",
+    "takk for meg",
+    "ha det bra",
+    "vi sees",
+    "ikke sant",
+    "ja, takk",
+    "tusen takk",
+    "hei hei",
+    "og lykke til",
+}
+
 def _er_hallusinasjon(tekst: str, maks_repetisjoner: int = 3) -> bool:
-    """Oppdager Whisper-hallusinasjoner (gjentakende fraser/ord)."""
+    """Oppdager Whisper-hallusinasjoner (gjentakende fraser eller kjente fraser under stillhet)."""
+    # Sjekk mot blocklist (case-insensitiv, ignorer punktum/komma)
+    normalisert = tekst.lower().strip().rstrip(".,!?")
+    if normalisert in _HALLUSINASJON_BLOCKLIST:
+        print(f"[hallusinasjon] Blokkert kjent frase: '{tekst}'", flush=True)
+        return True
+    # Opprinnelig repetisjonskontroll
     ord_liste = tekst.split()
     if len(ord_liste) < 4:
         return False
