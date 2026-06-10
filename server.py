@@ -409,6 +409,21 @@ def _trim_null_ord(ord_liste: list) -> list:
     return ord_liste[:siste_reelle + 1]
 
 
+def _trim_null_ord_fw(ord_liste: list) -> list:
+    """Samme som _trim_null_ord, men for faster-whisper sitt ord-format {timestamp:(start,end)}."""
+    siste_reelle = -1
+    for i, c in enumerate(ord_liste):
+        ts0, ts1 = c["timestamp"]
+        if ts1 is not None and (ts1 - ts0) >= 0.01:
+            siste_reelle = i
+    if siste_reelle == -1:
+        return ord_liste
+    kappet = len(ord_liste) - siste_reelle - 1
+    if kappet > 0:
+        print(f"[sanntid trim-null] Kappet {kappet} null-varighet ord", flush=True)
+    return ord_liste[:siste_reelle + 1]
+
+
 def _trim_etter_stille(
     ord_liste: list,
     pcm: np.ndarray,
@@ -1229,16 +1244,43 @@ def _transkriber_pcm(
             str(wav_sti),
             language="no",
             beam_size=5,
+            word_timestamps=True,
             vad_filter=True,
             vad_parameters={"min_silence_duration_ms": 400},
         )
         for seg in segments:
             t = seg.text.strip()
-            if t:
-                tekst_deler.append(t)
-                segmenter_liste.append(
-                    {"start": round(seg.start, 1), "slutt": round(seg.end, 1), "tekst": t}
-                )
+            if not t:
+                continue
+
+            # Bruk ord-tidsstempler for hallusinasjonsdeteksjon
+            ord_liste_fw = [
+                {"timestamp": (w.start, w.end), "text": w.word}
+                for w in (seg.words or [])
+            ]
+            if ord_liste_fw:
+                # Kapp ord med null-varighet (samme strategi som batch-modus)
+                ord_liste_fw = _trim_null_ord_fw(ord_liste_fw)
+                if not ord_liste_fw:
+                    print(f"[sanntid] Droppet segment (bare null-varighet ord): '{t}'", flush=True)
+                    continue
+                t = " ".join(w["text"].strip() for w in ord_liste_fw).strip()
+
+            # Ord-rate-sjekk: > 8 ord/sek = hallusinasjon (normal tale: 2–4 ord/sek)
+            varighet = seg.end - seg.start
+            antall_ord = len(t.split())
+            if varighet > 0.1 and (antall_ord / varighet) > 8:
+                print(f"[sanntid] Droppet segment med urealistisk ord-rate "
+                      f"({antall_ord/varighet:.1f} ord/sek): '{t}'", flush=True)
+                continue
+
+            if _er_hallusinasjon(t):
+                continue
+
+            tekst_deler.append(t)
+            segmenter_liste.append(
+                {"start": round(seg.start, 1), "slutt": round(seg.end, 1), "tekst": t}
+            )
 
         if not tekst_deler:
             return None, prototyper
