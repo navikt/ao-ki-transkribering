@@ -131,9 +131,48 @@ Tilgang via NAVs interne nett eller Citrix/VDI.
 - Krever driftsorganisasjon og sikkerhetsgodkjenning for FSS
 - Nettverkslatens kan påvirke sanntidskvalitet
 
-**Juridisk vurdering:**
-Tilsvarende som alternativ 1. Ingen ekstern databehandler. Lyd og transkripsjon
-behandles innenfor NAVs sikkerhetssone. Krever DPIAs tilsvarende andre FSS-systemer.
+**Juridisk vurdering — ⚠️ Vesentlige utfordringer:**
+
+**Delt behandlingsansvar og kommunal taushetsplikt**
+
+Et §14a-møte er et *felles møte* med delt behandlingsansvar mellom statlig NAV
+(Arbeids- og velferdsdirektoratet) og den kommunale delen av NAV-kontoret. Lydopptaket
+vil uunngåelig inneholde opplysninger som faller inn under den kommunale behandlingsansvarliges
+ansvarsområde (sosialhjelp, bostøtte, kommunale tjenester etter lov om sosiale tjenester).
+
+Dersom lydopptaket sendes til en **sentral statlig server i FSS**, oppstår følgende problemer:
+
+1. **Kommunens samtykke/behandlingsgrunnlag:** Den kommunale behandlingsansvarlige
+   (kommunen) har ikke gitt behandlingsgrunnlag for at statlig NAV sentralt skal
+   prosessere lydopptak som inneholder kommunal taushetsbelagt informasjon. Dette kan
+   kreve enten lovhjemmel, databehandleravtale, eller delt behandlingsansvaravtale (jf.
+   GDPR art. 26) med hver enkelt kommune — potensielt 200+ avtaler.
+
+2. **Kommunal taushetsplikt:** Opplysninger om sosialhjelp, bostøtte og kommunale
+   boliger er undergitt kommunal taushetsplikt (forvaltningsloven § 13, lov om sosiale
+   tjenester § 44). Disse opplysningene kan ikke behandles i statlige systemer uten
+   eksplisitt hjemmel.
+
+3. **Kontorsperrer mellom NAV-kontor:** NAVs statlige systemer har informasjonsskiller
+   (kontorsperrer) mellom geografiske kontor — en veileder på Kontor A skal ikke ha
+   tilgang til opplysninger fra Kontor B. En sentral FSS-server må håndheve disse
+   skillene også for transkripsjoner og lydopptak, noe som krever et aksessregime som
+   i praksis er like komplekst som et eget system per kontor.
+
+4. **Innsynsrett og behandlingsregister:** Opplysningene vil måtte registreres i NAVs
+   behandlingsregister med alle tilhørende rettigheter (innsyn, retting, sletting,
+   jf. GDPR art. 12–22). En sentral server med data fra alle kontor øker omfanget
+   vesentlig og krever robuste kassasjonsrutiner.
+
+**Konklusjon:** Alternativ 2 kan i utgangspunktet fungere for den *statlige* delen av
+behandlingen, men krever avklaring med hvert enkelt kommunalt NAV-kontor om behandling
+av kommunalt taushetspliktig informasjon. Dette er en juridisk og organisatorisk barriere
+som gjør alternativet vanskelig å realisere i praksis uten lovendring eller individuelle
+kommuneavtaler.
+
+**Sammenligning med Alternativ 1:** Den lokale løsningen (Alt 1) unngår disse utfordringene
+fordi behandlingen skjer på maskinvare kontrollert av det lokale NAV-kontoret, der begge
+behandlingsansvarlige (stat og kommune) er fysisk til stede og kontrollerer prosessen.
 
 ---
 
