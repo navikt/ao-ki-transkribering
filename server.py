@@ -48,6 +48,9 @@ ARBEIDSMAPPE   = Path(tempfile.mkdtemp(prefix="transkribering_"))
 # Ollama-konfigurasjon
 OLLAMA_URL            = os.getenv("OLLAMA_URL",            "http://localhost:11434")
 OLLAMA_MODELL         = os.getenv("OLLAMA_MODELL",         "qwen3.6:35b")
+# Begrenser KV-cache-allokering. Modeller med stort standardvindauge (f.eks. qwen3.5: 128k)
+# bruker ellers sekunder på allokering alene. 8192 er nok for alle §14a-referater.
+OLLAMA_NUM_CTX        = int(os.getenv("OLLAMA_NUM_CTX",    "8192"))
 
 # ---------------------------------------------------------------------------
 # LLM-prompts for møtereferat (§14a) – basert på NAVs retningslinjer fra Navet
@@ -309,7 +312,7 @@ async def _stream_ollama_tokens(system: str, bruker: str, modell: str | None = N
                 "prompt": bruker,
                 "stream": True,
                 "think": False,
-                "options": {"temperature": 0.25},
+                "options": {"temperature": 0.25, "num_ctx": OLLAMA_NUM_CTX},
             },
         ) as resp:
             resp.raise_for_status()
@@ -813,7 +816,7 @@ async def _kall_ollama(system: str, bruker: str, modell: str | None = None) -> s
                 "prompt": bruker,
                 "stream": True,
                 "think": False,
-                "options": {"temperature": 0.25},
+                "options": {"temperature": 0.25, "num_ctx": OLLAMA_NUM_CTX},
             },
         ) as resp:
             resp.raise_for_status()
