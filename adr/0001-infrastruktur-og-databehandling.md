@@ -66,6 +66,26 @@ er generert.
 **Teknisk:** Python FastAPI + nb-whisper + Ollama, kjøres på veilederens arbeidsmaskin
 eller en dedikert lokal maskin på kontoret.
 
+**Faktisk enhetsbruk (bekreftet):**
+
+| Komponent | Teknologi | Apple Silicon | NVIDIA |
+|-----------|-----------|---------------|--------|
+| Batch-transkripsjon | transformers + PyTorch | MPS (GPU) ✅ | CUDA (GPU) ✅ |
+| Sanntid-transkripsjon | faster-whisper / CTranslate2 | **CPU** ⚠️ | CUDA (GPU) ✅ |
+| Møtereferat (Ollama) | qwen3:32b | Metal (GPU) ✅ | CUDA (GPU) ✅ |
+
+CTranslate2 (brukt av faster-whisper) støtter ikke Apple Metal/MPS — `device="auto"`
+faller tilbake til CPU på alle Mac-er. Sanntidstranskripsjon kjøres derfor på CPU
+selv på Apple M-chips. Dette er akseptabelt i praksis: CTranslate2 er svært
+CPU-effektivt (int8-kvantisert), og 10-sekunders lydsegmenter transkriberes på ~1–3 sek.
+
+**Mulig forbedring — mlx-whisper:**
+`mlx-whisper` bruker Apples MLX-rammeverk og utnytter Metal GPU fullt ut på Apple Silicon.
+nb-whisper-modellene er ikke pre-konvertert til MLX-format i `mlx-community` per juni 2026,
+men kan konverteres manuelt. Kvaliteten på norsk vil avhenge av om de norsk-finjusterte
+vektene bevares gjennom konverteringen — dette er uavklart og bør testes før eventuell
+innføring.
+
 **Fordeler:**
 - Ingen data forlater maskinen — ingen databehandleravtale nødvendig
 - Ingen nettverkskrav under møtet
@@ -73,7 +93,7 @@ eller en dedikert lokal maskin på kontoret.
 - §15-risikoen er minimal — referatet gjennomgås av veileder før bruk
 
 **Ulemper:**
-- Krever kraftig maskinvare (GPU/Apple Silicon) for akseptabel hastighet
+- Krever dedikert maskinvare per kontor (ikke nødvendigvis GPU — CPU fungerer for sanntid)
 - Vanskelig å skalere til mange kontor
 - Ingen sentral oppdatering av modeller
 - Avhengig av Ollama installert lokalt
@@ -130,17 +150,33 @@ behandles innenfor NAVs sikkerhetssone. Krever DPIAs tilsvarende andre FSS-syste
 ```
 
 **Teknisk:** Standard NAIS-applikasjon på GKE i `europe-north1` (Finland). Ingen GPU —
-nb-whisper kjøres på CPU med akselerering via ONNX Runtime/CTranslate2.
+nb-whisper kjøres på CPU med CTranslate2 (faster-whisper).
+
+**Viktig observasjon:** Den lokale løsningens sanntidstranskripsjon kjøres allerede på
+CPU (CTranslate2 støtter ikke MPS/Metal). Ytelsen som er observert lokalt — ~1–3 sek
+per 10-sekunders segment — er dermed representativ for hva en NAIS CPU-pod vil levere,
+forutsatt sammenlignbar CPU-ytelse. NAIS-pod med f.eks. 4–8 vCPU vil ligge i samme
+størrelsesorden.
+
+**Antatt ytelse på NAIS (nb-whisper-medium, CTranslate2 int8, 4 vCPU):**
+
+| Brukstilfelle | Estimert latens |
+|--------------|----------------|
+| Sanntid (10-sek segment) | 2–5 sek ✅ akseptabelt |
+| Batch (45-min møte) | 8–15 min ⚠️ ikke i møtet |
+| Batch (45-min møte, nb-whisper-small) | 3–6 min ⚠️ |
 
 **Fordeler:**
 - Fullt NAIS-kompatibelt — kan driftes av eksisterende plattformteam
-- Skalerbart
+- Skalerbart — mange samtidige veiledere
 - Kjent sikkerhetsprofil (NAIS er godkjent for personopplysninger)
-- Lav driftskostnad sammenlignet med GPU
+- Lav driftskostnad (ingen GPU-nodepool)
+- **Sanntidsmodus er realistisk** basert på observert CPU-ytelse lokalt
 
 **Ulemper:**
-- CPU-transkripsjon av 45-minuttersmøte tar ~15–25 minutter (uakseptabelt for sanntid)
-- Batch-modus kan fungere, men møtereferatet er ikke klart i møtet
+- Batch-transkripsjon av lange møter er treg (ikke egnet for post-møte-bruk)
+- Ollama med store LLM-er (32b) krever mye RAM — må trolig bruke mindre modell (8b)
+  eller ekstern LLM-tjeneste for møtereferat
 - NAIS dokumenterer ikke GPU-støtte per juni 2026
 
 **Juridisk vurdering:**
