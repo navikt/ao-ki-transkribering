@@ -42,19 +42,11 @@ logging.getLogger("faster_whisper").setLevel(logging.ERROR)
 # Konfigurasjon
 # ---------------------------------------------------------------------------
 
-MODELL_ID      = os.getenv("WHISPER_MODELL",         "NbAiLab/nb-whisper-medium")
-CT2_MODELL_STI = os.getenv("WHISPER_SANNTID_MODELL", "modeller/nb-whisper-medium")
-ARBEIDSMAPPE   = Path(tempfile.mkdtemp(prefix="transkribering_"))
-
-# Ollama-konfigurasjon
-OLLAMA_URL            = os.getenv("OLLAMA_URL",            "http://localhost:11434")
-OLLAMA_MODELL         = os.getenv("OLLAMA_MODELL",         "qwen3.6:35b")
-# Begrenser KV-cache-allokering. Modeller med stort standardvindauge (f.eks. qwen3.5: 128k)
-# bruker ellers sekunder på allokering alene. 8192 er nok for alle §14a-referater.
-OLLAMA_NUM_CTX        = int(os.getenv("OLLAMA_NUM_CTX",    "8192"))
+MODELL_ID    = os.getenv("WHISPER_MODELL",         "NbAiLab/nb-whisper-medium")
+ARBEIDSMAPPE = Path(tempfile.mkdtemp(prefix="transkribering_"))
 
 # ---------------------------------------------------------------------------
-# LLM-prompts og hjelpefunksjoner – importert fra prompts/
+# Imports fra submoduler
 # ---------------------------------------------------------------------------
 
 from prompts import (
@@ -67,48 +59,17 @@ from prompts import (
     normaliser_til_bokmal as _normaliser_til_bokmal,
     beregn_llm_estimat as _beregn_llm_estimat_base,
 )
+from ollama.klient import (
+    OllamaForesporsel as _OllamaForesporsel,
+    sse as _sse,
+    stream_tokens as _stream_ollama_tokens,
+    kall as _kall_ollama,
+    MODELL as _OLLAMA_MODELL,
+)
 
 
 def _beregn_llm_estimat(modell: str | None, transkripsjon: str) -> int:
-    return _beregn_llm_estimat_base(modell, transkripsjon, fallback=OLLAMA_MODELL)
-
-
-async def _stream_ollama_tokens(system: str, bruker: str, modell: str | None = None):
-    """Async generator som gir (token, er_ferdig, full_normalisert_tekst).
-
-    Brukes av streaming-endepunktene. Siste yield har er_ferdig=True og full tekst.
-    """
-    valgt_modell = modell or OLLAMA_MODELL
-    deler: list[str] = []
-    async with httpx.AsyncClient(timeout=httpx.Timeout(10.0, read=300.0)) as klient:
-        async with klient.stream(
-            "POST",
-            f"{OLLAMA_URL}/api/generate",
-            json={
-                "model": valgt_modell,
-                "system": system,
-                "prompt": bruker,
-                "stream": True,
-                "think": False,
-                "options": {"temperature": 0.25, "num_ctx": OLLAMA_NUM_CTX},
-            },
-        ) as resp:
-            resp.raise_for_status()
-            async for linje in resp.aiter_lines():
-                if not linje:
-                    continue
-                try:
-                    chunk = json.loads(linje)
-                except json.JSONDecodeError:
-                    continue
-                token = chunk.get("response", "")
-                if token:
-                    deler.append(token)
-                    yield token, False, ""
-                if chunk.get("done"):
-                    full = _normaliser_til_bokmal("".join(deler).strip())
-                    yield "", True, full
-                    return
+    return _beregn_llm_estimat_base(modell, transkripsjon, fallback=_OLLAMA_MODELL)
 
 
 _mp_ctx = multiprocessing.get_context("spawn")
@@ -234,46 +195,6 @@ async def hent_resultat(jobb_id: str):
 # Møtereferat og sammendrag – Ollama-integrasjon
 # ---------------------------------------------------------------------------
 
-class _OllamaForesporsel(BaseModel):
-    transkripsjon: str
-    modell: str | None = None
-
-
-async def _kall_ollama(system: str, bruker: str, modell: str | None = None) -> str:
-    """Kaller Ollama /api/generate med streaming og returnerer svarteksten.
-
-    Bruker streaming for å unngå timeout ved lange resonnementer (qwen3-tenking).
-    Tenking (`think`) deaktiveres eksplisitt for raskere og mer forutsigbar respons.
-    """
-    valgt_modell = modell or OLLAMA_MODELL
-    deler: list[str] = []
-    async with httpx.AsyncClient(timeout=httpx.Timeout(10.0, read=300.0)) as klient:
-        async with klient.stream(
-            "POST",
-            f"{OLLAMA_URL}/api/generate",
-            json={
-                "model": valgt_modell,
-                "system": system,
-                "prompt": bruker,
-                "stream": True,
-                "think": False,
-                "options": {"temperature": 0.25, "num_ctx": OLLAMA_NUM_CTX},
-            },
-        ) as resp:
-            resp.raise_for_status()
-            async for linje in resp.aiter_lines():
-                if not linje:
-                    continue
-                try:
-                    chunk = json.loads(linje)
-                except json.JSONDecodeError:
-                    continue
-                deler.append(chunk.get("response", ""))
-                if chunk.get("done"):
-                    break
-    return "".join(deler).strip()
-
-
 @app.post("/sammendrag")
 async def lag_sammendrag(foresporsel: _OllamaForesporsel):
     """Genererer et løpende sammendrag av transkripsjon hittil (Prompt B)."""
@@ -291,7 +212,7 @@ async def lag_sammendrag(foresporsel: _OllamaForesporsel):
         raise HTTPException(status_code=502, detail=f"Ollama svarte med feil: {e.response.status_code}")
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Feil ved generering av sammendrag: {e}")
-    return {"tekst": tekst, "modell": foresporsel.modell or OLLAMA_MODELL}
+    return {"tekst": tekst, "modell": foresporsel.modell or _OLLAMA_MODELL}
 
 
 @app.post("/referat")
@@ -311,7 +232,7 @@ async def lag_referat(foresporsel: _OllamaForesporsel):
         raise HTTPException(status_code=502, detail=f"Ollama svarte med feil: {e.response.status_code}")
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Feil ved generering av referat: {e}")
-    return {"tekst": tekst, "modell": foresporsel.modell or OLLAMA_MODELL}
+    return {"tekst": tekst, "modell": foresporsel.modell or _OLLAMA_MODELL}
 
 
 def _sse(data: dict) -> str:
@@ -333,7 +254,7 @@ async def lag_referat_stream(foresporsel: _OllamaForesporsel):
         raise HTTPException(status_code=400, detail="Transkripsjon mangler")
 
     estimat = _beregn_llm_estimat(foresporsel.modell, foresporsel.transkripsjon)
-    valgt_modell = foresporsel.modell or OLLAMA_MODELL
+    valgt_modell = foresporsel.modell or _OLLAMA_MODELL
     transkripsjon_normalisert = _normaliser_til_bokmal(foresporsel.transkripsjon)
     bruker_prompt = _BRUKER_REFERAT.format(transkripsjon=transkripsjon_normalisert)
 
@@ -366,7 +287,7 @@ async def lag_sammendrag_stream(foresporsel: _OllamaForesporsel):
         raise HTTPException(status_code=400, detail="Transkripsjon mangler")
 
     estimat = _beregn_llm_estimat(foresporsel.modell, foresporsel.transkripsjon)
-    valgt_modell = foresporsel.modell or OLLAMA_MODELL
+    valgt_modell = foresporsel.modell or _OLLAMA_MODELL
     transkripsjon_normalisert = _normaliser_til_bokmal(foresporsel.transkripsjon)
     bruker_prompt = _BRUKER_SAMMENDRAG.format(transkripsjon=transkripsjon_normalisert)
 
@@ -410,7 +331,7 @@ async def lag_rullerende_referat_stream(foresporsel: _OllamaForesporsel):
         raise HTTPException(status_code=400, detail="Transkripsjon mangler")
 
     estimat = _beregn_llm_estimat(foresporsel.modell, foresporsel.transkripsjon)
-    valgt_modell = foresporsel.modell or OLLAMA_MODELL
+    valgt_modell = foresporsel.modell or _OLLAMA_MODELL
     transkripsjon_normalisert = _normaliser_til_bokmal(foresporsel.transkripsjon)
     bruker_prompt = _BRUKER_RULLERENDE.format(transkripsjon=transkripsjon_normalisert)
 
