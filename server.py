@@ -798,7 +798,7 @@ async def last_ned_modell():
     """Stream nedlasting av Ollama-modell som SSE. Bruker subprocess for fremdrift."""
     if _ollama_modell_status.get("laster_ned"):
         return StreamingResponse(
-            iter([b'data: {"feil":"Nedlasting pågår allerede"}\n\n']),
+            iter([b'data: {"feil":"Nedlasting pagaar allerede"}\n\n']),
             media_type="text/event-stream",
         )
 
