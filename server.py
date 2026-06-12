@@ -737,15 +737,21 @@ async def _sjekk_ollama_modell():
     try:
         async with httpx.AsyncClient(timeout=5.0) as klient:
             resp = await klient.get(f"{OLLAMA_URL}/api/tags")
-            modeller = [m["name"] for m in resp.json().get("models", [])]
-            tilgjengelig = any(OLLAMA_MODELL == m or OLLAMA_MODELL == m.split(":")[0] for m in modeller)
+            modeller_data = resp.json().get("models", [])
+            modeller = [m["name"] for m in modeller_data]
+            treff = next(
+                (m for m in modeller_data if OLLAMA_MODELL == m["name"] or OLLAMA_MODELL == m["name"].split(":")[0]),
+                None,
+            )
+            tilgjengelig = treff is not None
             _ollama_modell_status["tilgjengelig"] = tilgjengelig
             if tilgjengelig:
-                log.info("Ollama-modell '%s' er tilgjengelig.", OLLAMA_MODELL)
+                storrelse_gb = treff["size"] / 1_073_741_824
+                log.warning("LLM-modell:  %s  (%.1f GB)  ✓ klar", OLLAMA_MODELL, storrelse_gb)
             else:
-                log.warning("Ollama-modell '%s' er IKKE installert. Tilgjengelige: %s", OLLAMA_MODELL, modeller)
+                log.warning("LLM-modell:  %s  ✗ IKKE installert  –  tilgjengelige: %s", OLLAMA_MODELL, ", ".join(modeller) or "(ingen)")
     except Exception as e:
-        log.warning("Kunne ikke kontakte Ollama ved oppstart: %s", e)
+        log.warning("LLM-modell:  %s  –  Ollama ikke tilgjengelig: %s", OLLAMA_MODELL, e)
         _ollama_modell_status["tilgjengelig"] = False
 
 
