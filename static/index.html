@@ -312,12 +312,42 @@
       border-top: 1px solid #ddeaf7;
       display: flex; gap: .5rem; align-items: center; flex-wrap: wrap;
     }
+
+    /* Modell-advarselsbanner */
+    #modell-banner {
+      display: none;
+      background: #fff3cd; border: 1px solid #f5a623;
+      border-radius: 6px; padding: 1rem 1.25rem;
+      margin-bottom: 1.5rem; font-size: .9rem;
+    }
+    #modell-banner.feil { background: #fde8e8; border-color: #c0392b; }
+    .modell-banner-rad { display: flex; align-items: center; gap: .75rem; flex-wrap: wrap; margin-top: .6rem; }
+    #modell-nedlasting-logg {
+      font-family: monospace; font-size: .8rem;
+      background: #1e1e1e; color: #d4d4d4;
+      border-radius: 4px; padding: .5rem .75rem;
+      max-height: 120px; overflow-y: auto;
+      margin-top: .5rem; display: none;
+    }
   </style>
 </head>
 <body>
 <div class="kort">
   <h1>Møtetranskribering</h1>
   <p class="ingress">Verktøy for transkribering av §14 a-møter. Kjører lokalt – ingen data forlater maskinen.</p>
+
+  <!-- Modell-advarselsbanner (vises hvis Ollama-modellen mangler) -->
+  <div id="modell-banner">
+    <strong id="modell-banner-tittel">⚠️ LLM-modell ikke installert</strong>
+    <p id="modell-banner-tekst" style="margin-top:.3rem"></p>
+    <div class="modell-banner-rad">
+      <button class="knapp knapp-sekundær" id="modell-last-ned-knapp" onclick="lastNedModell()" style="font-size:.85rem; padding:.35rem .8rem">
+        ⬇ Last ned modellen (~20 GB)
+      </button>
+      <span id="modell-banner-spinner" style="display:none; font-size:.85rem; color:#555">Laster ned …</span>
+    </div>
+    <div id="modell-nedlasting-logg"></div>
+  </div>
 
   <!-- ===== JURIDISK INFORMASJON ===== -->
   <div id="seksjon-samtykke" class="seksjon aktiv">
@@ -1438,6 +1468,90 @@ function kopierReferat() {
   // Hent ren tekst (uten HTML-tagger)
   navigator.clipboard.writeText(boks.innerText || boks.textContent);
 }
+
+// ---- Modell-statussjekk ved oppstart ----
+
+async function sjekkModellStatus() {
+  try {
+    const res = await fetch("/modell/status");
+    const data = await res.json();
+    const banner = document.getElementById("modell-banner");
+    if (data.tilgjengelig === false) {
+      document.getElementById("modell-banner-tittel").textContent =
+        `⚠️ LLM-modellen «${data.modell}» er ikke installert`;
+      document.getElementById("modell-banner-tekst").textContent =
+        "Sammendrag og møtereferat vil ikke fungere. Du kan laste ned modellen nå (krever ca. 20 GB diskplass og god internettforbindelse).";
+      const knapp = document.getElementById("modell-last-ned-knapp");
+      knapp.dataset.modell = data.modell;
+      banner.style.display = "block";
+    } else if (data.tilgjengelig === true) {
+      banner.style.display = "none";
+    }
+    // tilgjengelig === null = Ollama ikke tilgjengelig, vis ingenting
+  } catch { /* ignorer nettverksfeil */ }
+}
+
+async function lastNedModell() {
+  const knapp = document.getElementById("modell-last-ned-knapp");
+  const spinner = document.getElementById("modell-banner-spinner");
+  const logg = document.getElementById("modell-nedlasting-logg");
+  const banner = document.getElementById("modell-banner");
+
+  knapp.disabled = true;
+  spinner.style.display = "inline";
+  logg.style.display = "block";
+  logg.textContent = "";
+
+  try {
+    const res = await fetch("/modell/last-ned", { method: "POST" });
+    const reader = res.body.getReader();
+    const dec = new TextDecoder();
+    let buf = "";
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buf += dec.decode(value, { stream: true });
+      const linjer = buf.split("\n");
+      buf = linjer.pop();
+      for (const l of linjer) {
+        if (!l.startsWith("data:")) continue;
+        try {
+          const d = JSON.parse(l.slice(5).trim());
+          if (d.linje) {
+            logg.textContent += d.linje + "\n";
+            logg.scrollTop = logg.scrollHeight;
+          } else if (d.ferdig) {
+            if (d.suksess) {
+              banner.className = "";
+              document.getElementById("modell-banner-tittel").textContent = "✅ Modellen er installert";
+              document.getElementById("modell-banner-tekst").textContent =
+                "Nedlasting fullført. Sammendrag og møtereferat er nå tilgjengelig.";
+              knapp.style.display = "none";
+              spinner.style.display = "none";
+              setTimeout(() => { banner.style.display = "none"; }, 4000);
+            } else {
+              document.getElementById("modell-banner-tekst").textContent = "Nedlasting feilet. Prøv igjen.";
+              knapp.disabled = false;
+              spinner.style.display = "none";
+            }
+          } else if (d.feil) {
+            document.getElementById("modell-banner-tekst").textContent = "Feil: " + d.feil;
+            knapp.disabled = false;
+            spinner.style.display = "none";
+          }
+        } catch { /* ignorer JSON-parsefeil */ }
+      }
+    }
+  } catch (err) {
+    document.getElementById("modell-banner-tekst").textContent = "Nettverksfeil: " + err.message;
+    knapp.disabled = false;
+    spinner.style.display = "none";
+  }
+}
+
+// Sjekk modellstatus ved sidelast
+sjekkModellStatus();
 </script>
 </body>
 </html>

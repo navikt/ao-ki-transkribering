@@ -719,9 +719,34 @@ def _arbeider(jobbkø: multiprocessing.Queue, modell_id: str):
 async def lifespan(app: FastAPI):
     prosess = _mp_ctx.Process(target=_arbeider, args=(_jobbkø, MODELL_ID), daemon=True)
     prosess.start()
+    # Sjekk Ollama-modell ved oppstart
+    await _sjekk_ollama_modell()
     yield
     _jobbkø.put(None)  # Signal til worker om å avslutte
     prosess.join(timeout=5)
+
+
+# Global status for Ollama-modell
+_ollama_modell_status: dict = {"tilgjengelig": None, "laster_ned": False}
+
+log = logging.getLogger(__name__)
+
+
+async def _sjekk_ollama_modell():
+    """Sjekk om konfigurert Ollama-modell er tilgjengelig ved oppstart."""
+    try:
+        async with httpx.AsyncClient(timeout=5.0) as klient:
+            resp = await klient.get(f"{OLLAMA_URL}/api/tags")
+            modeller = [m["name"] for m in resp.json().get("models", [])]
+            tilgjengelig = any(OLLAMA_MODELL == m or OLLAMA_MODELL == m.split(":")[0] for m in modeller)
+            _ollama_modell_status["tilgjengelig"] = tilgjengelig
+            if tilgjengelig:
+                log.info("Ollama-modell '%s' er tilgjengelig.", OLLAMA_MODELL)
+            else:
+                log.warning("Ollama-modell '%s' er IKKE installert. Tilgjengelige: %s", OLLAMA_MODELL, modeller)
+    except Exception as e:
+        log.warning("Kunne ikke kontakte Ollama ved oppstart: %s", e)
+        _ollama_modell_status["tilgjengelig"] = False
 
 
 app = FastAPI(title="NB-Whisper transkribering", lifespan=lifespan)
@@ -747,6 +772,62 @@ def is_ready():
         return Response(content='{"status":"laster modell"}', status_code=503,
                         media_type="application/json")
     return {"status": "ok"}
+
+
+@app.get("/modell/status")
+async def modell_status():
+    """Returnerer status for konfigurert Ollama-modell."""
+    # Oppdater status ved kall (i tilfelle modellen er lastet etter oppstart)
+    try:
+        async with httpx.AsyncClient(timeout=5.0) as klient:
+            resp = await klient.get(f"{OLLAMA_URL}/api/tags")
+            modeller = [m["name"] for m in resp.json().get("models", [])]
+            tilgjengelig = any(OLLAMA_MODELL == m or OLLAMA_MODELL == m.split(":")[0] for m in modeller)
+            _ollama_modell_status["tilgjengelig"] = tilgjengelig
+    except Exception:
+        pass
+    return {
+        "modell": OLLAMA_MODELL,
+        "tilgjengelig": _ollama_modell_status.get("tilgjengelig"),
+        "laster_ned": _ollama_modell_status.get("laster_ned", False),
+    }
+
+
+@app.post("/modell/last-ned")
+async def last_ned_modell():
+    """Stream nedlasting av Ollama-modell som SSE. Bruker subprocess for fremdrift."""
+    if _ollama_modell_status.get("laster_ned"):
+        return StreamingResponse(
+            iter([b'data: {"feil":"Nedlasting pågår allerede"}\n\n']),
+            media_type="text/event-stream",
+        )
+
+    async def _stream():
+        _ollama_modell_status["laster_ned"] = True
+        try:
+            prosess = await asyncio.create_subprocess_exec(
+                "ollama", "pull", OLLAMA_MODELL,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.STDOUT,
+            )
+            assert prosess.stdout is not None
+            async for linje in prosess.stdout:
+                tekst = linje.decode("utf-8", errors="replace").strip()
+                if tekst:
+                    melding = json.dumps({"linje": tekst}, ensure_ascii=False)
+                    yield f"data: {melding}\n\n".encode()
+            await prosess.wait()
+            suksess = prosess.returncode == 0
+            _ollama_modell_status["tilgjengelig"] = suksess
+            status_melding = json.dumps({"ferdig": True, "suksess": suksess})
+            yield f"data: {status_melding}\n\n".encode()
+        except Exception as e:
+            feil_melding = json.dumps({"feil": str(e)})
+            yield f"data: {feil_melding}\n\n".encode()
+        finally:
+            _ollama_modell_status["laster_ned"] = False
+
+    return StreamingResponse(_stream(), media_type="text/event-stream")
 
 
 # ---------------------------------------------------------------------------
