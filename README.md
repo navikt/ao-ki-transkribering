@@ -259,4 +259,23 @@ python -m benchmarks.optimalisering
 python -m benchmarks.optimalisering --modeller qwen3:8b qwen3.5:9b
 ```
 
-Se [benchmarks.md](benchmarks.md) for tidligere resultater.
+### Testing
+
+Unit-tester (krever ikke Ollama eller server):
+
+```bash
+pytest
+```
+
+Integrasjonstester (krever Ollama / faster-whisper-modell):
+
+```bash
+pytest -m integration                                                    # alle
+python tests/integration/test_referat.py                                 # møtereferat
+python tests/integration/test_referat.py --fil testdata/conversation_nb.md
+python tests/integration/test_referat.py --debug                         # vis råe chunks
+python tests/integration/test_sanntid.py                                 # sanntidsmodus
+python tests/integration/test_sanntid.py --fil testdata/king.mp3
+```
+
+

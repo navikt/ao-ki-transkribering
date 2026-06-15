@@ -80,8 +80,28 @@ _NYNORSK_BOKMAL = [
 ]
 
 
+def _strip_think_blokkar(tekst: str) -> str:
+    """Fjernar <think>...</think>-blokkar utan regex-backtracking."""
+    while True:
+        start = tekst.find("<think>")
+        if start == -1:
+            break
+        end = tekst.find("</think>", start)
+        if end == -1:
+            # Opa <think>-tag utan lukking — fjern frå <think> til slutten
+            tekst = tekst[:start]
+            break
+        tekst = tekst[:start] + tekst[end + len("</think>"):]
+    return tekst.strip()
+
+
 def normaliser_til_bokmal(tekst: str) -> str:
-    """Erstatter kjente nynorsk-former med bokmål i LLM-output."""
+    """Erstatter kjente nynorsk-former med bokmål i LLM-output.
+
+    Striper også <think>...</think>-blokker som qwen3-modellar
+    kan sende sjølv med think=False.
+    """
+    tekst = _strip_think_blokkar(tekst)
     for mønster, erstatning in _NYNORSK_BOKMAL:
         def _bytt(m: re.Match, repl: str = erstatning) -> str:
             s = m.group(0)
