@@ -82,7 +82,7 @@ Filer:
 Kommando:
 
 ```bash
-python3 benchmark_sammendrag.py --vis-sammendrag
+python3 -m benchmarks.sammendrag --vis-sammendrag
 ```
 
 | Fil | Ord | TTFT | Total | Tokens | tok/s | Status |

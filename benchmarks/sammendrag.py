@@ -8,9 +8,9 @@ Måler:
   - Tokens per sekund
 
 Bruk:
-  python benchmark_sammendrag.py
-  python benchmark_sammendrag.py --modell qwen3.6:35b --runder 3
-  python benchmark_sammendrag.py --url http://127.0.0.1:8765 --vis-sammendrag
+  python -m benchmarks.sammendrag
+  python -m benchmarks.sammendrag --modell qwen3.6:35b --runder 3
+  python -m benchmarks.sammendrag --url http://127.0.0.1:8765 --vis-sammendrag
 """
 
 from __future__ import annotations
