@@ -1,6 +1,5 @@
 import json
 import os
-import re
 
 import httpx
 from pydantic import BaseModel
@@ -90,7 +89,7 @@ async def stream_tokens(system: str, bruker: str, modell: str | None = None):
                 if chunk.get("done"):
                     # Fallback: flush remaining buffer if we never left thinking
                     if tilstand in ("undecided", "thinking") and buf:
-                        flushed = re.sub(r"<think>.*?</think>", "", buf, flags=re.DOTALL)
+                        flushed = normaliser_til_bokmal(buf)
                         # If still inside unclosed <think>, drop it; otherwise flush
                         if "<think>" in flushed:
                             flushed = ""
@@ -135,4 +134,4 @@ async def kall(system: str, bruker: str, modell: str | None = None) -> str:
                 if chunk.get("done"):
                     break
     rå = "".join(deler)
-    return normaliser_til_bokmal(re.sub(r"<think>.*?</think>", "", rå, flags=re.DOTALL).strip())
+    return normaliser_til_bokmal(rå)
