@@ -69,7 +69,8 @@ def arbeider(jobbkø: multiprocessing.Queue, modell_id: str):
 
         wav_sti = None
         try:
-            wav_sti = Path(tempfile.mktemp(suffix=".wav"))
+            with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as _tmp:
+                wav_sti = Path(_tmp.name)
             subprocess.run(
                 ["ffmpeg", "-y", "-i", str(lydfil),
                  "-ar", "16000", "-ac", "1", str(wav_sti)],

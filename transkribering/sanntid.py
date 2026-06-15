@@ -55,7 +55,8 @@ def transkriber_pcm(
         return None, prototyper
 
     modell = hent_fw_modell()
-    wav_sti = Path(tempfile.mktemp(suffix=".wav"))
+    with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as _tmp:
+        wav_sti = Path(_tmp.name)
     try:
         import soundfile as sf
         sf.write(str(wav_sti), pcm, SAMPLE_RATE, subtype="FLOAT")
