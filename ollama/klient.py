@@ -7,7 +7,7 @@ from pydantic import BaseModel
 from prompts.normalisering import normaliser_til_bokmal
 
 URL       = os.getenv("OLLAMA_URL",        "http://localhost:11434")
-MODELL    = os.getenv("OLLAMA_MODELL",     "qwen3.6:35b")
+MODELL    = os.getenv("OLLAMA_MODELL",     "qwen3:8b")
 NUM_CTX   = int(os.getenv("OLLAMA_NUM_CTX", "8192"))
 
 _OPTIONS = {"temperature": 0.25, "num_ctx": NUM_CTX}
