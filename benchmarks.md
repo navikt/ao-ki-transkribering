@@ -65,3 +65,31 @@ qwen3.5:9b            ctx2048+max400+t0.1       8.7s  20.2 tok/s
 qwen3.6:35b           ctx4096+temp0.1           12.6s  19.4 tok/s
 
 🏆  Raskast totalt: qwen3:8b med «ctx4096+max400» — 8.2s
+
+---
+
+## Sammendrag-endepunkt med testtranskripsjoner
+
+Dato: 2026-06-12  
+Endepunkt: `POST /sammendrag/stream`  
+Server: `http://127.0.0.1:8765`  
+Modell: `qwen3:8b`  
+Filer:
+
+- `testdata/conversation_en.md`
+- `testdata/conversation_nb.md`
+
+Kommando:
+
+```bash
+python3 -m benchmarks.sammendrag --vis-sammendrag
+```
+
+| Fil | Ord | TTFT | Total | Tokens | tok/s | Status |
+|---|---:|---:|---:|---:|---:|---|
+| `testdata/conversation_en.md` | 3786 | 15.60s | 24.4s | 336 | 13.7 | OK |
+| `testdata/conversation_nb.md` | 3534 | 19.31s | 26.2s | 247 | 9.4 | OK |
+
+Observasjon: Engelsk transkripsjon ga bokmålssammendrag som forventet, men hadde noen
+kvalitetsfeil i fagord, blant annet rundt truckførerbevis og bemanningsbyrå. Bokmålfilen
+ga et mer presist sammendrag.
