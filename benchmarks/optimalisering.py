@@ -7,9 +7,9 @@ mot alle tre modellane og rapporterer kva kombinasjon som er raskast.
 Kallar Ollama direkte – krev ikkje at server.py køyrer.
 
 Bruk:
-  python benchmark_optimalisering.py
-  python benchmark_optimalisering.py --ollama http://localhost:11434
-  python benchmark_optimalisering.py --modeller qwen3:8b qwen3.5:9b
+  python -m benchmarks.optimalisering
+  python -m benchmarks.optimalisering --ollama http://localhost:11434
+  python -m benchmarks.optimalisering --modeller qwen3:8b qwen3.5:9b
 """
 
 import argparse

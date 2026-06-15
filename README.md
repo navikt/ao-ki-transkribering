@@ -217,12 +217,46 @@ uvicorn server:app --host 127.0.0.1 --port 8765 --reload
 Kodestruktur:
 
 ```
-server.py              # FastAPI-backend: transkripsjon, diarisering, Ollama-integrasjon
+server.py                    # FastAPI-backend: endepunkter og Ollama-integrasjon
 static/
-  index.html           # Enkeltside-frontend (HTML/CSS/JS)
-  audio-processor.js   # AudioWorklet for sanntids-PCM-prosessering
-last_ned_modeller.py   # Nedlasting av nb-whisper-modeller
-konverter_modeller.py  # Konvertering til CTranslate2-format (sanntidsmodus)
-møtereferat_prompt.md  # Dokumentasjon av LLM-prompts
-testdata/              # Testlydfiler (NRK, offentlig)
+  index.html                 # Enkeltside-frontend (HTML/CSS/JS)
+  audio-processor.js         # AudioWorklet for sanntids-PCM-prosessering
+transkribering/
+  batch.py                   # Batch-transkripsjon med nb-whisper
+  sanntid.py                 # Sanntidstranskripsjon med faster-whisper
+  diarisering.py             # Høyttalerdiarisering (pyannote)
+  hallusinasjon.py           # Filtrering av hallusinerte segmenter
+  konstanter.py              # Felles konstanter
+ollama/
+  klient.py                  # Ollama HTTP-klient
+prompts/
+  motereferat.py             # §14a-møtereferat-prompt
+  normalisering.py           # Normaliseringsprompt
+  estimat.py                 # Tidsestimat-prompt
+benchmarks/
+  sammendrag.py              # Benchmark av /sammendrag/stream mot server
+  optimalisering.py          # Matrise-benchmark av LLM-konfigurasjonar mot Ollama
+last_ned_modeller.py         # Nedlasting av nb-whisper-modeller
+konverter_modeller.py        # Konvertering til CTranslate2-format (sanntidsmodus)
+møtereferat_prompt.md        # Dokumentasjon av LLM-prompts
+benchmarks.md                # Benchmark-resultater
+testdata/                    # Testlydfiler (NRK, offentlig)
 ```
+
+### Benchmarking
+
+Mål ytelse på `/sammendrag/stream`-endepunktet (krever at serveren kjører):
+
+```bash
+python -m benchmarks.sammendrag
+python -m benchmarks.sammendrag --modell qwen3.6:35b --runder 3 --vis-sammendrag
+```
+
+Test LLM-konfigurasjonar direkte mot Ollama (uten server):
+
+```bash
+python -m benchmarks.optimalisering
+python -m benchmarks.optimalisering --modeller qwen3:8b qwen3.5:9b
+```
+
+Se [benchmarks.md](benchmarks.md) for tidligere resultater.
