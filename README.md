@@ -259,4 +259,20 @@ python -m benchmarks.optimalisering
 python -m benchmarks.optimalisering --modeller qwen3:8b qwen3.5:9b
 ```
 
-Se [benchmarks.md](benchmarks.md) for tidligere resultater.
+### Testing
+
+Unit-tester (krever ikke Ollama eller server):
+
+```bash
+pytest
+```
+
+End-to-end test av møtereferat-generering (krever Ollama):
+
+```bash
+python test_referat.py                                      # standard testfil
+python test_referat.py --fil testdata/conversation_nb.md   # annen fil
+python test_referat.py --debug                             # vis råe chunks fra Ollama
+```
+
+
