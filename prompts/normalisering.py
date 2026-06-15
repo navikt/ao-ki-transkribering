@@ -81,7 +81,12 @@ _NYNORSK_BOKMAL = [
 
 
 def normaliser_til_bokmal(tekst: str) -> str:
-    """Erstatter kjente nynorsk-former med bokmål i LLM-output."""
+    """Erstatter kjente nynorsk-former med bokmål i LLM-output.
+
+    Striper også <think>...</think>-blokker som qwen3-modellar
+    kan sende sjølv med think=False.
+    """
+    tekst = re.sub(r"<think>.*?</think>", "", tekst, flags=re.DOTALL).strip()
     for mønster, erstatning in _NYNORSK_BOKMAL:
         def _bytt(m: re.Match, repl: str = erstatning) -> str:
             s = m.group(0)

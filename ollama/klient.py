@@ -26,9 +26,11 @@ async def stream_tokens(system: str, bruker: str, modell: str | None = None):
     """Async generator som gir (token, er_ferdig, full_normalisert_tekst).
 
     Siste yield har er_ferdig=True og normalisert sluttekst.
+    Tenke-blokkar (<think>...</think>) frå qwen3-modellar vert filtrert bort.
     """
     valgt_modell = modell or MODELL
     deler: list[str] = []
+    tenker = False
     async with httpx.AsyncClient(timeout=httpx.Timeout(10.0, read=300.0)) as klient:
         async with klient.stream(
             "POST",
@@ -52,8 +54,13 @@ async def stream_tokens(system: str, bruker: str, modell: str | None = None):
                     continue
                 token = chunk.get("response", "")
                 if token:
-                    deler.append(token)
-                    yield token, False, ""
+                    if "<think>" in token:
+                        tenker = True
+                    if not tenker:
+                        deler.append(token)
+                        yield token, False, ""
+                    if "</think>" in token:
+                        tenker = False
                 if chunk.get("done"):
                     full = normaliser_til_bokmal("".join(deler).strip())
                     yield "", True, full
