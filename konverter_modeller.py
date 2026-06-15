@@ -30,6 +30,7 @@ MODELLER = {
 
 TOKENIZER_FILER = ["tokenizer.json", "vocab.json", "merges.txt",
                    "normalizer.json", "added_tokens.json", "special_tokens_map.json"]
+UTMAPPE = Path("modeller")
 UTMAPPE.mkdir(exist_ok=True)
 
 CT2_CONVERTER = Path(sys.executable).parent / "ct2-transformers-converter"

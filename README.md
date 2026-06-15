@@ -267,12 +267,15 @@ Unit-tester (krever ikke Ollama eller server):
 pytest
 ```
 
-End-to-end test av møtereferat-generering (krever Ollama):
+Integrasjonstester (krever Ollama / faster-whisper-modell):
 
 ```bash
-python test_referat.py                                      # standard testfil
-python test_referat.py --fil testdata/conversation_nb.md   # annen fil
-python test_referat.py --debug                             # vis råe chunks fra Ollama
+pytest -m integration                                                    # alle
+python tests/integration/test_referat.py                                 # møtereferat
+python tests/integration/test_referat.py --fil testdata/conversation_nb.md
+python tests/integration/test_referat.py --debug                         # vis råe chunks
+python tests/integration/test_sanntid.py                                 # sanntidsmodus
+python tests/integration/test_sanntid.py --fil testdata/king.mp3
 ```
 
 
