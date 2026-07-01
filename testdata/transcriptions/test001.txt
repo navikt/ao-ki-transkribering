@@ -1,0 +1,140 @@
+# 29-06-2026, 13-14.wav
+language=no probability=1.000
+
+[0006.76 - 0014.48] Hei, jeg heter André. Hyggelig å møte deg.
+[0016.84 - 0023.28] Det er varmt i dag. Jeg håper faktisk litt på dårlig vær, sånn at jeg kan sitte inne
+[0024.08 - 0027.76] og se litt VM og ha litt god samvittighet for det.
+[0027.76 - 0035.64] Jeg syns ikke dette er varmt, dette er en fint temperert sommerdag for meg.
+[0036.64 - 0042.52] For du er fra Syria? Ja, der var det veldig varmt.
+[0042.52 - 0047.20] Hvor varmt bruker det å være på sommeren?
+[0047.20 - 0051.36] God sommertemperatur. Opp mot 40 grader.
+[0051.38 - 0055.66] Det er noe annet enn det vi har her. Det er ikke jeg vant med.
+[0055.72 - 0060.40] Når det blir over 30 grader, da blir det for mye for meg.
+[0067.12 - 0073.12] Du har registrert deg her hos Nav som arbeidssøker.
+[0073.12 - 0078.16] Det er derfor du er her i dag, det er derfor jeg har kalt deg inn til en prat.
+[0078.16 - 0082.32] For å bli litt bedre kjent med deg.
+[0082.76 - 0089.36] Og hva det er du ønsker fra Nav? Hvordan vi kan hjelpe deg.
+[0089.36 - 0095.12] Det er veldig vanskelig å få det opp, for jeg har god utdanning og er pliktoppfyllende.
+[0096.68 - 0102.72] Men det er veldig vanskelig å få jobb her.
+[0102.80 - 0110.84] Jeg prater annerledes, og det er vanskelig for meg å få en mulighet og få en sjanse.
+[0111.32 - 0116.20] Jeg har sendt mange søknader. Jeg har sendt 200 søknader det siste året.
+[0116.20 - 0120.04] Du har prøvd hardt, og du vil gjerne jobbe?
+[0120.04 - 0123.72] Ja, jeg må jobbe. Jeg skal jobbe.-Ja.
+[0124.18 - 0127.56] Det er jo fint å høre. Det virker som du virkelig ønsker en jobb,
+[0127.56 - 0131.76] og du har jobba hardt for å få det.
+[0131.84 - 0138.20] Det viktigste nå er at jeg får en sjanse. Ingen gir meg en sjanse.
+[0138.20 - 0143.74] Jeg har jo litt informasjon ifra da du registrerte det,
+[0143.74 - 0150.32] så jeg kommer til å stille deg en del spørsmål og bli bedre kjent med det, sånn som vi gjør nå, egentlig.
+[0150.36 - 0152.48] Ikke så interessert i det. littlelyst.
+[0153.78 - 0159.38] Jeg håper at vi kan snakke om noen konkrete jobbmuligheter.
+[0159.38 - 0163.86] Jeg tenker vi kommer til det i løpet av samtalen.
+[0164.46 - 0170.22] Så har jeg lyst til å vite litt mer om deg. Hva er det du har jobba med før? Ønsker du å jobbe med?
+[0171.10 - 0175.22] For du har uttrykt et klart ønske om at du vil ha en jobb, og du må ha en jobb.
+[0175.24 - 0181.74] Det er også det vi i Nav jobber med. Vi hjelper folk i jobb. Det er det vi gjør.
+[0183.76 - 0191.64] Jeg kan jobbe som ingeniør. Før det jobbet jeg som bilmekaniker.
+[0191.64 - 0199.24] Så jobbet jeg to år som ingeniør før krigen startet.
+[0199.24 - 0205.96] Da ville de ikke ha ingeniører lenger. Da gikk alt. Da tenkte de ikke det.
+[0206.02 - 0212.20] Du har tatt utdanning som ingeniør i Syria og fått jobba to år som ingeniør?
+[0213.78 - 0218.28] Ja. Men problemet er papirene.
+[0218.28 - 0223.86] Det er ingen som tror på meg at det er ingeniør her i landet.
+[0223.86 - 0229.36] Hvor mange år studerte du for å bli ingeniør? I fire år.
+[0229.36 - 0236.74] Og da fikk du en grad? En mastergrad. Fire år i Syria.
+[0238.62 - 0242.72] Og hvordan var det? Og var det hardt?
+[0243.76 - 0251.88] Det er jo ingeniørstudier. Det høres jo litt krevende ut.
+[0251.88 - 0257.96] Det er intelligent. Det går bra.
+[0257.96 - 0261.16] Så bra. Og så fikk du jobba litt med det òg? To år.
+[0261.18 - 0270.86] Hvordan var det? Hvem du jobba for? Var det et privat firma?
+[0273.76 - 0283.16] Og det er det du har lyst til å jobbe med hvis du hadde muligheten?
+[0283.72 - 0299.00] Du har høyere utdanning. Du er jo tydeligvis ressurser.
+[0299.00 - 0304.88] Hvor lenge har du vært i Norge? I syv år nå.
+[0304.92 - 0311.88] Så ser jeg at du har gjennomført instruksjonsprogram.
+[0311.88 - 0317.92] Og så ser jeg også at du har hatt en del ulike jobber her i landet.
+[0317.94 - 0327.48] Ja, det er jobber som ikke passer for meg. Det passer ikke for en person med høy utdanning.
+[0329.38 - 0340.33] De som har gjort meg før på NAV, de har prøvd å få meg inn i jobber som er veldig enkle,
+[0340.93 - 0348.93] som ikke passer for meg. Som handler om å stå i kiosk eller gjøre enkle ting.
+[0352.25 - 0356.95] De sa at det var for at jeg skulle lære språket og få bedre jobber.
+[0357.59 - 0358.73] Men nå prater jeg språket fint.
+[0360.99 - 0370.95] Så ser jeg at du har jobba ... For du sier hun jobba i kiosk?
+[0373.07 - 0378.91] Ja, i kiosk der hvor vi bodde da vi kom.
+[0378.99 - 0386.51] I Elverum, i kommunen der hvor vi bodde. Det forstår jeg.
+[0390.99 - 0395.11] Ja, jeg sier jo at dette er ikke jobber som jeg vil trives med.
+[0395.19 - 0399.19] Dette er ikke jobber som betaler godt. Dette er ikke jobber som jeg ønsker.
+[0399.27 - 0414.75] Og så begynte du i møtet å si at du er ganske fleksibel.
+[0414.83 - 0417.87] Du ønsker bare en jobb. Men hva er drømmejobben din?
+[0418.11 - 0419.43] Jobbe som ingeniør, ikke jobbe i kiosk. andre jobber. andre jobber.g.g.
+[0420.97 - 0425.35] Og det er jo forståelig, for det er det du har utdanna deg som.
+[0425.35 - 0429.77] Det er naturlig at du ønsker å få brukt utdanninga di.
+[0429.77 - 0439.25] Har du fått godkjent den ... Du sier jo at det var litt problemer med dokumentasjonen, men ...
+[0439.33 - 0442.41] Nei, det er godkjent. Papirene er borte.
+[0442.57 - 0451.85] Ingen jeg kjenner, som kommer fra Syria, som har papirer på utdanningene sine.
+[0451.85 - 0467.37] Jeg forstår. Og så er det jo ... Vi har en egen ...
+[0467.73 - 0467.89] En form for myndighet som kan godkjenne høyere utdanning i Norge. worke som ingeniør.
+[0467.97 - 0468.57] Det er ikke noe ... Man må ikke få godkjent den utdanninga from utlandet,
+[0471.13 - 0471.17] det er på vei.
+[0471.17 - 0476.35] Det er en sikkerhet for arbeidsgiver å vite at hvis de skal ansette seg,
+[0476.37 - 0481.45] er det dokumentasjon på at du har en ingeniørutdanning.
+[0481.47 - 0488.07] Det er en mulighet, men så vet jeg at det kan ta lengre tid hvis man ikke har dokumentasjon på
+[0489.13 - 0491.81] den utdanninga som man har med seg fra utlandet.
+[0491.83 - 0495.19] Har du vært borti denne prosessen i det hele tatt?
+[0495.21 - 0500.50] Nei. Er det NOKUT? Yes.
+[0500.50 - 0501.72] ut.
+[0503.00 - 0512.52] Det kan være mulighet for også at de uten dokumentasjon kan få godkjent den medbrakte utdanninga.
+[0512.68 - 0528.64] Vi kan se litt nærmere på det i slutten av møtet NOKUT har i nettsida, å forklare litt hva du må gjøre for å få utdanninga godkjent hvis du ikke har vitnemål med deg fra hjemlandet.
+[0529.08 - 0531.96] Det kan være en mulighet, men det kan vi eventuelt se nærmere på.
+[0532.96 - 0535.92] Vi vil gjerne se nærmere på det.
+[0535.92 - 0544.44] Og så tenkte jeg vi kan snakke litt om hva du gjør for å få jobb i dag.
+[0544.56 - 0551.60] Du er jo her hos oss i Nav i dag, og vi har et nettverk med arbeidsgivere.
+[0551.60 - 0557.56] Men så lurer jeg litt på hva du selv gjør nå for å få jobb.
+[0561.94 - 0561.96] sender du søknader? banker du på dører??ukalig.
+[0563.00 - 0571.00] Du skriv ein søknad, og så søker eg på stillinga.
+[0571.08 - 0575.04] Og får meg ikkje inn til intervju.
+[0575.04 - 0584.44] Det er sånn du går fram. Du skriv ein søknad, og så ventar du på svar.
+[0584.52 - 0589.44] Det er ikkje sånn at du oppsøker eller ringer arbeidsgivarar i tillegg.
+[0593.00 - 0601.04] Jeg er god til å prate norsk, men det er litt vanskelig å skrive noen ganger.
+[0601.10 - 0606.48] Jeg hører jo at du har gode norskferdigheter. Jeg forstår hva du sier,
+[0606.48 - 0610.44] og det virker som du forstår hva jeg sier.
+[0610.44 - 0617.36] Det er òg en fordel når man skal søke jobb i Norge, at man har norskferdigheter.
+[0622.96 - 0629.40] Men så sa du at det skriftlige kunne være litt utfordrende.
+[0629.44 - 0633.72] Ja, det er litt vanskelig, men jeg jobber med det.
+[0633.80 - 0640.88] Og hvis jeg får en ordentlig jobb, så kan jeg lære fort.
+[0640.88 - 0647.16] Har du tatt noen norskprøver? Ja, B2, det er tre.
+[0653.00 - 0664.13] B2, både muntlig og skriftlig eller bare muntlig?
+[0675.29 - 0681.13] Ja, men det tenker jeg er en kjempefordel at du har norskprøve.
+[0681.21 - 0681.41] Og jeg hører jo at norskferdighetene er veldig gode. Det tror jeg kommer til å hjelpe deg.�ken vi også se.
+[0685.53 - 0689.45] Vi kan se om det er noe vi kan gjøre annerledes.
+[0689.87 - 0694.65] Jeg kan også gjerne se på CV-en din, for å se hvordan den ser ut.
+[0694.77 - 0702.21] Det kan ha mye å si når man søker jobb, spesielt det med CV-en, hvordan den er formet.
+[0702.21 - 0705.97] ene. Så det kan vi også ta oss tida til.
+[0709.65 - 0714.45] factorså bra. Det vil jeg gjerne.
+[0714.47 - 0714.49] Du har gode norskferdigheter. Er det sånn at du får praktisert det?
+[0715.05 - 0719.47] Du har familie, ikke sant? Du har tre barn?
+[0719.49 - 0727.76] Ja, vi prater syrisk hjemme.
+[0727.76 - 0734.64] Ja. Så jeg får ikke pratet så mye norsk.
+[0734.64 - 0745.64] Jeg prater norsk med naboer og folk jeg kjenner litt, men ikke så mye som jeg burde.
+[0747.80 - 0753.60] Jeg har iallfall praktisert det litt. Hjemme er det ditt morsmål.
+[0753.68 - 0760.56] Men du får snakka litt med naboer. Du må jo holde det ved like, for du er på et høyt nivå.
+[0760.56 - 0765.16] Jeg prøver å prate mye norsk.
+[0765.20 - 0769.16] Jeg prater norsk overalt i samfunnet hvor jeg beveger meg.
+[0769.16 - 0772.52] Ser på norsk TV noen ganger.
+[0772.52 - 0776.64] Og så er jeg litt nysg på dagene dine.
+[0778.36 - 0782.24] Søker jobb. Du er arbeidsledig, og du har kommet til oss nå.
+[0782.24 - 0784.96] Hvordan ser dagene dine ut nå?
+[0785.00 - 0791.68] Søker jobb. Trener. Møter venner.
+[0791.70 - 0798.04] Er med familien. Følger barna på fotball, på dans.
+[0799.52 - 0806.76] Så det er jo en god del. Du klarer å fylle dagene, og du søker jobb, som du sier.
+[0807.92 - 0812.16] Og da sitter du inne liksom og bare ...
+[0812.24 - 0817.24] Hvordan er det du leter etter jobber? Hvilke nettsider bruker du, hvis det er det du bruker?
+[0817.36 - 0824.16] Du logger deg inn på navn.no, arbeidsplassen, og så ser du der.
+[0824.16 - 0833.40] Drømmejobben din var jo ingeniør. Du har søkt 200.
+[0833.48 - 0838.48] Det er veldig mange jobber du har søkt på. Er det variasjon?
+[0838.56 - 0840.56] Søker du litt sånn forskjellig, eller? Alle ingeniørstillinger.
+[0840.60 - 0851.43] Ja, og hvis ... Man må jo kanskje ... Du er på et høyt nivå i norsk.
+[0851.51 - 0865.71] For å jobbe som ingeniør, i hvert fall hvis norsk er arvespråket, så kan det være en fordel å være på B2.
+[0865.79 - 0871.07] Du hadde B2 muntlig, i hvert fall. Og skriftlig òg, eller?
+[0872.73 - 0878.65] Det burde egentlig være godt nok i en ingeniørjobb.
+[0878.81 - 0888.95] Men jeg vil gjerne se på en søknad som du har skrevet, om det er noe vi kan gjøre der med den søknaden.
+[0888.95 - 0900.45] Det kan vi gjerne gjøre i neste møte. Sorry.
+
+--- PLAIN TEXT ---
+
+Hei, jeg heter André. Hyggelig å møte deg. Det er varmt i dag. Jeg håper faktisk litt på dårlig vær, sånn at jeg kan sitte inne og se litt VM og ha litt god samvittighet for det. Jeg syns ikke dette er varmt, dette er en fint temperert sommerdag for meg. For du er fra Syria? Ja, der var det veldig varmt. Hvor varmt bruker det å være på sommeren? God sommertemperatur. Opp mot 40 grader. Det er noe annet enn det vi har her. Det er ikke jeg vant med. Når det blir over 30 grader, da blir det for mye for meg. Du har registrert deg her hos Nav som arbeidssøker. Det er derfor du er her i dag, det er derfor jeg har kalt deg inn til en prat. For å bli litt bedre kjent med deg. Og hva det er du ønsker fra Nav? Hvordan vi kan hjelpe deg. Det er veldig vanskelig å få det opp, for jeg har god utdanning og er pliktoppfyllende. Men det er veldig vanskelig å få jobb her. Jeg prater annerledes, og det er vanskelig for meg å få en mulighet og få en sjanse. Jeg har sendt mange søknader. Jeg har sendt 200 søknader det siste året. Du har prøvd hardt, og du vil gjerne jobbe? Ja, jeg må jobbe. Jeg skal jobbe.-Ja. Det er jo fint å høre. Det virker som du virkelig ønsker en jobb, og du har jobba hardt for å få det. Det viktigste nå er at jeg får en sjanse. Ingen gir meg en sjanse. Jeg har jo litt informasjon ifra da du registrerte det, så jeg kommer til å stille deg en del spørsmål og bli bedre kjent med det, sånn som vi gjør nå, egentlig. Ikke så interessert i det. littlelyst. Jeg håper at vi kan snakke om noen konkrete jobbmuligheter. Jeg tenker vi kommer til det i løpet av samtalen. Så har jeg lyst til å vite litt mer om deg. Hva er det du har jobba med før? Ønsker du å jobbe med? For du har uttrykt et klart ønske om at du vil ha en jobb, og du må ha en jobb. Det er også det vi i Nav jobber med. Vi hjelper folk i jobb. Det er det vi gjør. Jeg kan jobbe som ingeniør. Før det jobbet jeg som bilmekaniker. Så jobbet jeg to år som ingeniør før krigen startet. Da ville de ikke ha ingeniører lenger. Da gikk alt. Da tenkte de ikke det. Du har tatt utdanning som ingeniør i Syria og fått jobba to år som ingeniør? Ja. Men problemet er papirene. Det er ingen som tror på meg at det er ingeniør her i landet. Hvor mange år studerte du for å bli ingeniør? I fire år. Og da fikk du en grad? En mastergrad. Fire år i Syria. Og hvordan var det? Og var det hardt? Det er jo ingeniørstudier. Det høres jo litt krevende ut. Det er intelligent. Det går bra. Så bra. Og så fikk du jobba litt med det òg? To år. Hvordan var det? Hvem du jobba for? Var det et privat firma? Og det er det du har lyst til å jobbe med hvis du hadde muligheten? Du har høyere utdanning. Du er jo tydeligvis ressurser. Hvor lenge har du vært i Norge? I syv år nå. Så ser jeg at du har gjennomført instruksjonsprogram. Og så ser jeg også at du har hatt en del ulike jobber her i landet. Ja, det er jobber som ikke passer for meg. Det passer ikke for en person med høy utdanning. De som har gjort meg før på NAV, de har prøvd å få meg inn i jobber som er veldig enkle, som ikke passer for meg. Som handler om å stå i kiosk eller gjøre enkle ting. De sa at det var for at jeg skulle lære språket og få bedre jobber. Men nå prater jeg språket fint. Så ser jeg at du har jobba ... For du sier hun jobba i kiosk? Ja, i kiosk der hvor vi bodde da vi kom. I Elverum, i kommunen der hvor vi bodde. Det forstår jeg. Ja, jeg sier jo at dette er ikke jobber som jeg vil trives med. Dette er ikke jobber som betaler godt. Dette er ikke jobber som jeg ønsker. Og så begynte du i møtet å si at du er ganske fleksibel. Du ønsker bare en jobb. Men hva er drømmejobben din? Jobbe som ingeniør, ikke jobbe i kiosk. andre jobber. andre jobber.g.g. Og det er jo forståelig, for det er det du har utdanna deg som. Det er naturlig at du ønsker å få brukt utdanninga di. Har du fått godkjent den ... Du sier jo at det var litt problemer med dokumentasjonen, men ... Nei, det er godkjent. Papirene er borte. Ingen jeg kjenner, som kommer fra Syria, som har papirer på utdanningene sine. Jeg forstår. Og så er det jo ... Vi har en egen ... En form for myndighet som kan godkjenne høyere utdanning i Norge. worke som ingeniør. Det er ikke noe ... Man må ikke få godkjent den utdanninga from utlandet, det er på vei. Det er en sikkerhet for arbeidsgiver å vite at hvis de skal ansette seg, er det dokumentasjon på at du har en ingeniørutdanning. Det er en mulighet, men så vet jeg at det kan ta lengre tid hvis man ikke har dokumentasjon på den utdanninga som man har med seg fra utlandet. Har du vært borti denne prosessen i det hele tatt? Nei. Er det NOKUT? Yes. ut. Det kan være mulighet for også at de uten dokumentasjon kan få godkjent den medbrakte utdanninga. Vi kan se litt nærmere på det i slutten av møtet NOKUT har i nettsida, å forklare litt hva du må gjøre for å få utdanninga godkjent hvis du ikke har vitnemål med deg fra hjemlandet. Det kan være en mulighet, men det kan vi eventuelt se nærmere på. Vi vil gjerne se nærmere på det. Og så tenkte jeg vi kan snakke litt om hva du gjør for å få jobb i dag. Du er jo her hos oss i Nav i dag, og vi har et nettverk med arbeidsgivere. Men så lurer jeg litt på hva du selv gjør nå for å få jobb. sender du søknader? banker du på dører??ukalig. Du skriv ein søknad, og så søker eg på stillinga. Og får meg ikkje inn til intervju. Det er sånn du går fram. Du skriv ein søknad, og så ventar du på svar. Det er ikkje sånn at du oppsøker eller ringer arbeidsgivarar i tillegg. Jeg er god til å prate norsk, men det er litt vanskelig å skrive noen ganger. Jeg hører jo at du har gode norskferdigheter. Jeg forstår hva du sier, og det virker som du forstår hva jeg sier. Det er òg en fordel når man skal søke jobb i Norge, at man har norskferdigheter. Men så sa du at det skriftlige kunne være litt utfordrende. Ja, det er litt vanskelig, men jeg jobber med det. Og hvis jeg får en ordentlig jobb, så kan jeg lære fort. Har du tatt noen norskprøver? Ja, B2, det er tre. B2, både muntlig og skriftlig eller bare muntlig? Ja, men det tenker jeg er en kjempefordel at du har norskprøve. Og jeg hører jo at norskferdighetene er veldig gode. Det tror jeg kommer til å hjelpe deg.�ken vi også se. Vi kan se om det er noe vi kan gjøre annerledes. Jeg kan også gjerne se på CV-en din, for å se hvordan den ser ut. Det kan ha mye å si når man søker jobb, spesielt det med CV-en, hvordan den er formet. ene. Så det kan vi også ta oss tida til. factorså bra. Det vil jeg gjerne. Du har gode norskferdigheter. Er det sånn at du får praktisert det? Du har familie, ikke sant? Du har tre barn? Ja, vi prater syrisk hjemme. Ja. Så jeg får ikke pratet så mye norsk. Jeg prater norsk med naboer og folk jeg kjenner litt, men ikke så mye som jeg burde. Jeg har iallfall praktisert det litt. Hjemme er det ditt morsmål. Men du får snakka litt med naboer. Du må jo holde det ved like, for du er på et høyt nivå. Jeg prøver å prate mye norsk. Jeg prater norsk overalt i samfunnet hvor jeg beveger meg. Ser på norsk TV noen ganger. Og så er jeg litt nysg på dagene dine. Søker jobb. Du er arbeidsledig, og du har kommet til oss nå. Hvordan ser dagene dine ut nå? Søker jobb. Trener. Møter venner. Er med familien. Følger barna på fotball, på dans. Så det er jo en god del. Du klarer å fylle dagene, og du søker jobb, som du sier. Og da sitter du inne liksom og bare ... Hvordan er det du leter etter jobber? Hvilke nettsider bruker du, hvis det er det du bruker? Du logger deg inn på navn.no, arbeidsplassen, og så ser du der. Drømmejobben din var jo ingeniør. Du har søkt 200. Det er veldig mange jobber du har søkt på. Er det variasjon? Søker du litt sånn forskjellig, eller? Alle ingeniørstillinger. Ja, og hvis ... Man må jo kanskje ... Du er på et høyt nivå i norsk. For å jobbe som ingeniør, i hvert fall hvis norsk er arvespråket, så kan det være en fordel å være på B2. Du hadde B2 muntlig, i hvert fall. Og skriftlig òg, eller? Det burde egentlig være godt nok i en ingeniørjobb. Men jeg vil gjerne se på en søknad som du har skrevet, om det er noe vi kan gjøre der med den søknaden. Det kan vi gjerne gjøre i neste møte. Sorry.

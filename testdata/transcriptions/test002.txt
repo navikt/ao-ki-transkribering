@@ -1,0 +1,73 @@
+# 29-06-2026, 13-37.wav
+language=no probability=1.000
+
+[0001.26 - 0005.26] Hei, Jonas. Takk for sist. Takk for sist, ja.
+[0005.38 - 0010.26] Da hadde vi ... Det var litt dårlig tid. Det var litt kaos i mottaket her.
+[0010.78 - 0014.94] Så det er bra at vi kan sette oss ned nå og ha en ordentlig samtale.
+[0015.06 - 0019.44] At vi har satt av tid, og at vi har en klar agenda.
+[0019.46 - 0025.56] Tenker sånn aller først. Jeg pleier å starte alle samtalene jeg har med folk,
+[0025.56 - 0029.94] med hva de ønsker å gjøre og prate om.
+[0031.26 - 0037.60] Du tenker det er viktigst at vi får prate om den samtalen her i dag.
+[0038.94 - 0044.58] Nå har jeg søkt AAP. Jeg har omtrent ingenting å leve av.
+[0044.58 - 0051.12] Det er penger jeg vil snakke om. For nå sliter jeg.
+[0052.18 - 0059.12] Har du noe husleie som skal betale snart? Hvordan ser det ut på kanten din?
+[0061.26 - 0066.78] Jeg leier jo ei kjellerleilighet som jeg ikke trives i.
+[0067.86 - 0072.46] Som jeg egentlig vil bort ifra. Men ja, det er jo ei leie på den.
+[0072.90 - 0079.06] .. Jeg sliter litt generelt. Altså mat, husleie. Det er ikke noe særlig liv nå.
+[0079.06 - 0085.54] Det forstår jeg er vanskelig. Er det ...?
+[0085.82 - 0091.42] You'vet noe svar på søknaden din om arbeidsdagskjøningspenger?
+[0091.42 - 0099.38] Nei. Nå er det snart to måneder siden jeg har søkt. Så det stresser meg.
+[0100.50 - 0105.26] Jeg kjenner veldig på det. Jeg har omtrent ingenting å leve av.
+[0105.26 - 0111.22] Det er jo veldig lenge siden. Og det er jo sånn at når man får innvilget arbeidsavklaringspenger,
+[0111.30 - 0118.22] så får man det fra søknadstidspunktet. Men akkurat nå hjelper ikke det deg noe.
+[0118.22 - 0120.30] Nei, nå er det bunnskrapt omt.
+[0121.42 - 0127.52] Da tenker jeg at vi kan se på noen muligheter sammen med kollegaene mine.
+[0127.56 - 0134.28] Om det er sånn at du ikke har noen penger i det hele tatt.
+[0134.38 - 0142.74] Om du kan søke om sosialhjelp i påvente av at søknaden om arbeidsavklaringspenger blir ferdigstilt.
+[0142.74 - 0147.00] At jeg skulle kommet dit.
+[0147.20 - 0150.32] -søke sosialhjelp ble en absurd tanke for meg.
+[0151.76 - 0158.38] Men nå er jeg litt desperat. Og kjenner liksom bare det å være her,
+[0158.48 - 0162.72] å være i Nav-systemet, det er liksom ...
+[0162.96 - 0168.30] Nei, det er ikke sånn det skulle bli, på en måte. Jeg skjønner det.
+[0168.30 - 0176.10] Men nå har det tatt to måneder å behandle ferdig søknaden om arbeidstakernes penger.
+[0176.16 - 0179.94] Så det er klart at det vil de fleste personer
+[0181.46 - 0184.98] At man får to måneder uten inntekt, vil være ganske bunnskapt.
+[0184.98 - 0190.82] Det er mange bedrifter som var konkurs. Hvis de ikke får noen penger på to måneder.
+[0190.90 - 0199.34] Jeg har tenkt at jeg kanskje burde ta kontakt før. Det har kanskje vært noen år hvor jeg har slitt litt.
+[0199.42 - 0202.80] Bare jobba litt her og der, og liksom ...
+[0202.80 - 0209.54] Ja. Hatt lite over en periode, men nå er det liksom .... Nå måtte jeg ha hjelp, rett og slett.
+[0211.46 - 0215.46] Du har søkt om arbeidstakingspengar.
+[0215.54 - 0220.54] Ut frå det du fortel meg, høyrest det ut som at du får det ein periode.
+[0220.64 - 0226.66] Og at du får hjelp frå oss til å komme ut i eit meir normalt liv igjen.
+[0226.74 - 0230.98] Betre helsa di og få ein betre heilskapssituasjon.
+[0230.98 - 0235.26] Du trur det er noko som kjem til å gå i orden?
+[0235.26 - 0239.34] Eg kan ikkje behandle ferdig søknaden her og no, men ut ifrå det du fortelder det,
+[0239.34 - 0240.34] så virkar det som at du vil får hjelpne.
+[0241.92 - 0247.04] Hvis ikke, så skal jeg hjelpe deg vidare med å se på andre alternativer.
+[0247.04 - 0253.04] For alle har rett på inntektssikring og hjelp til arbeidet her i landet vårt.
+[0255.52 - 0261.68] Men vi ser litt mer på detaljene på det med sosialhjelp etterpå.
+[0263.24 - 0270.42] Ut ifra det du forteller om helseplagene dine, så kanskje vi kunne sett på noen
+[0271.56 - 0276.24] Litt sånn lavterskeltiltak som du kunne startet med.
+[0276.24 - 0280.00] For å komme litt i gang igjen samtidig.
+[0280.12 - 0285.60] Hva er det du tenker, da? Tenker du mer terapi eller ...?
+[0296.40 - 0299.34] Noe sånt. Nei, lavterskeltiltak tenker jeg ikke på medisinsk behandling. Not psykolog og sånt.
+[0301.72 - 0308.76] En lang, tøff periode for deg, sånn at du får litt mer planer på plass.
+[0308.78 - 0314.54] Ja. Jeg tror jeg bare må ha mer informasjon. For jeg føler liksom ...
+[0314.54 - 0319.60] Jeg må vite litt mer hva det handler om, for nå føler jeg meg ikke i stand til å jobbe.
+[0319.60 - 0323.60] Det skjønner jeg veldig godt. Nå ble det mye informasjon i møtet.
+[0323.60 - 0328.18] arrangerer at jeg sender deg informasjon i dialogboksen
+[0328.20 - 0329.60] aktivitetsplanen, som du kan se på.
+[0331.42 - 0336.70] Et par tiltak som jeg tror kunne passet for deg nå.
+[0336.70 - 0343.74] Så kan vi gå videre nå og ta en titt på det økonomiske sammen med noen kollegaer og meg.
+[0346.52 - 0352.52] Det høres jo greit ut, det.Og da den dialogboksen ...
+[0352.62 - 0355.24] Det er der jeg har svart deg før.
+[0355.24 - 0361.64] Jeg bare ligger inn, så sender du meg noe informasjon der.
+[0362.74 - 0366.78] Så sendes videre om noen av tiltakene kan være aktuelle for deg.
+[0366.86 - 0371.22] Jeg kan sende noen lenker til nettsidene deres, så skal du få se på det i ro og fred.
+[0371.22 - 0374.70] Og det er du som bestemmer veien videre her.
+[0374.70 - 0379.78] Og hvis ingen av de alternativene er aktuelle, så kan vi ta en samtale til
+[0380.18 - 0382.18] ut hvalg som kan væreaktuelt.
+
+--- PLAIN TEXT ---
+
+Hei, Jonas. Takk for sist. Takk for sist, ja. Da hadde vi ... Det var litt dårlig tid. Det var litt kaos i mottaket her. Så det er bra at vi kan sette oss ned nå og ha en ordentlig samtale. At vi har satt av tid, og at vi har en klar agenda. Tenker sånn aller først. Jeg pleier å starte alle samtalene jeg har med folk, med hva de ønsker å gjøre og prate om. Du tenker det er viktigst at vi får prate om den samtalen her i dag. Nå har jeg søkt AAP. Jeg har omtrent ingenting å leve av. Det er penger jeg vil snakke om. For nå sliter jeg. Har du noe husleie som skal betale snart? Hvordan ser det ut på kanten din? Jeg leier jo ei kjellerleilighet som jeg ikke trives i. Som jeg egentlig vil bort ifra. Men ja, det er jo ei leie på den. .. Jeg sliter litt generelt. Altså mat, husleie. Det er ikke noe særlig liv nå. Det forstår jeg er vanskelig. Er det ...? You'vet noe svar på søknaden din om arbeidsdagskjøningspenger? Nei. Nå er det snart to måneder siden jeg har søkt. Så det stresser meg. Jeg kjenner veldig på det. Jeg har omtrent ingenting å leve av. Det er jo veldig lenge siden. Og det er jo sånn at når man får innvilget arbeidsavklaringspenger, så får man det fra søknadstidspunktet. Men akkurat nå hjelper ikke det deg noe. Nei, nå er det bunnskrapt omt. Da tenker jeg at vi kan se på noen muligheter sammen med kollegaene mine. Om det er sånn at du ikke har noen penger i det hele tatt. Om du kan søke om sosialhjelp i påvente av at søknaden om arbeidsavklaringspenger blir ferdigstilt. At jeg skulle kommet dit. -søke sosialhjelp ble en absurd tanke for meg. Men nå er jeg litt desperat. Og kjenner liksom bare det å være her, å være i Nav-systemet, det er liksom ... Nei, det er ikke sånn det skulle bli, på en måte. Jeg skjønner det. Men nå har det tatt to måneder å behandle ferdig søknaden om arbeidstakernes penger. Så det er klart at det vil de fleste personer At man får to måneder uten inntekt, vil være ganske bunnskapt. Det er mange bedrifter som var konkurs. Hvis de ikke får noen penger på to måneder. Jeg har tenkt at jeg kanskje burde ta kontakt før. Det har kanskje vært noen år hvor jeg har slitt litt. Bare jobba litt her og der, og liksom ... Ja. Hatt lite over en periode, men nå er det liksom .... Nå måtte jeg ha hjelp, rett og slett. Du har søkt om arbeidstakingspengar. Ut frå det du fortel meg, høyrest det ut som at du får det ein periode. Og at du får hjelp frå oss til å komme ut i eit meir normalt liv igjen. Betre helsa di og få ein betre heilskapssituasjon. Du trur det er noko som kjem til å gå i orden? Eg kan ikkje behandle ferdig søknaden her og no, men ut ifrå det du fortelder det, så virkar det som at du vil får hjelpne. Hvis ikke, så skal jeg hjelpe deg vidare med å se på andre alternativer. For alle har rett på inntektssikring og hjelp til arbeidet her i landet vårt. Men vi ser litt mer på detaljene på det med sosialhjelp etterpå. Ut ifra det du forteller om helseplagene dine, så kanskje vi kunne sett på noen Litt sånn lavterskeltiltak som du kunne startet med. For å komme litt i gang igjen samtidig. Hva er det du tenker, da? Tenker du mer terapi eller ...? Noe sånt. Nei, lavterskeltiltak tenker jeg ikke på medisinsk behandling. Not psykolog og sånt. En lang, tøff periode for deg, sånn at du får litt mer planer på plass. Ja. Jeg tror jeg bare må ha mer informasjon. For jeg føler liksom ... Jeg må vite litt mer hva det handler om, for nå føler jeg meg ikke i stand til å jobbe. Det skjønner jeg veldig godt. Nå ble det mye informasjon i møtet. arrangerer at jeg sender deg informasjon i dialogboksen aktivitetsplanen, som du kan se på. Et par tiltak som jeg tror kunne passet for deg nå. Så kan vi gå videre nå og ta en titt på det økonomiske sammen med noen kollegaer og meg. Det høres jo greit ut, det.Og da den dialogboksen ... Det er der jeg har svart deg før. Jeg bare ligger inn, så sender du meg noe informasjon der. Så sendes videre om noen av tiltakene kan være aktuelle for deg. Jeg kan sende noen lenker til nettsidene deres, så skal du få se på det i ro og fred. Og det er du som bestemmer veien videre her. Og hvis ingen av de alternativene er aktuelle, så kan vi ta en samtale til ut hvalg som kan væreaktuelt.
