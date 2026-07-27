@@ -25,7 +25,11 @@ def estimert_total_s(modell_id: str, lyd_s: float, enhet: str = "mps") -> float:
     return max(lyd_s * faktor * hw_mult + _DIARISER_OVERHEAD_S, 5.0)
 
 
-def arbeider(jobbkø: multiprocessing.Queue, modell_id: str):
+def arbeider(
+    jobbkø: multiprocessing.Queue,
+    modell_id: str,
+    klar_event: "multiprocessing.synchronize.Event | None" = None,
+):
     """
     Kjøres som en separat prosess. Laster Whisper-modellen én gang,
     deretter behandler jobber fra køen løpende.
@@ -48,6 +52,8 @@ def arbeider(jobbkø: multiprocessing.Queue, modell_id: str):
     print(f"[arbeider] Laster modell: {modell_id}  (enhet: {enhet}) …", flush=True)
     asr = pipeline("automatic-speech-recognition", model=modell_id, device=enhet, ignore_warning=True)
     print("[arbeider] Modell klar.", flush=True)
+    if klar_event is not None:
+        klar_event.set()
 
     while True:
         melding = jobbkø.get()
