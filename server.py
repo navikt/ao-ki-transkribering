@@ -44,6 +44,7 @@ logging.getLogger("faster_whisper").setLevel(logging.ERROR)
 
 MODELL_ID    = os.getenv("WHISPER_MODELL", "NbAiLab/nb-whisper-medium")
 ARBEIDSMAPPE = Path(tempfile.mkdtemp(prefix="transkribering_"))
+STT_BACKEND  = os.getenv("STT_BACKEND", "lokal")  # "lokal" | "soniox"
 
 # ---------------------------------------------------------------------------
 # Imports fra submoduler
@@ -464,16 +465,25 @@ async def lag_rullerende_referat_stream(foresporsel: _OllamaForesporsel):
 @app.websocket("/ws/sanntid")
 async def sanntid_ws(websocket: WebSocket):
     """
-    WebSocket-endpoint for sanntidstranskribering med server-side VAD og diarisering.
+    WebSocket-endpoint for sanntidstranskribering.
 
     Protokoll:
       Client → Server: binær melding = raw float32 LE PCM, 16 kHz, mono
       Client → Server: JSON {"type": "stopp"}  (avslutt og flush)
       Server → Client: JSON {"type": "segment", "tekst": "...", "segmenter": [{..., "taler": "SPEAKER_XX"}]}
+
+    Backend vel med STT_BACKEND=lokal (standard) eller STT_BACKEND=soniox.
     """
     await websocket.accept()
 
-    # Sjekk at sanntidsmodellen finnes – send feilmelding og lukk om ikke
+    if STT_BACKEND == "soniox":
+        await _sanntid_soniox(websocket)
+    else:
+        await _sanntid_lokal(websocket)
+
+
+async def _sanntid_lokal(websocket: WebSocket) -> None:
+    """Lokal faster-whisper + diarisering."""
     try:
         _hent_fw_modell()
     except FileNotFoundError as e:
@@ -483,11 +493,9 @@ async def sanntid_ws(websocket: WebSocket):
 
     buf = _VadBuffer()
     transkriber_kø: asyncio.Queue = asyncio.Queue(maxsize=4)
-    # Prototype-state deles mellom worker-kall for å holde konsistent taler-ID
     prototyper_state: list[np.ndarray | None] = [None]
 
     async def transkriber_worker():
-        """Konsumerer PCM-bufre fra kø, kjører Whisper + diarisering sekvensielt."""
         while True:
             pcm = await transkriber_kø.get()
             if pcm is None:
@@ -518,7 +526,6 @@ async def sanntid_ws(websocket: WebSocket):
     try:
         while True:
             melding = await websocket.receive()
-
             if "text" in melding:
                 data = json.loads(melding["text"])
                 if data.get("type") == "stopp":
@@ -526,24 +533,56 @@ async def sanntid_ws(websocket: WebSocket):
                     if rest is not None:
                         await send_til_whisper(rest)
                     break
-
             elif "bytes" in melding:
                 raw = melding["bytes"]
                 if not raw:
                     continue
-
                 n_samples = len(raw) // 4
                 if n_samples == 0:
                     continue
                 samples = np.frombuffer(raw, dtype="<f4").copy()
-
                 pcm_klar = buf.legg_til(samples)
                 if pcm_klar is not None:
                     await send_til_whisper(pcm_klar)
-
     except WebSocketDisconnect:
         pass
     finally:
         await transkriber_kø.put(None)
         await worker_task
+
+
+async def _sanntid_soniox(websocket: WebSocket) -> None:
+    """Soniox cloud STT med innebygd diarisering."""
+    from transkribering.soniox import SonioxSessjon
+
+    loop = asyncio.get_event_loop()
+
+    async def send_json(data: dict):
+        try:
+            await websocket.send_json(data)
+        except Exception:
+            pass
+
+    sessjon = SonioxSessjon(send_json=send_json, loop=loop)
+
+    try:
+        while True:
+            melding = await websocket.receive()
+            if "text" in melding:
+                data = json.loads(melding["text"])
+                if data.get("type") == "stopp":
+                    break
+            elif "bytes" in melding:
+                raw = melding["bytes"]
+                if not raw:
+                    continue
+                n_samples = len(raw) // 4
+                if n_samples == 0:
+                    continue
+                samples = np.frombuffer(raw, dtype="<f4").copy()
+                sessjon.send_pcm(samples)
+    except WebSocketDisconnect:
+        pass
+    finally:
+        sessjon.stopp()
 

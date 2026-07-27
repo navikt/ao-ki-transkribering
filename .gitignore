@@ -13,3 +13,4 @@ nohup.out
 /*.mp3
 *.webm
 *.json
+.env

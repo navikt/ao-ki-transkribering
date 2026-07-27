@@ -16,3 +16,5 @@ pydantic>=2.6
 websockets>=12.0
 python-multipart>=0.0.9
 pytest>=8\npytest-asyncio>=0.24
+# Valfri sky-STT (alternativ til lokal Whisper): sett STT_BACKEND=soniox
+# soniox>=2.5

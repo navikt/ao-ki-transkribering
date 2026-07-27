@@ -163,13 +163,16 @@ uvicorn server:app --host 127.0.0.1 --port 8765
 | Variabel | Standard                     | Beskrivelse |
 |----------|------------------------------|-------------|
 | `WHISPER_MODELL` | `NbAiLab/nb-whisper-medium`  | Modell for batch-transkripsjon |
-| `WHISPER_SANNTID_MODELL` | `modeller/nb-whisper-medium` | Modell for sanntidsmodus |
+| `WHISPER_SANNTID_MODELL` | `modeller/nb-whisper-medium` | Modell for sanntidsmodus (lokal) |
 | `OLLAMA_URL` | `http://localhost:11434`     | Ollama-endepunkt |
-| `OLLAMA_MODELL` | `qwen3:32b`                | LLM for møtereferat |
+| `OLLAMA_MODELL` | `qwen3:8b`                   | LLM for møtereferat |
+| `OLLAMA_NUM_CTX` | `32768`                      | Kontekstvindauge for LLM (tokens) |
+| `STT_BACKEND` | `lokal`                      | `lokal` (nb-whisper) eller `soniox` (sky-STT) |
+| `SONIOX_API_KEY` | —                            | API-nøkkel for Soniox (kun ved `STT_BACKEND=soniox`) |
 
-Eksempel:
+Eksempel med Soniox:
 ```bash
-OLLAMA_MODELL=qwen3:8b uvicorn server:app --host 127.0.0.1 --port 8765
+STT_BACKEND=soniox SONIOX_API_KEY=<din-nøkkel> uvicorn server:app --host 127.0.0.1 --port 8765
 ```
 
 ---
