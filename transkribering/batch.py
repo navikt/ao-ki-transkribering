@@ -1,14 +1,13 @@
-import json
 import multiprocessing
 import os
 import subprocess
 import tempfile
-import time
 import traceback
 from pathlib import Path
 
 import numpy as np
 
+from services.jobs import JobStore
 from transkribering.hallusinasjon import trim_null_ord, trim_etter_stille, fjern_hallusinasjon
 from transkribering.diarisering import diariser, tilordne_taler
 
@@ -63,15 +62,9 @@ def arbeider(
         jobb_id, lydfil_str, resultat_fil_str, n_talere = melding
         lydfil = Path(lydfil_str)
         resultat_fil = Path(resultat_fil_str)
+        job_store = JobStore(resultat_fil.parent)
 
-        resultat_fil.write_text(json.dumps({
-            "status": "transkriberer",
-            "fase": "konverterer",
-            "start_tid": time.time(),
-            "modell_id": modell_id,
-            "enhet": enhet,
-            "lyd_varighet_s": None,
-        }))
+        job_store.write_transcribing(resultat_fil, model_id=modell_id, device=enhet)
 
         wav_sti = None
         try:
@@ -93,9 +86,10 @@ def arbeider(
             ).copy()
             lyd_varighet_s = len(pcm) / 16000
 
-            start_data = json.loads(resultat_fil.read_text())
-            start_data.update({"fase": "transkriberer", "lyd_varighet_s": lyd_varighet_s})
-            resultat_fil.write_text(json.dumps(start_data))
+            job_store.update_path(
+                resultat_fil,
+                {"fase": "transkriberer", "lyd_varighet_s": lyd_varighet_s},
+            )
 
             resultat = asr(
                 str(wav_sti),
@@ -122,8 +116,7 @@ def arbeider(
             if not ord_liste:
                 tekst = ""
 
-            start_data.update({"fase": "diariserer"})
-            resultat_fil.write_text(json.dumps(start_data))
+            job_store.update_path(resultat_fil, {"fase": "diariserer"})
             try:
                 diari_segs, _ = diariser(pcm, n_talere=n_talere)
             except Exception as diar_exc:
@@ -233,16 +226,11 @@ def arbeider(
                             "taler": "SPEAKER_00",
                         })
 
-            resultat_fil.write_text(
-                json.dumps({"status": "ferdig", "tekst": tekst, "segmenter": segmenter},
-                           ensure_ascii=False)
-            )
+            job_store.write_done(resultat_fil, text=tekst, segments=segmenter)
         except Exception as exc:
             print(f"[arbeider] FEIL i jobb {jobb_id}: {exc}", flush=True)
             traceback.print_exc()
-            resultat_fil.write_text(
-                json.dumps({"status": "feil", "feilmelding": str(exc)})
-            )
+            job_store.write_failed(resultat_fil, str(exc))
         finally:
             lydfil.unlink(missing_ok=True)
             if wav_sti:

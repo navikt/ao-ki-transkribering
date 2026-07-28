@@ -1,11 +1,14 @@
 import multiprocessing
 
 from settings import MODELL_ID
+from settings import ARBEIDSMAPPE
+from services.jobs import JobStore
 from transkribering.batch import arbeider
 
 mp_ctx = multiprocessing.get_context("spawn")
 jobbkø: multiprocessing.Queue = mp_ctx.Queue()
 arbeider_klar = mp_ctx.Event()
+job_store = JobStore(ARBEIDSMAPPE)
 
 
 def start_arbeider() -> multiprocessing.Process:
