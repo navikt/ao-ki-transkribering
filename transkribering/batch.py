@@ -67,6 +67,7 @@ def arbeider(
         job_store.write_transcribing(resultat_fil, model_id=modell_id, device=enhet)
 
         wav_sti = None
+        advarsler: list[str] = []
         try:
             with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as _tmp:
                 wav_sti = Path(_tmp.name)
@@ -121,6 +122,7 @@ def arbeider(
                 diari_segs, _ = diariser(pcm, n_talere=n_talere)
             except Exception as diar_exc:
                 print(f"[arbeider] Diarisering feilet: {diar_exc}", flush=True)
+                advarsler.append(f"Diarisering feilet: {diar_exc}")
                 diari_segs = []
 
             segmenter = []
@@ -226,7 +228,12 @@ def arbeider(
                             "taler": "SPEAKER_00",
                         })
 
-            job_store.write_done(resultat_fil, text=tekst, segments=segmenter)
+            job_store.write_done(
+                resultat_fil,
+                text=tekst,
+                segments=segmenter,
+                warnings=advarsler,
+            )
         except Exception as exc:
             print(f"[arbeider] FEIL i jobb {jobb_id}: {exc}", flush=True)
             traceback.print_exc()

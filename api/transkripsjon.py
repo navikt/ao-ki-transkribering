@@ -76,4 +76,7 @@ async def hent_resultat(jobb_id: str):
         raise HTTPException(status_code=500, detail=data.get("feilmelding", "Ukjent feil"))
     if data["status"] != "ferdig":
         raise HTTPException(status_code=409, detail=f"Jobb ikke ferdig (status: {data['status']})")
-    return {"jobb_id": jobb_id, "tekst": data["tekst"], "segmenter": data["segmenter"]}
+    svar = {"jobb_id": jobb_id, "tekst": data["tekst"], "segmenter": data["segmenter"]}
+    if data.get("advarsler"):
+        svar["advarsler"] = data["advarsler"]
+    return svar

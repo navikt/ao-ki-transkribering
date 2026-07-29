@@ -68,11 +68,18 @@ class JobStore:
         self.write_path(result_path, data)
         return data
 
-    def write_done(self, result_path: Path, *, text: str, segments: list[dict[str, Any]]) -> None:
-        self.write_path(
-            result_path,
-            {"status": "ferdig", "tekst": text, "segmenter": segments},
-        )
+    def write_done(
+        self,
+        result_path: Path,
+        *,
+        text: str,
+        segments: list[dict[str, Any]],
+        warnings: list[str] | None = None,
+    ) -> None:
+        data = {"status": "ferdig", "tekst": text, "segmenter": segments}
+        if warnings:
+            data["advarsler"] = warnings
+        self.write_path(result_path, data)
 
     def write_failed(self, result_path: Path, message: str) -> None:
         self.write_path(result_path, {"status": "feil", "feilmelding": message})

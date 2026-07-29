@@ -26,6 +26,14 @@ def test_job_store_writes_and_reads_state(tmp_path):
         "segmenter": [{"tekst": "hei"}],
     }
 
+    store.write_done(paths.result_path, text="hei", segments=[], warnings=["diarisering feilet"])
+    assert store.read(paths.job_id) == {
+        "status": "ferdig",
+        "tekst": "hei",
+        "segmenter": [],
+        "advarsler": ["diarisering feilet"],
+    }
+
 
 def test_job_store_writes_failure(tmp_path):
     store = JobStore(tmp_path)

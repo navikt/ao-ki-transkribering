@@ -495,6 +495,7 @@
     <div class="feil-boks" id="paragraf15-advarsel" style="background:#fff3cd; border-color:#f5a623; color:#7a5c00; margin-bottom:1rem;">
       <strong>⚠️ Gjennomgå før bruk:</strong> Transkripsjonen kan inneholde informasjon om kommunale tjenester (jf. nav-loven §15) som <strong>ikke kan lagres i NAV-statlige systemer</strong>. Fjern slik informasjon før eventuell videre bruk.
     </div>
+    <div class="feil-boks" id="resultat-advarsel" style="display:none"></div>
 
     <!-- Navnefelter (fylles dynamisk basert på antall talere i resultatet) -->
     <div class="taler-navn-rad" id="taler-navn-rad"></div>
@@ -807,6 +808,15 @@ function _byggTalerRad(unike, radElId, radId) {
 
 function visResultat(data) {
   _sistResultat = data;
+
+  const advarsel = document.getElementById("resultat-advarsel");
+  if (data.advarsler?.length) {
+    advarsel.style.display = "block";
+    advarsel.textContent = data.advarsler.join("\n");
+  } else {
+    advarsel.style.display = "none";
+    advarsel.textContent = "";
+  }
 
   // Bygg navnefelter dynamisk basert på talere i resultatet
   const harTaler = (data.segmenter || []).some(s => s.taler);
