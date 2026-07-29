@@ -3,7 +3,7 @@ import multiprocessing
 from settings import MODELL_ID
 from settings import ARBEIDSMAPPE
 from services.jobs import JobStore
-from transkribering.batch import arbeider
+from workers.transkripsjon import arbeider
 
 mp_ctx = multiprocessing.get_context("spawn")
 jobbkø: multiprocessing.Queue = mp_ctx.Queue()

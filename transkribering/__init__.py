@@ -20,7 +20,7 @@ from transkribering.diarisering import (
     diariser,
     tilordne_taler,
 )
-from transkribering.batch import arbeider, estimert_total_s
+from transkribering.batch import LokalBatchTranskriberer, estimert_total_s
 from transkribering.sanntid import hent_fw_modell, transkriber_pcm, VadBuffer
 
 __all__ = [
@@ -30,6 +30,6 @@ __all__ = [
     "er_hallusinasjon", "trim_null_ord", "trim_null_ord_fw",
     "trim_etter_stille", "fjern_hallusinasjon",
     "hent_voice_encoder", "auto_n_talere", "diariser", "tilordne_taler",
-    "arbeider", "estimert_total_s",
+    "LokalBatchTranskriberer", "estimert_total_s",
     "hent_fw_modell", "transkriber_pcm", "VadBuffer",
 ]

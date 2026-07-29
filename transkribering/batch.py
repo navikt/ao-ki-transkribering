@@ -1,13 +1,10 @@
-import multiprocessing
-import os
 import subprocess
 import tempfile
-import traceback
 from pathlib import Path
+from typing import Callable, Any
 
 import numpy as np
 
-from services.jobs import JobStore
 from transkribering.hallusinasjon import trim_null_ord, trim_etter_stille, fjern_hallusinasjon
 from transkribering.diarisering import diariser, tilordne_taler
 
@@ -24,48 +21,34 @@ def estimert_total_s(modell_id: str, lyd_s: float, enhet: str = "mps") -> float:
     return max(lyd_s * faktor * hw_mult + _DIARISER_OVERHEAD_S, 5.0)
 
 
-def arbeider(
-    jobbkø: multiprocessing.Queue,
-    modell_id: str,
-    klar_event: "multiprocessing.synchronize.Event | None" = None,
-):
-    """
-    Kjøres som en separat prosess. Laster Whisper-modellen én gang,
-    deretter behandler jobber fra køen løpende.
-    """
-    os.environ["HF_HUB_OFFLINE"] = "1"
-    import logging
-    logging.getLogger("transformers").setLevel(logging.ERROR)
+class LokalBatchTranskriberer:
+    """Local nb-whisper batch model with speaker diarization."""
 
-    from transformers import pipeline
-    import torch
+    def __init__(self, modell_id: str):
+        import logging
 
-    def velg_enhet(mod_id: str) -> str:
-        if torch.cuda.is_available():
-            return "cuda"
-        if torch.backends.mps.is_available():
-            return "mps"
-        return "cpu"
+        logging.getLogger("transformers").setLevel(logging.ERROR)
 
-    enhet = velg_enhet(modell_id)
-    print(f"[arbeider] Laster modell: {modell_id}  (enhet: {enhet}) …", flush=True)
-    asr = pipeline("automatic-speech-recognition", model=modell_id, device=enhet, ignore_warning=True)
-    print("[arbeider] Modell klar.", flush=True)
-    if klar_event is not None:
-        klar_event.set()
+        from transformers import pipeline
 
-    while True:
-        melding = jobbkø.get()
-        if melding is None:
-            break
+        self.modell_id = modell_id
+        self.enhet = velg_enhet()
+        print(f"[arbeider] Laster modell: {modell_id}  (enhet: {self.enhet}) …", flush=True)
+        self._asr = pipeline(
+            "automatic-speech-recognition",
+            model=modell_id,
+            device=self.enhet,
+            ignore_warning=True,
+        )
+        print("[arbeider] Modell klar.", flush=True)
 
-        jobb_id, lydfil_str, resultat_fil_str, n_talere = melding
-        lydfil = Path(lydfil_str)
-        resultat_fil = Path(resultat_fil_str)
-        job_store = JobStore(resultat_fil.parent)
-
-        job_store.write_transcribing(resultat_fil, model_id=modell_id, device=enhet)
-
+    def transkriber(
+        self,
+        lydfil: Path,
+        *,
+        n_talere: int = 0,
+        status_callback: Callable[[dict[str, Any]], None] | None = None,
+    ) -> dict[str, Any]:
         wav_sti = None
         advarsler: list[str] = []
         try:
@@ -87,12 +70,10 @@ def arbeider(
             ).copy()
             lyd_varighet_s = len(pcm) / 16000
 
-            job_store.update_path(
-                resultat_fil,
-                {"fase": "transkriberer", "lyd_varighet_s": lyd_varighet_s},
-            )
+            if status_callback is not None:
+                status_callback({"fase": "transkriberer", "lyd_varighet_s": lyd_varighet_s})
 
-            resultat = asr(
+            resultat = self._asr(
                 str(wav_sti),
                 chunk_length_s=28,
                 return_timestamps="word",
@@ -117,7 +98,8 @@ def arbeider(
             if not ord_liste:
                 tekst = ""
 
-            job_store.update_path(resultat_fil, {"fase": "diariserer"})
+            if status_callback is not None:
+                status_callback({"fase": "diariserer"})
             try:
                 diari_segs, _ = diariser(pcm, n_talere=n_talere)
             except Exception as diar_exc:
@@ -228,17 +210,17 @@ def arbeider(
                             "taler": "SPEAKER_00",
                         })
 
-            job_store.write_done(
-                resultat_fil,
-                text=tekst,
-                segments=segmenter,
-                warnings=advarsler,
-            )
-        except Exception as exc:
-            print(f"[arbeider] FEIL i jobb {jobb_id}: {exc}", flush=True)
-            traceback.print_exc()
-            job_store.write_failed(resultat_fil, str(exc))
+            return {"tekst": tekst, "segmenter": segmenter, "advarsler": advarsler}
         finally:
-            lydfil.unlink(missing_ok=True)
             if wav_sti:
                 wav_sti.unlink(missing_ok=True)
+
+
+def velg_enhet() -> str:
+    import torch
+
+    if torch.cuda.is_available():
+        return "cuda"
+    if torch.backends.mps.is_available():
+        return "mps"
+    return "cpu"

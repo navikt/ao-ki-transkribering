@@ -153,7 +153,7 @@ Modellen er ~23 GB. Nedlasting tar tid avhengig av internettforbindelsen.
 
 ```bash
 source .venv/bin/activate   # hvis ikke allerede aktivert
-uvicorn server:app --host 127.0.0.1 --port 8765
+python -m uvicorn server:app --host 127.0.0.1 --port 8765
 ```
 
 Åpne nettleser på [http://127.0.0.1:8765](http://127.0.0.1:8765).
@@ -172,7 +172,7 @@ uvicorn server:app --host 127.0.0.1 --port 8765
 
 Eksempel med Soniox:
 ```bash
-STT_BACKEND=soniox SONIOX_API_KEY=<din-nøkkel> uvicorn server:app --host 127.0.0.1 --port 8765
+STT_BACKEND=soniox SONIOX_API_KEY=<din-nøkkel> python -m uvicorn server:app --host 127.0.0.1 --port 8765
 ```
 
 ---
@@ -214,18 +214,26 @@ Løsningen eies av [ao-ki-taskforce](https://github.com/orgs/navikt/teams/ao-ki-
 
 ```bash
 # Kjør med auto-reload under utvikling
-uvicorn server:app --host 127.0.0.1 --port 8765 --reload
+python -m uvicorn server:app --host 127.0.0.1 --port 8765 --reload
 ```
 
 Kodestruktur:
 
 ```
-server.py                    # FastAPI-backend: endepunkter og Ollama-integrasjon
+server.py                    # Stabil ASGI-entrypoint for uvicorn (server:app)
+app_factory.py               # Bygger FastAPI-app, lifespan og router-registrering
+settings.py                  # Miljøvariabler og runtime-konfigurasjon
+runtime.py                   # Arbeiderprosess, kø og delt JobStore
+api/                         # HTTP/WebSocket-endepunkter
+services/
+  jobs.py                    # Filbasert jobbtilstand og atomiske statusoppdateringer
+workers/
+  transkripsjon.py           # Køarbeider for transkripsjonsjobber og jobbstatus
 static/
   index.html                 # Enkeltside-frontend (HTML/CSS/JS)
   audio-processor.js         # AudioWorklet for sanntids-PCM-prosessering
 transkribering/
-  batch.py                   # Batch-transkripsjon med nb-whisper
+  batch.py                   # Lokal batchmodell: nb-whisper + diarisering
   sanntid.py                 # Sanntidstranskripsjon med faster-whisper
   diarisering.py             # Høyttalerdiarisering (pyannote)
   hallusinasjon.py           # Filtrering av hallusinerte segmenter
@@ -280,5 +288,3 @@ python tests/integration/test_referat.py --debug                         # vis r
 python tests/integration/test_sanntid.py                                 # sanntidsmodus
 python tests/integration/test_sanntid.py --fil testdata/king.mp3
 ```
-
-
