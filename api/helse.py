@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Response
 
 from runtime import arbeider_klar, job_store, lokal_arbeider_aktiv
+from settings import TRANSKRIPSJON_BACKEND, TRANSKRIPSJON_SERVICE_URL
 
 router = APIRouter()
 
@@ -14,6 +15,12 @@ def is_alive():
 def is_ready():
     """API is ready when job storage is reachable and any local worker is ready."""
     job_store.work_dir.mkdir(parents=True, exist_ok=True)
+    if TRANSKRIPSJON_BACKEND == "remote":
+        return {
+            "status": "ok",
+            "transkripsjon_backend": "remote",
+            "transkripsjon_service_url": TRANSKRIPSJON_SERVICE_URL,
+        }
     if lokal_arbeider_aktiv and not arbeider_klar.is_set():
         return Response(
             content='{"status":"laster modell"}',
@@ -26,6 +33,11 @@ def is_ready():
 @router.get("/worker/isReady", include_in_schema=False)
 def worker_is_ready():
     """Local model worker readiness. Useful until the worker moves out of process."""
+    if TRANSKRIPSJON_BACKEND == "remote":
+        return {
+            "status": "ekstern arbeider",
+            "transkripsjon_service_url": TRANSKRIPSJON_SERVICE_URL,
+        }
     if not lokal_arbeider_aktiv:
         return {"status": "ekstern arbeider"}
     if not arbeider_klar.is_set():

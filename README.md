@@ -171,6 +171,8 @@ python -m uvicorn server:app --host 127.0.0.1 --port 8765
 | `SONIOX_API_KEY` | —                            | API-nøkkel for Soniox (kun ved `STT_BACKEND=soniox`) |
 | `ARBEIDSMAPPE` | midlertidig mappe | Mappe for lyd- og jobbstatusfiler |
 | `START_LOKAL_WORKER` | `true` | Starter lokal transkripsjonsarbeider sammen med API-et |
+| `TRANSKRIPSJON_BACKEND` | `local` | `local` eller `remote` modellbackend for batch-transkripsjon |
+| `TRANSKRIPSJON_SERVICE_URL` | `http://127.0.0.1:9000` | URL til ekstern modellarbeider ved `TRANSKRIPSJON_BACKEND=remote` |
 
 Eksempel med Soniox:
 ```bash
@@ -228,6 +230,7 @@ app_factory.py               # Bygger FastAPI-app, lifespan og router-registreri
 settings.py                  # Miljøvariabler og runtime-konfigurasjon
 runtime.py                   # Arbeiderprosess, kø og delt JobStore
 worker_transkripsjon.py      # Eksplisitt entrypoint for transkripsjonsarbeider
+model_worker_app.py          # HTTP-basert modellarbeider for fremtidig container-splitt
 api/                         # HTTP/WebSocket-endepunkter
 services/
   jobs.py                    # Filbasert jobbtilstand og atomiske statusoppdateringer
@@ -276,6 +279,17 @@ python -m worker_transkripsjon
 ```
 
 Dette er forberedelse til å flytte modellene til en egen prosess eller container.
+
+Alternativt kan API-et bruke en HTTP-basert modellarbeider uten delt filsystem:
+
+```bash
+python -m uvicorn model_worker_app:app --host 127.0.0.1 --port 9000
+TRANSKRIPSJON_BACKEND=remote TRANSKRIPSJON_SERVICE_URL=http://127.0.0.1:9000 \
+  python -m uvicorn app_api:app --host 127.0.0.1 --port 8765
+```
+
+I denne modusen laster API-et opp lydfilen til modellarbeideren over HTTP og lagrer
+resultatet lokalt i `JobStore`.
 
 ### Benchmarking
 

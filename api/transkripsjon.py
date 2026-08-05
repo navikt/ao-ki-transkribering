@@ -2,10 +2,12 @@ import shutil
 import time
 from pathlib import Path
 
-from fastapi import APIRouter, File, Form, HTTPException, UploadFile
+import httpx
+from fastapi import APIRouter, BackgroundTasks, File, Form, HTTPException, UploadFile
 
 from runtime import job_store, jobbkø
-from settings import MODELL_ID
+from settings import MODELL_ID, TRANSKRIPSJON_BACKEND, TRANSKRIPSJON_SERVICE_URL
+from services.transkripsjon_client import transkriber_remote
 from transkribering.batch import estimert_total_s
 
 router = APIRouter()
@@ -13,6 +15,7 @@ router = APIRouter()
 
 @router.post("/transkriber")
 async def start_transkribering(
+    background_tasks: BackgroundTasks,
     lydfil: UploadFile = File(...),
     n_talere: int = Form(0),
 ):
@@ -27,9 +30,43 @@ async def start_transkribering(
         shutil.copyfileobj(lydfil.file, f)
 
     job_store.write_queued(paths.result_path)
-    jobbkø.put((paths.job_id, str(paths.audio_path), str(paths.result_path), n_talere))
+    if TRANSKRIPSJON_BACKEND == "remote":
+        background_tasks.add_task(
+            _kjor_remote_transkribering,
+            paths.audio_path,
+            paths.result_path,
+            n_talere,
+        )
+    else:
+        jobbkø.put((paths.job_id, str(paths.audio_path), str(paths.result_path), n_talere))
 
     return {"jobb_id": paths.job_id}
+
+
+async def _kjor_remote_transkribering(
+    audio_path: Path,
+    result_path: Path,
+    n_talere: int,
+) -> None:
+    job_store.write_transcribing(
+        result_path,
+        model_id=TRANSKRIPSJON_SERVICE_URL,
+        device="remote",
+    )
+    try:
+        resultat = await transkriber_remote(audio_path, n_talere=n_talere)
+        job_store.write_done(
+            result_path,
+            text=resultat.get("tekst", ""),
+            segments=resultat.get("segmenter", []),
+            warnings=resultat.get("advarsler"),
+        )
+    except httpx.HTTPError as exc:
+        job_store.write_failed(result_path, f"Remote transkripsjon feilet: {exc}")
+    except Exception as exc:
+        job_store.write_failed(result_path, str(exc))
+    finally:
+        audio_path.unlink(missing_ok=True)
 
 
 @router.get("/status/{jobb_id}")
