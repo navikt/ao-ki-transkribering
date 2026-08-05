@@ -1,154 +1,214 @@
-# ADR-0002: GCP MVP-etableringsplan — Kubernetes med GPU
+# ADR-0002: GCP MVP-etableringsplan — Hybrid NAIS + GPU-infrastruktur
 
 **Status:** Forslag  
 **Dato:** 2026-08-05  
 **Forfattere:** ao-ki-taskforce  
-**Forutsetning:** ADR-0001 besluttet egenstyrt GKE-cluster utenfor NAIS som fase 2.
+**Forutsetning:** ADR-0001 besluttet egenstyrt Kubernetes-cluster med GPU som fase 2.
 
 ---
 
-## Kontekst
+## Kontekst og funn
 
-NAIS-teamet ønsker ikke å tilby GPU-støtte for denne POC-en. Vi etablerer
-et egenstyrt GKE Standard-cluster i `europe-north1` (Finland) med NVIDIA L4
-GPU-nodepool. Målet er en fungerende MVP som kan kjøre nb-whisper-large og
-Ollama (qwen3:32b eller tilsvarende) i NAVs GCP-organisasjon.
+NAIS-teamet ønsker ikke GPU-støtte for denne POC-en. Gjennomgang av NAIS-infrastrukturen
+(kildekode i `nais/nais-terraform-modules`) avdekker følgende:
 
-Planen dekker både teknisk oppsett og utprøvingsfasene frem mot en MVP.
-
----
-
-## Forutsetninger
-
-| Forutsetning | Status | Kommentar |
-|---|---|---|
-| GCP-prosjekt under navikt-org | ⬜ Må opprettes | Navn: `ao-ki-transkribering` |
-| GCP-fakturering og budsjett | ⬜ Avklares | Estimat: ~5 000–15 000 kr/mnd for POC |
-| IAM-tilgang til GCP for teamet | ⬜ Bestilles | Rollen `roles/container.admin` + `roles/artifactregistry.admin` |
-| Azure AD app-registrering | ⬜ Bestilles | For autentisering av interne brukere |
-| Terraform Cloud / lokal state | ⬜ Velges | Anbefales: GCS-bucket som Terraform remote state |
-| `gcloud` og `kubectl` installert | ⬜ Lokalt | `brew install --cask google-cloud-sdk` |
+- **Ingen GPU-nodepooler i NAIS-clustrene** (`dev-gcp`, `prod-gcp`). Node Auto Provisioning
+  er satt opp kun for CPU og minne — ingen GPU resource limits.
+- **Ingen API-overflate for GPU** i NAIS Application-spek. Feltene `tolerations`,
+  `nodeSelector` og `affinity` finnes ikke i `nais.yaml`.
+- **Intern-only ingress** via `intern.nav.no` / `intern.dev.nav.no` er fullt støttet —
+  disse domenene peker på GCP Internal Load Balancers med kun private RFC-1918-adresser,
+  kun tilgjengelig via naisdevice VPN eller internt NAV-nettverk.
+- **KNADA** (`knada-gcp`-prosjekt) er NAVs eksisterende GPU/ML-plattform — et separat GKE-
+  cluster som *allerede er VPC-peeret med begge NAIS-clustrene*. Dette er den naturlige
+  GPU-plattformen å utforske før man oppretter et nytt cluster.
 
 ---
 
-## Faseplan
-
-### Fase 1 — GCP-prosjekt og grunninfrastruktur (dag 1–2)
-
-#### 1a. Opprett GCP-prosjekt
-
-```bash
-gcloud projects create ao-ki-transkribering \
-  --organization=NAVIKT_ORG_ID \
-  --name="AO KI Transkribering"
-
-gcloud billing projects link ao-ki-transkribering \
-  --billing-account=BILLING_ACCOUNT_ID
-```
-
-Aktiver nødvendige API-er:
-```bash
-gcloud services enable \
-  container.googleapis.com \
-  artifactregistry.googleapis.com \
-  compute.googleapis.com \
-  iam.googleapis.com \
-  --project=ao-ki-transkribering
-```
-
-#### 1b. Terraform-oppsett
-
-Anbefalt mappestruktur i repoet:
+## Anbefalt arkitektur: Hybrid NAIS + GPU
 
 ```
-infra/
-  terraform/
-    main.tf          # GKE-cluster, nodepooler
-    variables.tf
-    outputs.tf
-    versions.tf
-  k8s/
-    namespace.yaml
-    transkribering/
-      deployment.yaml
-      service.yaml
-      hpa.yaml
-    referat/
-      deployment.yaml
-      service.yaml
-    ingress.yaml
-    cert.yaml
-  docker/
-    transkribering/
-      Dockerfile
-    referat/
-      Dockerfile
+┌──────────────────────────────────────────────────────────────────┐
+│  NAV-ansatt (naisdevice VPN / internt nett)                      │
+└────────────────────┬─────────────────────────────────────────────┘
+                     │ HTTPS  intern.nav.no (privat LB 10.7.8.200)
+                     ▼
+┌──────────────────────────────────────────────────────────────────┐
+│  NAIS prod-gcp cluster  (GCP-prosjekt: nais-prod-020f)           │
+│  ┌────────────────────────────────────────────────────────────┐  │
+│  │  ao-ki-transkribering  (nais.yaml)                         │  │
+│  │  • Frontend + FastAPI                                      │  │
+│  │  • Azure AD sidecar (autoLogin: true)                      │  │
+│  │  • Prometheus/Loki/Tempo observability                     │  │
+│  │  • Zero-trust nettverkspolicy                              │  │
+│  └──────────────────────┬─────────────────────────────────────┘  │
+│                         │ intern K8s DNS / HTTP                   │
+│                  VPC peering (allerede etablert)                  │
+└──────────────────────────────────────────────────────────────────┘
+                          │
+                          ▼
+┌──────────────────────────────────────────────────────────────────┐
+│  GPU-plattform  (se Alternativ A og B under)                     │
+│                                                                  │
+│  Alternativ A: KNADA  (knada-gcp, allerede VPC-peeret)           │
+│    nb-whisper + Ollama som Kubernetes-tjenester                  │
+│                                                                  │
+│  Alternativ B: Eget GKE cluster i team GCP-prosjekt              │
+│    Krever ny VPC peering via NAIS-teamet                         │
+└──────────────────────────────────────────────────────────────────┘
 ```
 
-Remote state-bucket:
-```bash
-gsutil mb -p ao-ki-transkribering -l europe-north1 \
-  gs://ao-ki-transkribering-tfstate
+**Interntrafikk:** NAIS-appen kaller GPU-tjenestene via intern GCP-nettverkstrafikk
+(private IP over VPC peering) — ingen data forlater NAVs GCP-infrastruktur.
+
+---
+
+## Frontend på NAIS — detaljer
+
+Å kjøre frontend og API på NAIS er sterkt anbefalt. Man får gratis:
+
+| Tjeneste | Konfigurasjon | Verdi |
+|----------|--------------|-------|
+| **Azure AD-autentisering** | `spec.azure.sidecar.enabled: true` + `autoLogin: true` | Slipper å implementere OIDC selv |
+| **Intern-only tilgang** | `spec.ingresses: [https://ao-ki-transkribering.intern.nav.no]` | Kun tilgjengelig via naisdevice/intranet |
+| **Metrics + Grafana** | Automatisk fra `/metrics` | Driftsovervåking uten oppsett |
+| **Logging (Loki)** | Automatisk fra stdout | Alle applikasjonslogger samlet |
+| **Zero-trust nett** | `spec.accessPolicy.outbound` for GPU-endepunkt | Eksplisitt hvitelisting av utgående trafikk |
+| **Ingen secrets i kode** | `spec.envFrom.secret` | Hemmeligheter injiseres som env-vars |
+
+Minimalt `nais.yaml`-eksempel:
+
+```yaml
+apiVersion: nais.io/v1alpha1
+kind: Application
+metadata:
+  name: ao-ki-transkribering
+  namespace: ao-ki-taskforce
+spec:
+  image: europe-north1-docker.pkg.dev/{{teamprosjekt}}/ao-ki-transkribering:{{tag}}
+  port: 8765
+  replicas:
+    min: 1
+    max: 2
+  ingresses:
+    - https://ao-ki-transkribering.intern.dev.nav.no   # dev
+    # - https://ao-ki-transkribering.intern.nav.no     # prod
+  azure:
+    application:
+      enabled: true
+      sidecar:
+        enabled: true
+        autoLogin: true
+  accessPolicy:
+    outbound:
+      external:
+        - host: <gpu-tjeneste-intern-ip-eller-hostname>
+  resources:
+    requests:
+      cpu: 200m
+      memory: 512Mi
+    limits:
+      memory: 1Gi
+  liveness:
+    path: /isAlive
+  readiness:
+    path: /isReady
 ```
 
 ---
 
-### Fase 2 — GKE Standard-cluster med GPU-nodepool (dag 2–4)
+## GPU-plattform: To alternativer
 
-#### 2a. Terraform: Cluster og nodepooler
+### Alternativ A — KNADA (foretrukket å undersøke først)
+
+KNADA er NAVs eksisterende GPU/ML-plattform i `knada-gcp`-prosjektet. Det er et
+dedikert GKE-cluster som allerede er VPC-peeret med både `dev-gcp` og `prod-gcp`.
+
+**Fordeler:**
+- Ingen ny infrastruktur å etablere
+- VPC-peering med NAIS allerede på plass
+- NAV drifter plattformen — ikke ao-ki-taskforce
+- Naturlig migreringsvei (KNADA → NAIS GPU når NAIS støtter det)
+
+**Usikkerheter:**
+- Er KNADA tiltenkt produksjonstjenester, eller kun batch/notebooks?
+- Støtter KNADA NVIDIA L4 i `europe-north1`?
+- Hvilke team har tilgang, og hva er prosessen for å få det?
+
+**Anbefalt første steg:** Ta kontakt med KNADA-teamet
+(`#knada` på Slack) og avklar om GPU-pods for persistente tjenester er støttet.
+
+---
+
+### Alternativ B — Egenstyrt GKE-cluster i team GCP-prosjekt
+
+Dersom KNADA ikke egner seg, opprettes et eget GKE Standard-cluster i teamets
+GCP-prosjekt (som NAIS automatisk oppretter for `ao-ki-taskforce`).
+
+**Forutsetning:** NAIS-teamet må legge til VPC peering mellom teamets GCP-prosjekt
+og NAIS-clustrenes VPC-er. Dette er en enkel konfigurasjon i
+`nais/nais-terraform-modules/tenants/nav/peerings_prod.tf`:
 
 ```hcl
-# infra/terraform/main.tf
+# Eksempel på ny peering som NAIS-teamet legger til
+module "peer_ao_ki_transkribering" {
+  source        = "../../modules/peering"
+  local_network = data.google_compute_network.nais_vpc.self_link
+  peer_network  = "projects/ao-ki-transkribering/global/networks/default"
+  export_routes = false
+  import_routes = false
+}
+```
 
-resource "google_container_cluster" "transkribering" {
-  name     = "ao-ki-transkribering"
+Dette er en *langt* lavere terskel å be om enn GPU-nodepool-støtte.
+
+#### Terraform: GKE cluster (alternativ B)
+
+```hcl
+# GPU-cluster i teamets GCP-prosjekt
+resource "google_container_cluster" "gpu" {
+  name     = "ao-ki-transkribering-gpu"
   location = "europe-north1"
-  project  = var.project_id
+  project  = var.team_project_id
 
-  # Fjern default nodepool – vi definerer egne
   remove_default_node_pool = true
   initial_node_count       = 1
 
-  workload_identity_config {
-    workload_pool = "${var.project_id}.svc.id.goog"
-  }
-
   network    = "default"
   subnetwork = "default"
-}
 
-# CPU-nodepool for API og ingress
-resource "google_container_node_pool" "cpu" {
-  name     = "cpu-pool"
-  cluster  = google_container_cluster.transkribering.id
-  location = "europe-north1"
-
-  autoscaling {
-    min_node_count = 1
-    max_node_count = 3
+  # Ingen offentlig endepunkt — kun privat API-server
+  private_cluster_config {
+    enable_private_nodes    = true
+    enable_private_endpoint = false
+    master_ipv4_cidr_block  = "172.16.0.0/28"
   }
 
-  node_config {
-    machine_type = "n2-standard-4"
-    disk_size_gb = 50
-    oauth_scopes = ["https://www.googleapis.com/auth/cloud-platform"]
-    workload_metadata_config { mode = "GKE_METADATA" }
+  master_authorized_networks_config {
+    cidr_blocks {
+      cidr_block   = "10.7.8.0/23"   # NAIS prod-gcp node CIDR
+      display_name = "nais-prod-nodes"
+    }
+    cidr_blocks {
+      cidr_block   = "10.6.8.0/23"   # NAIS dev-gcp node CIDR
+      display_name = "nais-dev-nodes"
+    }
   }
 }
 
-# GPU-nodepool med NVIDIA L4
+# GPU-nodepool: NVIDIA L4, scale-to-zero
 resource "google_container_node_pool" "gpu" {
   name     = "gpu-pool"
-  cluster  = google_container_cluster.transkribering.id
+  cluster  = google_container_cluster.gpu.id
   location = "europe-north1"
 
   autoscaling {
-    min_node_count = 0   # Skaler til 0 ved inaktivitet
+    min_node_count = 0
     max_node_count = 2
   }
 
   node_config {
-    machine_type = "g2-standard-8"  # 8 vCPU, 32 GB RAM, 1x L4 GPU
+    machine_type = "g2-standard-8"   # 8 vCPU, 32 GB RAM, 1× NVIDIA L4
     disk_size_gb = 100
 
     guest_accelerator {
@@ -159,349 +219,122 @@ resource "google_container_node_pool" "gpu" {
       }
     }
 
-    oauth_scopes = ["https://www.googleapis.com/auth/cloud-platform"]
-    workload_metadata_config { mode = "GKE_METADATA" }
-
     taint {
       key    = "nvidia.com/gpu"
       value  = "present"
       effect = "NO_SCHEDULE"
     }
+
+    oauth_scopes = ["https://www.googleapis.com/auth/cloud-platform"]
+    workload_metadata_config { mode = "GKE_METADATA" }
   }
 }
 ```
 
-#### 2b. Koble til cluster
+---
 
-```bash
-gcloud container clusters get-credentials ao-ki-transkribering \
-  --region europe-north1 \
-  --project ao-ki-transkribering
+## Nettverkssikkerhet
+
+All trafikk holdes innenfor NAVs GCP-infrastruktur:
+
+```
+Bruker (naisdevice VPN)
+    → intern.nav.no (privat LB, 10.7.8.200)
+        → NAIS-pod (FastAPI)
+            → GPU-pod (nb-whisper / Ollama)  [intern VPC, RFC-1918]
+                ← Transkripsjon/referat returneres
+            ← Returneres til NAIS-pod
+        ← Returneres til nettleser
+Ingen av stegene over passerer internett.
 ```
 
-Verifiser GPU-driver er installert på noden:
-```bash
-kubectl get nodes -l cloud.google.com/gke-accelerator=nvidia-l4
-kubectl describe node <gpu-node> | grep -A5 "nvidia.com/gpu"
-```
+**GPU-tjenestene eksponeres kun som ClusterIP eller Internal LoadBalancer** (ikke ekstern).
+NAIS-appen hvitelister GPU-endepunktets IP i `accessPolicy.outbound`.
 
 ---
 
-### Fase 3 — Container-images (dag 3–5)
+## Faseplan
 
-#### 3a. Artifact Registry
+### Fase 1 — Avklar GPU-plattform (uke 1)
+- [ ] Ta kontakt med KNADA-teamet (`#knada` Slack): støttes persistent GPU-tjenester?
+- [ ] Hvis nei: klargjør team GCP-prosjekt (NAIS oppretter automatisk for `ao-ki-taskforce`)
+- [ ] Hent GCP-prosjekt-ID og bekreft billing-konto
 
-```bash
-gcloud artifacts repositories create transkribering \
-  --repository-format=docker \
-  --location=europe-north1 \
-  --project=ao-ki-transkribering
+### Fase 2 — Frontend på NAIS (uke 1–2)
+- [ ] Opprett `nais.yaml` (basert på eksempel over) i repoet
+- [ ] Bygg Docker-image uten GPU-avhengigheter (kun frontend + FastAPI uten whisper-last)
+- [ ] Deploy til `dev-gcp` med `intern.dev.nav.no`
+- [ ] Verifiser Azure AD-autentisering og intern-only tilgang
 
-gcloud auth configure-docker europe-north1-docker.pkg.dev
-```
+### Fase 3 — GPU-infrastruktur (uke 2–3)
+**KNADA-løype:**
+- [ ] Sett opp nb-whisper + Ollama som K8s Deployments i KNADA
+- [ ] Verifiser at NAIS-pod kan nå GPU-tjenestene via intern IP
 
-#### 3b. Dockerfile: Transkriberingstjeneste
+**Eget cluster-løype (alternativ B):**
+- [ ] Opprett GKE Standard-cluster med Terraform (se over)
+- [ ] Be NAIS-teamet om VPC peering (enkelt PR til `nais-terraform-modules`)
+- [ ] Verifiser GPU-nodepool med `nvidia-smi`
 
-```dockerfile
-# infra/docker/transkribering/Dockerfile
-FROM nvidia/cuda:12.4.1-cudnn-runtime-ubuntu22.04
+### Fase 4 — Container-images og deploy (uke 3–4)
+- [ ] Bygg `transkribering`-image med CUDA/faster-whisper + nb-whisper-large
+- [ ] Bygg `referat`-image med Ollama + qwen3:32b (bakt inn eller fra PVC)
+- [ ] Push til Artifact Registry
+- [ ] Deploy K8s-manifester til GPU-cluster
+- [ ] Koble NAIS-app mot GPU-tjenester (OLLAMA_URL / intern host)
 
-RUN apt-get update && apt-get install -y \
-    python3.11 python3.11-venv python3-pip ffmpeg \
-    && rm -rf /var/lib/apt/lists/*
+### Fase 5 — Testing og akseptansekriterier (uke 4)
 
-WORKDIR /app
-COPY requirements.txt .
-RUN pip install --no-cache-dir \
-    fastapi uvicorn httpx \
-    faster-whisper \
-    pyannote.audio resemblyzer \
-    numpy
-
-# Forhåndslast nb-whisper-modell ved bygg (bakes inn i image)
-# Alternativt: last fra GCS ved oppstart for mindre image
-COPY scripts/last_modell.py .
-RUN python3 last_modell.py  # Kjøres kun ved docker build
-
-COPY server.py static/ ./
-EXPOSE 8765
-CMD ["uvicorn", "server:app", "--host", "0.0.0.0", "--port", "8765"]
-```
-
-**Viktig:** Vurder om nb-whisper-modellen (1.5 GB) bakes inn i image eller
-lastes fra GCS bucket ved pod-oppstart. Innbakt gir raskere cold start;
-ekstern GCS gir mindre image og enklere modell-oppdatering.
-
-#### 3c. Dockerfile: Referattjeneste (Ollama)
-
-```dockerfile
-# infra/docker/referat/Dockerfile
-FROM ollama/ollama:latest
-
-# Forhåndslast modell inn i image (gir ~22 GB image)
-RUN ollama serve & sleep 5 && ollama pull qwen3:32b && kill %1
-
-EXPOSE 11434
-CMD ["serve"]
-```
-
-> ⚠️ Alternativt: bruk standard `ollama/ollama`-image og last modell fra
-> GCS bucket til persistent volume ved første oppstart. Gir mindre image
-> men krever PersistentVolumeClaim.
-
-#### 3d. Bygg og push
-
-```bash
-IMAGE=europe-north1-docker.pkg.dev/ao-ki-transkribering/transkribering
-
-docker build -t $IMAGE/transkribering:latest infra/docker/transkribering/
-docker build -t $IMAGE/referat:latest infra/docker/referat/
-docker push $IMAGE/transkribering:latest
-docker push $IMAGE/referat:latest
-```
+| Test | Akseptabel grense |
+|------|-------------------|
+| Batch-transkripsjon, 45 min møte | < 3 min |
+| Sanntid-segment (10 sek lyd) | < 3 sek |
+| Referatgenerering, 1 000 ord | < 60 sek |
+| Cold start GPU-pod (0 → klar) | < 5 min |
+| Ingen lyddata på disk etter sesjon | ✅ verifisert |
+| Kun tilgjengelig via naisdevice | ✅ verifisert |
 
 ---
 
-### Fase 4 — Kubernetes-manifester (dag 5–7)
+## Kostnadsestimat
 
-#### 4a. Namespace og RBAC
+### Alternativ A (KNADA): Avklares med KNADA-teamet — trolig intern fordeling.
 
-```yaml
-# infra/k8s/namespace.yaml
-apiVersion: v1
-kind: Namespace
-metadata:
-  name: transkribering
-```
-
-#### 4b. Deployment: Transkriberingstjeneste
-
-```yaml
-# infra/k8s/transkribering/deployment.yaml
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: transkribering
-  namespace: transkribering
-spec:
-  replicas: 1
-  selector:
-    matchLabels:
-      app: transkribering
-  template:
-    metadata:
-      labels:
-        app: transkribering
-    spec:
-      tolerations:
-      - key: nvidia.com/gpu
-        operator: Exists
-        effect: NoSchedule
-      containers:
-      - name: transkribering
-        image: europe-north1-docker.pkg.dev/ao-ki-transkribering/transkribering/transkribering:latest
-        ports:
-        - containerPort: 8765
-        env:
-        - name: OLLAMA_URL
-          value: "http://referat-svc:11434"
-        - name: OLLAMA_MODELL
-          value: "qwen3:32b"
-        resources:
-          limits:
-            nvidia.com/gpu: "1"
-            memory: "8Gi"
-          requests:
-            nvidia.com/gpu: "1"
-            memory: "4Gi"
-        livenessProbe:
-          httpGet:
-            path: /isAlive
-            port: 8765
-          initialDelaySeconds: 30
-        readinessProbe:
-          httpGet:
-            path: /isReady
-            port: 8765
-          initialDelaySeconds: 60
-```
-
-#### 4c. Deployment: Referattjeneste (Ollama)
-
-```yaml
-# infra/k8s/referat/deployment.yaml
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: referat
-  namespace: transkribering
-spec:
-  replicas: 1
-  selector:
-    matchLabels:
-      app: referat
-  template:
-    spec:
-      tolerations:
-      - key: nvidia.com/gpu
-        operator: Exists
-        effect: NoSchedule
-      containers:
-      - name: ollama
-        image: europe-north1-docker.pkg.dev/ao-ki-transkribering/transkribering/referat:latest
-        ports:
-        - containerPort: 11434
-        resources:
-          limits:
-            nvidia.com/gpu: "1"
-            memory: "28Gi"
-          requests:
-            nvidia.com/gpu: "1"
-            memory: "24Gi"
-        volumeMounts:
-        - name: ollama-data
-          mountPath: /root/.ollama
-      volumes:
-      - name: ollama-data
-        persistentVolumeClaim:
-          claimName: ollama-pvc
----
-apiVersion: v1
-kind: PersistentVolumeClaim
-metadata:
-  name: ollama-pvc
-  namespace: transkribering
-spec:
-  accessModes: [ReadWriteOnce]
-  storageClassName: standard-rwo
-  resources:
-    requests:
-      storage: 50Gi
-```
-
-#### 4d. Ingress med TLS
-
-```yaml
-# infra/k8s/ingress.yaml
-apiVersion: networking.k8s.io/v1
-kind: Ingress
-metadata:
-  name: transkribering-ingress
-  namespace: transkribering
-  annotations:
-    kubernetes.io/ingress.class: "gce"
-    networking.gke.io/managed-certificates: "transkribering-cert"
-    kubernetes.io/ingress.global-static-ip-name: "transkribering-ip"
-spec:
-  rules:
-  - host: transkribering.intern.nav.no  # DNS-oppføring må opprettes
-    http:
-      paths:
-      - path: /
-        pathType: Prefix
-        backend:
-          service:
-            name: transkribering-svc
-            port:
-              number: 8765
----
-apiVersion: networking.gke.io/v1
-kind: ManagedCertificate
-metadata:
-  name: transkribering-cert
-  namespace: transkribering
-spec:
-  domains:
-  - transkribering.intern.nav.no
-```
-
----
-
-### Fase 5 — Autentisering (dag 7–9)
-
-For intern NAV-bruk anbefales **Azure AD** via en enkel reverse-proxy eller
-sidecar (f.eks. `oauth2-proxy`), siden verktøyet er for NAV-ansatte.
-
-```yaml
-# Legg til oauth2-proxy som sidecar i transkribering-deployment
-- name: auth-proxy
-  image: quay.io/oauth2-proxy/oauth2-proxy:latest
-  args:
-  - --provider=azure
-  - --azure-tenant=NAV_TENANT_ID
-  - --client-id=APP_CLIENT_ID
-  - --cookie-secret=$(COOKIE_SECRET)
-  - --upstream=http://localhost:8765
-  - --http-address=0.0.0.0:4180
-  ports:
-  - containerPort: 4180
-```
-
-Ingress peker da på port 4180 (auth-proxy) i stedet for 8765 direkte.
-
----
-
-### Fase 6 — Kostnadsestimat
+### Alternativ B (eget cluster):
 
 | Ressurs | Type | Pris/time | Estimert bruk/mnd | Kostnad/mnd |
 |---------|------|-----------|-------------------|-------------|
-| GPU-node (transkripsjon) | g2-standard-8 + L4 | ~$1.20 | 40 timer (pilot) | ~$48 |
-| GPU-node (Ollama) | g2-standard-8 + L4 | ~$1.20 | 40 timer (pilot) | ~$48 |
-| CPU-node (API/ingress) | n2-standard-4 | ~$0.19 | 730 timer | ~$140 |
-| Persistent disk (Ollama) | 50 GB SSD | ~$0.17/GB | — | ~$8 |
-| Egress/nett | — | ~$0.08/GB | 10 GB | ~$1 |
-| **Totalt (pilot, lav bruk)** | | | | **~$245/mnd (~2 600 kr)** |
+| GPU-node (whisper) | g2-standard-8 + L4 | ~$1.20 | 40 t (pilot) | ~$48 |
+| GPU-node (Ollama) | g2-standard-8 + L4 | ~$1.20 | 40 t (pilot) | ~$48 |
+| CPU-node (API) | n2-standard-4 | ~$0.19 | 730 t | ~$140 |
+| Persistent disk | 50 GB SSD | — | — | ~$8 |
+| **Totalt pilot** | | | | **~$245/mnd (~2 600 kr)** |
 
-> GPU-nodene autoskalerer til 0 ved inaktivitet (scale-to-zero via KEDA eller
-> manuell nedskalering mellom testsessioner). I pilotperioden vil faktisk
-> kostnad være langt lavere enn estimatet over.
-
-**Potensielt langsiktig kostnad (produksjon, 5–10 samtidige veiledere):**
-~$1 500–3 000/mnd (~15 000–32 000 kr).
-
----
-
-### Fase 7 — Utprøving og MVP-kriterier
-
-#### Steg 1: Infrastrukturtesting (dag 9–10)
-- [ ] GPU tilgjengelig i pod (`nvidia-smi` fra container)
-- [ ] nb-whisper-large laster og transkriberer testfil
-- [ ] Ollama svarer på `/api/generate` mot qwen3:32b
-- [ ] Tjenestene kommuniserer internt via K8s DNS
-
-#### Steg 2: Funksjonell testing (dag 10–12)
-- [ ] Batch-transkripsjon av king.mp3 og tre_stemmer_test.wav
-- [ ] Sanntidstranskripsjon via WebSocket
-- [ ] Sammendrag og møtereferat genereres uten timeout
-- [ ] Responstider innenfor akseptable grenser (se under)
-
-**Akseptansekriterier for MVP:**
-
-| Test | Akseptabel grense | Målt |
-|------|-------------------|------|
-| Batch-transkripsjon, 45 min møte | < 3 min | — |
-| Sanntid-segment (10 sek lyd) | < 3 sek | — |
-| Referatgenerering (1 000 ord transkripsjon) | < 60 sek | — |
-| Cold start GPU-pod (fra 0) | < 5 min | — |
-| TLS-tilkobling via ingress | ✅ | — |
-| Ingen data lagret etter sesjon | ✅ (verifiser) | — |
-
-#### Steg 3: Sikkerhet og etterlevelse (dag 12–14)
-- [ ] Bekreft at lyddata ikke skrives til disk (kun RAM)
-- [ ] Verifiser at Ollama-tjenesten kun er tilgjengelig internt (ingen ekstern eksponering)
-- [ ] Azure AD-autentisering fungerer for NAV-ansatte
-- [ ] Oppdater Behandlingskatalogen med nytt B-nummer for sky-behandlingen
-- [ ] Gjennomgå åpne spørsmål fra ADR-0001
+GPU-noder autoskalerer til 0 ved inaktivitet → faktisk pilot-kostnad trolig langt lavere.
 
 ---
 
 ## Åpne spørsmål
 
-| Spørsmål | Ansvarlig |
-|----------|-----------|
-| Hvilken GCP-organisasjon og billing account brukes? | ao-ki-taskforce / økonomi |
-| Opprettes eget GCP-prosjekt eller under eksisterende org? | Plattform / PO |
-| Hvilken Azure AD-tenant og app-registrering for autentisering? | IT-sikkerhet |
-| Skal DNS-oppføring under `intern.nav.no` bestilles? | IT-drift |
-| Bakes Ollama-modellen inn i Docker-image eller lastes fra GCS? | ao-ki-taskforce |
-| Skal infrastrukturen også brukes for andre åpen-vektede modeller i NAV? | Teknologiavdelingen |
+| Spørsmål | Ansvarlig | Status |
+|----------|-----------|--------|
+| Støtter KNADA persistent GPU-tjenester (ikke bare notebooks)? | ao-ki-taskforce → `#knada` | ⬜ |
+| Har NAIS-teamet kapasitet til å legge til VPC peering for teamprosjektet? | ao-ki-taskforce → NAIS | ⬜ |
+| Er `ao-ki-taskforce` et NAIS-team med eget GCP-prosjekt? | ao-ki-taskforce | ⬜ |
+| Hvilken billing account brukes for GPU-infrastrukturen? | PO / økonomi | ⬜ |
+| Skal Ollama-modellen bakes inn i Docker-image (~22 GB) eller lastes fra GCS PVC? | ao-ki-taskforce | ⬜ |
+| Langsiktig: kan GPU-infrastrukturen bli en felles NAV-plattform for åpne modeller? | Teknologiavdelingen | ⬜ |
+
+---
+
+## Migreringsvei til NAIS
+
+Hybridarkitekturen er designet for enkel migrering:
+
+```
+I dag (hybrid):          NAIS-app → VPC peering → GPU-cluster (eget/KNADA)
+Når NAIS støtter GPU:    NAIS-app → NAIS GPU-nodepool
+```
+
+Kun GPU-tjenestene flyttes. Frontend og API på NAIS rører man ikke.
+`OLLAMA_URL`-env-variabelen i `nais.yaml` peker da på NAIS-intern service i stedet.
