@@ -1,10 +1,11 @@
 import subprocess
 import tempfile
 from pathlib import Path
-from typing import Callable, Any
+from typing import Any
 
 import numpy as np
 
+from services.transkripsjon_backend import StatusCallback
 from transkribering.hallusinasjon import trim_null_ord, trim_etter_stille, fjern_hallusinasjon
 from transkribering.diarisering import diariser, tilordne_taler
 
@@ -47,7 +48,7 @@ class LokalBatchTranskriberer:
         lydfil: Path,
         *,
         n_talere: int = 0,
-        status_callback: Callable[[dict[str, Any]], None] | None = None,
+        status_callback: StatusCallback | None = None,
     ) -> dict[str, Any]:
         wav_sti = None
         advarsler: list[str] = []

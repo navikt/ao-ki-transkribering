@@ -169,6 +169,8 @@ python -m uvicorn server:app --host 127.0.0.1 --port 8765
 | `OLLAMA_NUM_CTX` | `32768`                      | Kontekstvindauge for LLM (tokens) |
 | `STT_BACKEND` | `lokal`                      | `lokal` (nb-whisper) eller `soniox` (sky-STT) |
 | `SONIOX_API_KEY` | —                            | API-nøkkel for Soniox (kun ved `STT_BACKEND=soniox`) |
+| `ARBEIDSMAPPE` | midlertidig mappe | Mappe for lyd- og jobbstatusfiler |
+| `START_LOKAL_WORKER` | `true` | Starter lokal transkripsjonsarbeider sammen med API-et |
 
 Eksempel med Soniox:
 ```bash
@@ -221,12 +223,15 @@ Kodestruktur:
 
 ```
 server.py                    # Stabil ASGI-entrypoint for uvicorn (server:app)
+app_api.py                   # Eksplisitt API-entrypoint for uvicorn (app_api:app)
 app_factory.py               # Bygger FastAPI-app, lifespan og router-registrering
 settings.py                  # Miljøvariabler og runtime-konfigurasjon
 runtime.py                   # Arbeiderprosess, kø og delt JobStore
+worker_transkripsjon.py      # Eksplisitt entrypoint for transkripsjonsarbeider
 api/                         # HTTP/WebSocket-endepunkter
 services/
   jobs.py                    # Filbasert jobbtilstand og atomiske statusoppdateringer
+  transkripsjon_backend.py   # Kontrakt for transkripsjonsbackends
 workers/
   transkripsjon.py           # Køarbeider for transkripsjonsjobber og jobbstatus
 static/
@@ -253,6 +258,24 @@ møtereferat_prompt.md        # Dokumentasjon av LLM-prompts
 benchmarks.md                # Benchmark-resultater
 testdata/                    # Testlydfiler (NRK, offentlig)
 ```
+
+### API og transkripsjonsarbeider
+
+Som standard starter API-et fortsatt en lokal transkripsjonsarbeider i egen prosess.
+Dette holder lokal utvikling enkel:
+
+```bash
+python -m uvicorn app_api:app --host 127.0.0.1 --port 8765 --reload
+```
+
+For å kjøre API og transkripsjonsarbeider som separate prosesser:
+
+```bash
+START_LOKAL_WORKER=false python -m uvicorn app_api:app --host 127.0.0.1 --port 8765
+python -m worker_transkripsjon
+```
+
+Dette er forberedelse til å flytte modellene til en egen prosess eller container.
 
 ### Benchmarking
 
