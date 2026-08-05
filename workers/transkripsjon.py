@@ -48,9 +48,9 @@ def arbeider(
             )
             job_store.write_done(
                 resultat_fil,
-                text=resultat["tekst"],
-                segments=resultat["segmenter"],
-                warnings=resultat.get("advarsler"),
+                text=resultat.tekst,
+                segments=[s.model_dump() for s in resultat.segmenter],
+                warnings=resultat.advarsler,
             )
         except Exception as exc:
             print(f"[arbeider] FEIL i jobb {jobb_id}: {exc}", flush=True)

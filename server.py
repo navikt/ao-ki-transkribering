@@ -1,3 +1,3 @@
 """Compatibility entrypoint for uvicorn server:app."""
 
-from app_api import app
+from apps.api.app import app

@@ -57,9 +57,9 @@ async def _kjor_remote_transkribering(
         resultat = await transkriber_remote(audio_path, n_talere=n_talere)
         job_store.write_done(
             result_path,
-            text=resultat.get("tekst", ""),
-            segments=resultat.get("segmenter", []),
-            warnings=resultat.get("advarsler"),
+            text=resultat.tekst,
+            segments=[s.model_dump() for s in resultat.segmenter],
+            warnings=resultat.advarsler,
         )
     except httpx.HTTPError as exc:
         job_store.write_failed(result_path, f"Remote transkripsjon feilet: {exc}")

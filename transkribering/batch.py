@@ -1,10 +1,10 @@
 import subprocess
 import tempfile
 from pathlib import Path
-from typing import Any
 
 import numpy as np
 
+from kontrakter.transkripsjon import Segment, TranskripsjonSvar
 from services.transkripsjon_backend import StatusCallback
 from transkribering.hallusinasjon import trim_null_ord, trim_etter_stille, fjern_hallusinasjon
 from transkribering.diarisering import diariser, tilordne_taler
@@ -49,7 +49,7 @@ class LokalBatchTranskriberer:
         *,
         n_talere: int = 0,
         status_callback: StatusCallback | None = None,
-    ) -> dict[str, Any]:
+    ) -> TranskripsjonSvar:
         wav_sti = None
         advarsler: list[str] = []
         try:
@@ -211,7 +211,11 @@ class LokalBatchTranskriberer:
                             "taler": "SPEAKER_00",
                         })
 
-            return {"tekst": tekst, "segmenter": segmenter, "advarsler": advarsler}
+            return TranskripsjonSvar(
+                tekst=tekst,
+                segmenter=[Segment.model_validate(s) for s in segmenter],
+                advarsler=advarsler,
+            )
         finally:
             if wav_sti:
                 wav_sti.unlink(missing_ok=True)

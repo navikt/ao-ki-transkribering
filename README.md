@@ -153,7 +153,7 @@ Modellen er ~23 GB. Nedlasting tar tid avhengig av internettforbindelsen.
 
 ```bash
 source .venv/bin/activate   # hvis ikke allerede aktivert
-python -m uvicorn server:app --host 127.0.0.1 --port 8765
+python -m uvicorn apps.api.app:app --host 127.0.0.1 --port 8765
 ```
 
 Åpne nettleser på [http://127.0.0.1:8765](http://127.0.0.1:8765).
@@ -176,7 +176,7 @@ python -m uvicorn server:app --host 127.0.0.1 --port 8765
 
 Eksempel med Soniox:
 ```bash
-STT_BACKEND=soniox SONIOX_API_KEY=<din-nøkkel> python -m uvicorn server:app --host 127.0.0.1 --port 8765
+STT_BACKEND=soniox SONIOX_API_KEY=<din-nøkkel> python -m uvicorn apps.api.app:app --host 127.0.0.1 --port 8765
 ```
 
 ---
@@ -218,27 +218,34 @@ Løsningen eies av [ao-ki-taskforce](https://github.com/orgs/navikt/teams/ao-ki-
 
 ```bash
 # Kjør med auto-reload under utvikling
-python -m uvicorn server:app --host 127.0.0.1 --port 8765 --reload
+python -m uvicorn apps.api.app:app --host 127.0.0.1 --port 8765 --reload
 ```
 
 Kodestruktur:
 
 ```
-server.py                    # Stabil ASGI-entrypoint for uvicorn (server:app)
-app_api.py                   # Eksplisitt API-entrypoint for uvicorn (app_api:app)
-app_factory.py               # Bygger FastAPI-app, lifespan og router-registrering
+server.py                    # Bakoverkompatibel ASGI-entrypoint (server:app)
+app_api.py                   # Bakoverkompatibel API-entrypoint (app_api:app)
+app_factory.py               # Bakoverkompatibel import for create_app
 settings.py                  # Miljøvariabler og runtime-konfigurasjon
 runtime.py                   # Arbeiderprosess, kø og delt JobStore
 worker_transkripsjon.py      # Eksplisitt entrypoint for transkripsjonsarbeider
-model_worker_app.py          # HTTP-basert modellarbeider for fremtidig container-splitt
+model_worker_app.py          # Bakoverkompatibel modellarbeider-entrypoint
+apps/
+  api/app.py                 # API-app: statiske filer, lifespan og router-registrering
+  model_worker/app.py        # HTTP-basert modellarbeider
 api/                         # HTTP/WebSocket-endepunkter
+kontrakter/
+  transkripsjon.py           # Delte HTTP-kontrakter mellom API og modellarbeider
 services/
   jobs.py                    # Filbasert jobbtilstand og atomiske statusoppdateringer
   transkripsjon_backend.py   # Kontrakt for transkripsjonsbackends
 workers/
   transkripsjon.py           # Køarbeider for transkripsjonsjobber og jobbstatus
 static/
-  index.html                 # Enkeltside-frontend (HTML/CSS/JS)
+  index.html                 # Frontend-markup
+  styles.css                 # Frontend-stiler
+  app.js                     # Frontend-logikk
   audio-processor.js         # AudioWorklet for sanntids-PCM-prosessering
 transkribering/
   batch.py                   # Lokal batchmodell: nb-whisper + diarisering
@@ -268,13 +275,13 @@ Som standard starter API-et fortsatt en lokal transkripsjonsarbeider i egen pros
 Dette holder lokal utvikling enkel:
 
 ```bash
-python -m uvicorn app_api:app --host 127.0.0.1 --port 8765 --reload
+python -m uvicorn apps.api.app:app --host 127.0.0.1 --port 8765 --reload
 ```
 
 For å kjøre API og transkripsjonsarbeider som separate prosesser:
 
 ```bash
-START_LOKAL_WORKER=false python -m uvicorn app_api:app --host 127.0.0.1 --port 8765
+START_LOKAL_WORKER=false python -m uvicorn apps.api.app:app --host 127.0.0.1 --port 8765
 python -m worker_transkripsjon
 ```
 
@@ -283,9 +290,9 @@ Dette er forberedelse til å flytte modellene til en egen prosess eller containe
 Alternativt kan API-et bruke en HTTP-basert modellarbeider uten delt filsystem:
 
 ```bash
-python -m uvicorn model_worker_app:app --host 127.0.0.1 --port 9000
+python -m uvicorn apps.model_worker.app:app --host 127.0.0.1 --port 9000
 TRANSKRIPSJON_BACKEND=remote TRANSKRIPSJON_SERVICE_URL=http://127.0.0.1:9000 \
-  python -m uvicorn app_api:app --host 127.0.0.1 --port 8765
+  python -m uvicorn apps.api.app:app --host 127.0.0.1 --port 8765
 ```
 
 I denne modusen laster API-et opp lydfilen til modellarbeideren over HTTP og lagrer

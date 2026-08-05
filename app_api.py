@@ -1,9 +1,5 @@
-"""API server entrypoint.
+"""Compatibility entrypoint for uvicorn app_api:app."""
 
-Run with:
-  python -m uvicorn app_api:app --host 127.0.0.1 --port 8765
-"""
+from apps.api.app import app
 
-from app_factory import create_app
-
-app = create_app()
+__all__ = ["app"]

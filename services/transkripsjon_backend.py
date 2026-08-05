@@ -1,6 +1,8 @@
 from pathlib import Path
 from typing import Any, Callable, Protocol
 
+from kontrakter.transkripsjon import TranskripsjonSvar
+
 
 StatusCallback = Callable[[dict[str, Any]], None]
 
@@ -17,5 +19,5 @@ class TranskripsjonBackend(Protocol):
         *,
         n_talere: int = 0,
         status_callback: StatusCallback | None = None,
-    ) -> dict[str, Any]:
+    ) -> TranskripsjonSvar:
         """Transcribe an audio file and return text, segments and optional warnings."""
