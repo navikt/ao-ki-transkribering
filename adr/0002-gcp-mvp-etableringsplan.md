@@ -19,9 +19,11 @@ NAIS-teamet ønsker ikke GPU-støtte for denne POC-en. Gjennomgang av NAIS-infra
 - **Intern-only ingress** via `intern.nav.no` / `intern.dev.nav.no` er fullt støttet —
   disse domenene peker på GCP Internal Load Balancers med kun private RFC-1918-adresser,
   kun tilgjengelig via naisdevice VPN eller internt NAV-nettverk.
-- **KNADA** (`knada-gcp`-prosjekt) er NAVs eksisterende GPU/ML-plattform — et separat GKE-
-  cluster som *allerede er VPC-peeret med begge NAIS-clustrene*. Dette er den naturlige
-  GPU-plattformen å utforske før man oppretter et nytt cluster.
+- **KNADA** (`knada-gcp`-prosjekt) er en separat GKE-basert plattform som er
+  VPC-peeret med begge NAIS-clustrene (bekreftet i `nais/nais-terraform-modules/tenants/nav/peerings_prod.tf`
+  og `peerings_dev.tf`). Kildekoden i `nais/knada-gcp` viser at KNADA primært er en
+  **data science-plattform** (Airflow, Flyte, JupyterHub) med GPU-cluster (NVIDIA T4
+  i `europe-west1`). Om KNADA egner seg for persistente API-tjenester er ikke avklart.
 
 ---
 
@@ -119,24 +121,28 @@ spec:
 
 ## GPU-plattform: To alternativer
 
-### Alternativ A — KNADA (foretrukket å undersøke først)
+### Alternativ A — KNADA (verdt å undersøke)
 
-KNADA er NAVs eksisterende GPU/ML-plattform i `knada-gcp`-prosjektet. Det er et
-dedikert GKE-cluster som allerede er VPC-peeret med både `dev-gcp` og `prod-gcp`.
+KNADA (`knada-gcp`) er en data science-plattform (Airflow, Flyte, JupyterHub) med
+eget GPU-cluster. Bekreftet fra kildekoden i `nais/knada-gcp`:
+
+- VPC-peeret med `nais-prod-020f` og `nais-dev-2e7b` ✅
+- Har GPU-nodepool med **NVIDIA Tesla T4** (`nvidia-tesla-t4`) ✅
+- GPU-clusteret (`knada-gpu`) er i **`europe-west1`** (ikke `europe-north1`) ⚠️
+- Plattformen er bygget rundt **Flyte** (ML workflow engine) og **Airflow** (batch DAGs)
 
 **Fordeler:**
-- Ingen ny infrastruktur å etablere
-- VPC-peering med NAIS allerede på plass
+- VPC-peering med NAIS allerede på plass — ingen ny infrastruktur mellom lagene
 - NAV drifter plattformen — ikke ao-ki-taskforce
-- Naturlig migreringsvei (KNADA → NAIS GPU når NAIS støtter det)
 
-**Usikkerheter:**
-- Er KNADA tiltenkt produksjonstjenester, eller kun batch/notebooks?
-- Støtter KNADA NVIDIA L4 i `europe-north1`?
-- Hvilke team har tilgang, og hva er prosessen for å få det?
+**Usikkerheter (må avklares med KNADA-teamet):**
+- Er KNADA tiltenkt persistente tjenester, eller kun batch-workflows og notebooks?
+- Er `europe-west1` akseptabelt for GDPR (EU, men ikke nordic region)?
+- Kan ao-ki-taskforce deploye egne Kubernetes-workloads, eller styres alt via Flyte/Airflow?
+- Er T4 (16 GB VRAM) tilstrekkelig for nb-whisper-large + qwen3:32b (krever ~24–32 GB)?
 
 **Anbefalt første steg:** Ta kontakt med KNADA-teamet
-(`#knada` på Slack) og avklar om GPU-pods for persistente tjenester er støttet.
+(`#knada` på Slack) og avklar disse punktene før man bruker tid på Terraform.
 
 ---
 
