@@ -2,8 +2,10 @@
 
 **Status:** Forslag  
 **Dato:** 2026-06-11  
+**Oppdatert:** 2026-08-05  
 **Forfattere:** ao-ki-taskforce  
-**Gjeldende løsning:** Alternativ 1 (lokal kjøring)
+**Gjeldende løsning:** Alternativ 1 (lokal kjøring)  
+**Planlagt løsning:** Alternativ 4 (egenstyrt K8s med GPU)
 
 ---
 
@@ -216,7 +218,10 @@ størrelsesorden.
 - Batch-transkripsjon av lange møter er treg (ikke egnet for post-møte-bruk)
 - Ollama med store LLM-er (32b) krever mye RAM — må trolig bruke mindre modell (8b)
   eller ekstern LLM-tjeneste for møtereferat
-- NAIS dokumenterer ikke GPU-støtte per juni 2026
+- **NAIS-teamet har bekreftet (august 2026) at de ikke ønsker å legge inn GPU-støtte
+  for denne POC-en.** Alternativet forutsetter dermed CPU-only for ML-inferens.
+
+**Status: Aktuell kun for CPU-basert sanntidstranskribering uten stor LLM.**
 
 **Juridisk vurdering:**
 GCP (Google) er databehandler etter GDPR art. 28. NAV må ha en gyldig
@@ -228,25 +233,36 @@ transienten behandling i minnet (RAM) under transkripsjon.
 
 ---
 
-### Alternativ 4 — GKE med GPU-nodepool i europe-north1 *(anbefalt for sky)*
+### Alternativ 4 — Egenstyrt Kubernetes-cluster med GPU *(anbefalt for sky)*
+
+**Bakgrunn:** NAIS-teamet ønsker ikke å tilby GPU-støtte for denne POC-en (avklart
+august 2026). For å kjøre åpne, GPU-akselererte modeller internt i NAV — særlig for
+personsensitive data som §14a-møter — er det nødvendig å etablere egen Kubernetes-basert
+infrastruktur utenfor NAIS. Dette gir også grunnlag for en bredere NAV-plattform for
+åpne modeller på sensitiv data.
 
 ```
-[Mikrofon] → [Nettleser] → [ID-porten/Azure AD] → [GKE Ingress]
+[Mikrofon] → [Nettleser] → [ID-porten/Azure AD] → [K8s Ingress (GKE Standard)]
                                                           ↓
                                             [Transkriberingstjeneste]
                                           [nb-whisper (NVIDIA L4 GPU)]
                                                           ↓
                                             [Referattjeneste (Ollama)]
+                                          [qwen3:32b el. tilsvarende LLM]
                                                           ↓
                                      [Referat returneres kryptert over TLS]
                                                           ↓
                                           [Lydfil slettes fra minnet]
 ```
 
-**Teknisk:** GKE Standard cluster i `europe-north1` med dedikert GPU-nodepool
-(NVIDIA L4, 24 GB VRAM). To Kubernetes-tjenester:
+**Teknisk:** GKE Standard cluster i `europe-north1` (Finland), egenstyrt av
+ao-ki-taskforce/AI-teamet — ikke driftet av NAIS. Dedikert GPU-nodepool med
+NVIDIA L4 (24 GB VRAM). To Kubernetes-tjenester:
 - `transkribering`: nb-whisper-large på L4, autoskalering 0→N pods
 - `referat`: Ollama (qwen3:32b eller tilsvarende), GPU-delt eller egen nodepool
+
+Denne infrastrukturen kan på sikt tjene som intern NAV-plattform for åpenvektede
+modeller på personsensitiv data — ikke bare for transkriberingsverktøyet.
 
 **Ytelse (estimert, NVIDIA L4):**
 
@@ -256,17 +272,19 @@ transienten behandling i minnet (RAM) under transkripsjon.
 | 60 min | ~80–120 sek | ~60–90 sek |
 
 **Fordeler:**
-- Sanntidskvalitet mulig med L4
+- Full GPU-ytelse for både transkripsjon og LLM-referat
 - Skalerbar — håndterer toppbelastning (mange samtidige møter)
 - Sentral oppdatering av modeller og sikkerhetspatcher
-- Integrert med NAVs eksisterende sky-infrastruktur
+- Uavhengig av NAIS — kan inneholde GPU-nodepooler uten å vente på plattformteamet
+- Grunnlag for bredere intern AI-infrastruktur for åpne modeller i NAV
 
 **Ulemper:**
+- Krever egenstyrt Kubernetes-cluster — mer driftsansvar enn NAIS-alternativet
 - GCP er ekstern databehandler — krever aktiv DPA og etterlevelsesdokumentasjon
-- Mer kompleks infrastruktur enn alternativ 1/2
-- GPU-nodepooler i europe-north1 støtter kun L4/T4 (ikke A100/H100)
+- GPU-nodepooler i europe-north1 støtter L4/T4 (ikke A100/H100)
 - Cloud Run med GPU er **ikke** tilgjengelig i europe-north1 (kun europe-west4)
-- Krever samarbeid med NAIS-teamet om GPU-nodepool
+- Ingen NAIS-plattformtjenester (automatisk sertifikathåndtering, Vault, etc.) —
+  må etableres manuelt eller via Terraform
 
 **Juridisk vurdering:**
 
@@ -335,12 +353,14 @@ For produksjonssetting anbefales en trinnvis tilnærming:
 1. **Fase 1 (nå):** Lokal kjøring — ingen DPA-krav, enkel juridisk profil, rask
    iterasjon. Egnet for pilotering på enkeltkontor med dedikert maskinvare.
 
-2. **Fase 2:** Sentral on-premises server (alternativ 2) eller GKE med GPU
-   (alternativ 4) — avhengig av skaleringsbehov og NAVs infrastrukturstrategi.
+2. **Fase 2 (mål):** Egenstyrt Kubernetes-cluster med GPU i `europe-north1`
+   (alternativ 4) — avklart august 2026 som nødvendig vei siden NAIS ikke
+   tilbyr GPU-støtte for denne POC-en. Infrastrukturen kan etableres som en
+   bredere NAV-intern plattform for åpne modeller på personsensitiv data.
    **Forutsetter** avklaring av delt behandlingsansvar (§15) med PVO og KS.
 
-3. **Alternativ 3** (NAIS CPU) kan være et steg mot alternativ 4 dersom GPU-støtte
-   på NAIS avklares.
+3. **Alternativ 3** (NAIS CPU) kan vurderes for sanntidstranskripsjon alene
+   (uten stor LLM), men er ikke egnet for full møtereferat-funksjonalitet.
 
 **Alternativ 5 frarådes** for §14a-møter.
 
@@ -352,9 +372,11 @@ For produksjonssetting anbefales en trinnvis tilnærming:
 |----------|-----------|-------|
 | Kan statlig NAV behandle lydopptak fra §14a-møter i GCP uten eksplisitt avklaring med kommunal behandlingsansvarlig? | PVO / juridisk | — |
 | Har NAVs DPA med Google Cloud dekning for lydbehandling og AI-inferens? | Seksjonsleder / PVO | — |
-| Støtter NAIS-plattformen GPU-nodepooler i GKE? | NAIS-teamet | — |
+| ~~Støtter NAIS-plattformen GPU-nodepooler i GKE?~~ **Avklart aug. 2026: Nei, ikke for denne POC.** | NAIS-teamet | ✅ |
 | Krever lydopptak av bruker særskilt informasjon utover ordinær personvernerklæring? | PVO | — |
 | Skal verktøyet klassifiseres som høyrisiko AI-system etter EU AI-forordningen art. 6? | Juridisk / PVO | — |
+| Hvem i NAV eier og drifter det egenstyrte GKE-clusteret (alt. 4)? Hvilken seksjon/avdeling? | ao-ki-taskforce / leder | — |
+| Kan den egenstyrte GKE-infrastrukturen inngå i NAVs bredere strategi for intern AI på sensitiv data? | Teknologiavdelingen | — |
 
 ---
 
