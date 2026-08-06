@@ -5,8 +5,8 @@ from pathlib import Path
 import httpx
 from fastapi import APIRouter, BackgroundTasks, File, Form, HTTPException, UploadFile
 
-from runtime import job_store, jobbkø
-from settings import MODELL_ID, TRANSKRIPSJON_BACKEND, TRANSKRIPSJON_SERVICE_URL
+from core.runtime import job_store, jobbkø
+from core.settings import MODELL_ID, TRANSKRIPSJON_BACKEND, TRANSKRIPSJON_SERVICE_URL
 from services.transkripsjon_client import transkriber_remote
 from transkribering.batch import estimert_total_s
 

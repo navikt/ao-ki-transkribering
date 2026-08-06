@@ -10,7 +10,7 @@ from api.modell import router as modell_router, sjekk_ollama_modell
 from api.referat import router as referat_router
 from api.sanntid import router as sanntid_router
 from api.transkripsjon import router as transkripsjon_router
-from runtime import start_arbeider, stopp_arbeider
+from core.runtime import start_arbeider, stopp_arbeider
 
 logging.getLogger("transformers").setLevel(logging.ERROR)
 logging.getLogger("faster_whisper").setLevel(logging.ERROR)

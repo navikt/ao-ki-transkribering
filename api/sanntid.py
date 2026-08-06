@@ -4,7 +4,7 @@ import json
 import numpy as np
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
-from settings import STT_BACKEND
+from core.settings import STT_BACKEND
 from transkribering.sanntid import (
     VadBuffer,
     hent_fw_modell,

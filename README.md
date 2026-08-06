@@ -227,16 +227,19 @@ Kodestruktur:
 server.py                    # Bakoverkompatibel ASGI-entrypoint (server:app)
 app_api.py                   # Bakoverkompatibel API-entrypoint (app_api:app)
 app_factory.py               # Bakoverkompatibel import for create_app
-settings.py                  # Miljøvariabler og runtime-konfigurasjon
-runtime.py                   # Arbeiderprosess, kø og delt JobStore
+settings.py                  # Bakoverkompatibel import for core.settings
+runtime.py                   # Bakoverkompatibel import for core.runtime
 worker_transkripsjon.py      # Eksplisitt entrypoint for transkripsjonsarbeider
 model_worker_app.py          # Bakoverkompatibel modellarbeider-entrypoint
 apps/
   api/app.py                 # API-app: statiske filer, lifespan og router-registrering
   model_worker/app.py        # HTTP-basert modellarbeider
 api/                         # HTTP/WebSocket-endepunkter
-kontrakter/
-  transkripsjon.py           # Delte HTTP-kontrakter mellom API og modellarbeider
+core/
+  settings.py                # Miljøvariabler og runtime-konfigurasjon
+  runtime.py                 # Arbeiderprosess, kø og delt JobStore
+contracts/
+  transcription.py           # Delte HTTP-kontrakter mellom API og modellarbeider
 services/
   jobs.py                    # Filbasert jobbtilstand og atomiske statusoppdateringer
   transkripsjon_backend.py   # Kontrakt for transkripsjonsbackends

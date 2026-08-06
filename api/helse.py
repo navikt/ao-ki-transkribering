@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Response
 
-from runtime import arbeider_klar, job_store, lokal_arbeider_aktiv
-from settings import TRANSKRIPSJON_BACKEND, TRANSKRIPSJON_SERVICE_URL
+from core.runtime import arbeider_klar, job_store, lokal_arbeider_aktiv
+from core.settings import TRANSKRIPSJON_BACKEND, TRANSKRIPSJON_SERVICE_URL
 
 router = APIRouter()
 

@@ -6,8 +6,8 @@ Run with:
 
 import signal
 
-from runtime import arbeider_klar, jobbkø
-from settings import MODELL_ID
+from core.runtime import arbeider_klar, jobbkø
+from core.settings import MODELL_ID
 from workers.transkripsjon import arbeider
 
 

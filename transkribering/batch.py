@@ -4,7 +4,7 @@ from pathlib import Path
 
 import numpy as np
 
-from kontrakter.transkripsjon import Segment, TranskripsjonSvar
+from contracts.transcription import Segment, TranskripsjonSvar
 from services.transkripsjon_backend import StatusCallback
 from transkribering.hallusinasjon import trim_null_ord, trim_etter_stille, fjern_hallusinasjon
 from transkribering.diarisering import diariser, tilordne_taler
