@@ -1,0 +1,68 @@
+apiVersion: nais.io/v1alpha1
+kind: Application
+metadata:
+  name: ao-ki-transkribering
+  namespace: ao-ki-taskforce
+  labels:
+    team: ao-ki-taskforce
+spec:
+  image: {{image}}
+  port: 8765
+
+  ingresses:
+    - https://ao-ki-transkribering.intern.nav.no
+
+  replicas:
+    min: 1
+    max: 1
+
+  resources:
+    requests:
+      cpu: 200m
+      memory: 2Gi
+    limits:
+      memory: 4Gi
+
+  liveness:
+    path: /isAlive
+    initialDelaySeconds: 10
+  readiness:
+    path: /isReady
+    initialDelaySeconds: 10
+    failureThreshold: 10
+
+  azure:
+    application:
+      enabled: true
+      sidecar:
+        enabled: true
+        autoLogin: true
+
+  accessPolicy:
+    outbound:
+      external:
+        # TODO: replace with real GPU cluster hostnames
+        - host: TODO-model-worker.intern.nav.no
+        - host: TODO-ollama.intern.nav.no
+
+  env:
+    - name: TRANSKRIPSJON_BACKEND
+      value: remote
+    - name: START_LOKAL_WORKER
+      value: "false"
+    - name: TRANSKRIPSJON_SERVICE_URL
+      value: "http://TODO-model-worker:9000"
+    - name: OLLAMA_URL
+      value: "http://TODO-ollama:11434"
+    - name: WHISPER_MODELL
+      value: NbAiLab/nb-whisper-medium
+    - name: HF_HUB_OFFLINE
+      value: "1"
+
+  observability:
+    autoInstrumentation:
+      enabled: true
+      runtime: python
+    logging:
+      destinations:
+        - id: loki
