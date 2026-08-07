@@ -1,0 +1,5 @@
+# GPU model worker — standard PyPI torch with CUDA support
+# Build with: docker build --build-arg REQUIREMENTS=requirements/worker-gpu.txt --target model-worker
+torch>=2.1
+torchaudio>=2.1
+-r ml-base.txt

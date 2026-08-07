@@ -1,0 +1,9 @@
+# ML stack — excludes torch/torchaudio so the caller can pin CPU or GPU wheels
+-r api.txt
+faster-whisper>=1.0
+ctranslate2>=4.0
+huggingface_hub>=0.23
+transformers>=4.40
+resemblyzer>=0.1.4
+scikit-learn>=1.4
+librosa>=0.10

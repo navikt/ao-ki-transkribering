@@ -1,0 +1,5 @@
+# CPU-only model worker — pulls lightweight torch wheels (~500 MB vs ~2 GB for CUDA)
+--extra-index-url https://download.pytorch.org/whl/cpu
+torch>=2.1
+torchaudio>=2.1
+-r ml-base.txt
