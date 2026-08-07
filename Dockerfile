@@ -8,6 +8,7 @@ FROM ${BASE} AS builder
 ENV PIP_NO_CACHE_DIR=1
 WORKDIR /build
 
+USER root
 RUN apk add --no-cache \
         ffmpeg \
         libsndfile \
@@ -37,6 +38,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
+USER root
 RUN apk add --no-cache ffmpeg libsndfile \
     && mkdir -p /app/.cache/huggingface /tmp/transkribering \
     && chown -R nonroot:nonroot /app /tmp/transkribering
