@@ -9,12 +9,7 @@ ENV PIP_NO_CACHE_DIR=1
 WORKDIR /build
 
 USER root
-RUN apk add --no-cache \
-        ffmpeg \
-        libsndfile \
-        gcc \
-        musl-dev \
-        libffi-dev
+RUN apk add --no-cache ffmpeg libsndfile
 
 # Select dependency profile at build time:
 #   CPU (default): docker build .
