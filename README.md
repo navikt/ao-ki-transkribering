@@ -179,6 +179,31 @@ Eksempel med Soniox:
 STT_BACKEND=soniox SONIOX_API_KEY=<din-nøkkel> python -m uvicorn apps.api.app:app --host 127.0.0.1 --port 8765
 ```
 
+### Container
+
+Bygg image:
+
+```bash
+docker build -t ao-ki-transkribering .
+```
+
+Kjør API-et:
+
+```bash
+docker run --rm -p 8765:8765 ao-ki-transkribering
+```
+
+Kjør samme image som HTTP-basert modellarbeider:
+
+```bash
+docker run --rm -p 9000:9000 ao-ki-transkribering \
+  python -m uvicorn apps.model_worker.app:app --host 0.0.0.0 --port 9000
+```
+
+Image-et inkluderer ikke lokale modellfiler fra `modeller/` eller testdata. De bør
+monteres eller håndteres som eget modellvolum når API og modellarbeider splittes i
+separate containere.
+
 ---
 
 ## Bruk
