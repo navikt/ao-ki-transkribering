@@ -4,7 +4,6 @@ import json
 import numpy as np
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
-from core.settings import STT_BACKEND
 from transkribering.sanntid import (
     VadBuffer,
     hent_fw_modell,
@@ -23,15 +22,9 @@ async def sanntid_ws(websocket: WebSocket):
       Client -> Server: binaer melding = raw float32 LE PCM, 16 kHz, mono
       Client -> Server: JSON {"type": "stopp"}  (avslutt og flush)
       Server -> Client: JSON {"type": "segment", "tekst": "...", "segmenter": [{..., "taler": "SPEAKER_XX"}]}
-
-    Backend vel med STT_BACKEND=lokal (standard) eller STT_BACKEND=soniox.
     """
     await websocket.accept()
-
-    if STT_BACKEND == "soniox":
-        await _sanntid_soniox(websocket)
-    else:
-        await _sanntid_lokal(websocket)
+    await _sanntid_lokal(websocket)
 
 
 async def _sanntid_lokal(websocket: WebSocket) -> None:
@@ -100,37 +93,3 @@ async def _sanntid_lokal(websocket: WebSocket) -> None:
         await worker_task
 
 
-async def _sanntid_soniox(websocket: WebSocket) -> None:
-    """Soniox cloud STT med innebygd diarisering."""
-    from transkribering.soniox import SonioxSessjon
-
-    loop = asyncio.get_event_loop()
-
-    async def send_json(data: dict):
-        try:
-            await websocket.send_json(data)
-        except Exception:
-            pass
-
-    sessjon = SonioxSessjon(send_json=send_json, loop=loop)
-
-    try:
-        while True:
-            melding = await websocket.receive()
-            if "text" in melding:
-                data = json.loads(melding["text"])
-                if data.get("type") == "stopp":
-                    break
-            elif "bytes" in melding:
-                raw = melding["bytes"]
-                if not raw:
-                    continue
-                n_samples = len(raw) // 4
-                if n_samples == 0:
-                    continue
-                samples = np.frombuffer(raw, dtype="<f4").copy()
-                sessjon.send_pcm(samples)
-    except WebSocketDisconnect:
-        pass
-    finally:
-        sessjon.stopp()

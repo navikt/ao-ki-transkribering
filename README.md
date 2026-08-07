@@ -163,21 +163,14 @@ python -m uvicorn apps.api.app:app --host 127.0.0.1 --port 8765
 | Variabel | Standard                     | Beskrivelse |
 |----------|------------------------------|-------------|
 | `WHISPER_MODELL` | `NbAiLab/nb-whisper-medium`  | Modell for batch-transkripsjon |
-| `WHISPER_SANNTID_MODELL` | `modeller/nb-whisper-medium` | Modell for sanntidsmodus (lokal) |
+| `WHISPER_SANNTID_MODELL` | `modeller/nb-whisper-medium` | Modell for sanntidsmodus |
 | `OLLAMA_URL` | `http://localhost:11434`     | Ollama-endepunkt |
 | `OLLAMA_MODELL` | `qwen3:8b`                   | LLM for møtereferat |
 | `OLLAMA_NUM_CTX` | `32768`                      | Kontekstvindauge for LLM (tokens) |
-| `STT_BACKEND` | `lokal`                      | `lokal` (nb-whisper) eller `soniox` (sky-STT) |
-| `SONIOX_API_KEY` | —                            | API-nøkkel for Soniox (kun ved `STT_BACKEND=soniox`) |
 | `ARBEIDSMAPPE` | midlertidig mappe | Mappe for lyd- og jobbstatusfiler |
 | `START_LOKAL_WORKER` | `true` | Starter lokal transkripsjonsarbeider sammen med API-et |
 | `TRANSKRIPSJON_BACKEND` | `local` | `local` eller `remote` modellbackend for batch-transkripsjon |
 | `TRANSKRIPSJON_SERVICE_URL` | `http://127.0.0.1:9000` | URL til ekstern modellarbeider ved `TRANSKRIPSJON_BACKEND=remote` |
-
-Eksempel med Soniox:
-```bash
-STT_BACKEND=soniox SONIOX_API_KEY=<din-nøkkel> python -m uvicorn apps.api.app:app --host 127.0.0.1 --port 8765
-```
 
 ### Container
 

@@ -2,6 +2,3 @@
 # For local dev: pip install -r requirements/dev.txt
 # For production profiles see requirements/
 -r requirements/worker-cpu.txt
-
-# Optional cloud STT (alternative to local Whisper): set STT_BACKEND=soniox
-# soniox>=2.5
