@@ -29,18 +29,18 @@ spec:
 
   liveness:
     path: /isAlive
-    initialDelaySeconds: 10
+    initialDelay: 10
   readiness:
     path: /isReady
-    initialDelaySeconds: 10
+    initialDelay: 10
     failureThreshold: 10
 
   azure:
     application:
       enabled: true
-      sidecar:
-        enabled: true
-        autoLogin: true
+    sidecar:
+      enabled: true
+      autoLogin: true
 
   accessPolicy:
     outbound:
