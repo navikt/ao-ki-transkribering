@@ -49,12 +49,12 @@
   <div id="seksjon-opptak" class="seksjon">
     <!-- Faner -->
     <div class="faner">
-      <button class="fane aktiv" id="fane-batch" onclick="byttFane('batch')">Batch-opptak</button>
-      <button class="fane" id="fane-sanntid" onclick="byttFane('sanntid')">Sanntid</button>
+      <button class="fane" id="fane-batch" onclick="byttFane('batch')">Batch-opptak</button>
+      <button class="fane aktiv" id="fane-sanntid" onclick="byttFane('sanntid')">Sanntid</button>
     </div>
 
     <!-- Batch-panel -->
-    <div id="panel-batch">
+    <div id="panel-batch" style="display:none">
       <h2 style="font-size:1.1rem; margin-bottom:1rem">Ta opp møte</h2>
       <div class="opptaks-rad">
         <button class="knapp knapp-fare" id="knapp-start" onclick="startOpptak()">
@@ -96,7 +96,7 @@
     </div>
 
     <!-- Sanntid-panel -->
-    <div id="panel-sanntid" style="display:none">
+    <div id="panel-sanntid">
       <div class="samtykke-boks" style="background:#fff8e6; border-color:#f5a623; margin-bottom:1rem; font-size:.85rem;">
         Sanntidsmodus transkriberer fortløpende i 10-sekunders segmenter (2–5 sek forsinkelse).
         §15-advarselen gjelder fortsatt – gjennomgå teksten etter møtet.

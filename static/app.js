@@ -755,13 +755,14 @@ function stoppSanntid() {
   // Rydd opp AudioWorklet
   if (workletNode) { workletNode.disconnect(); workletNode = null; }
   if (audioCtx)    { audioCtx.close(); audioCtx = null; }
-  if (sanntidStream) { sanntidStream.getTracks().forEach(t => t.stop()); sanntidStream = null; }
 
-  // Stopp lydopptak – nedlastingslenke vises i onstop-callback
+  // Stopp lydopptak før stream — onstop trenger aktiv stream for siste data
   if (sanntidOpptaker && sanntidOpptaker.state !== "inactive") {
     sanntidOpptaker.stop();
     sanntidOpptaker = null;
   }
+
+  if (sanntidStream) { sanntidStream.getTracks().forEach(t => t.stop()); sanntidStream = null; }
 
   // Be server om å flush VAD-buffer – behold WS åpen til server lukker
   if (sanntidWs && sanntidWs.readyState === WebSocket.OPEN) {
