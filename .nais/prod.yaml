@@ -38,12 +38,9 @@ spec:
       enabled: true
       autoLogin: true
 
-  accessPolicy:
-    outbound:
-      external:
-        # TODO: replace with real GPU cluster hostnames
-        - host: TODO-model-worker.intern.nav.no
-        - host: TODO-ollama.intern.nav.no
+  # accessPolicy.outbound.external: add GPU cluster hostnames here once provisioned
+  # - host: <model-worker hostname>
+  # - host: <ollama hostname>
 
   env:
     - name: TRANSKRIPSJON_BACKEND
