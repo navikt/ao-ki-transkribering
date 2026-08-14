@@ -2,26 +2,54 @@
 
     body {
       font-family: "Source Sans Pro", system-ui, sans-serif;
-      background: #f7f7f7;
+      background: #f0f2f5;
       color: #262626;
       min-height: 100vh;
       display: flex;
-      align-items: flex-start;
-      justify-content: center;
-      padding: 2rem 1rem;
+      flex-direction: column;
     }
 
-    .kort {
+    /* ── App shell ──────────────────────────────────────────────── */
+    .app-header {
       background: #fff;
-      border-radius: 8px;
-      box-shadow: 0 2px 8px rgba(0,0,0,.10);
-      max-width: 720px;
+      border-bottom: 1px solid #dde1e7;
+      box-shadow: 0 1px 3px rgba(0,0,0,.07);
+      padding: .85rem 1.5rem;
+    }
+    .app-header-innhold {
+      max-width: 1200px;
+      margin: 0 auto;
+      display: flex;
+      align-items: baseline;
+      gap: 1rem;
+      flex-wrap: wrap;
+    }
+    .app-main {
+      flex: 1;
       width: 100%;
-      padding: 2rem;
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 1.5rem 1.5rem 2rem;
+    }
+    .app-main-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1.5rem;
+      align-items: start;
+    }
+    .app-main-venstre,
+    .app-main-hoyre {
+      min-width: 0;
+    }
+    .app-footer {
+      border-top: 1px solid #dde1e7;
+      background: #fff;
+      padding: .35rem 1.5rem;
+      width: 100%;
     }
 
-    h1 { font-size: 1.5rem; color: #0067c5; margin-bottom: .25rem; }
-    .ingress { color: #555; margin-bottom: 2rem; font-size: .95rem; }
+    h1 { font-size: 1.35rem; color: #0067c5; white-space: nowrap; }
+    .ingress { color: #666; font-size: .88rem; margin: 0; }
 
     /* Seksjoner */
     .seksjon { display: none; }
@@ -173,7 +201,7 @@
     /* Dialogvisning */
     .dialog-container {
       margin-bottom: 1.25rem;
-      max-height: 520px;
+      max-height: 55vh;
       overflow-y: auto;
       border: 1px solid #e8e8e8;
       border-radius: 6px;
@@ -229,7 +257,7 @@
     /* Sanntid dialog */
     .sanntid-dialog {
       background: #f4f4f4; border-radius: 6px; padding: 1rem;
-      min-height: 120px; max-height: 420px; overflow-y: auto; margin-bottom: 1rem;
+      min-height: 120px; max-height: 55vh; overflow-y: auto; margin-bottom: 1rem;
     }
 
     /* Møtereferat-panel */
@@ -338,9 +366,14 @@
       margin-top: .5rem; display: none;
     }
 
+    @media (max-width: 768px) {
+      .app-main-grid { grid-template-columns: 1fr; }
+    }
+
     @media (max-width: 640px) {
-      body { padding: 1rem .5rem; }
-      .kort { padding: 1.25rem; }
+      .app-main { padding: 1rem .75rem; }
+      .app-header { padding: .65rem 1rem; }
+      .app-header-innhold { gap: .3rem; }
       .fane { flex: 1; padding: .6rem .4rem; }
       .dialog-linje { flex-direction: column; gap: .35rem; }
       .dialog-taler-brikke { min-width: auto; align-self: flex-start; }
@@ -348,3 +381,33 @@
       .segment-liste th, .segment-liste td { padding: .3rem .35rem; }
       .referat-footer { align-items: flex-start; flex-direction: column; }
     }
+
+    /* ── Modul-kort ─────────────────────────────────────────────── */
+    .modul-kort {
+      border: 1px solid #e0e0e0;
+      border-radius: 8px;
+      padding: 1rem 1.25rem;
+      margin-bottom: 1rem;
+      background: #fafafa;
+    }
+    .modul-tittel {
+      font-size: .8rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .05em;
+      color: #888;
+      margin-bottom: .75rem;
+    }
+
+    /* ── Footer systeminfo ──────────────────────────────────────── */
+    .systeminfo-footer {
+      font-size: .72rem;
+      color: #999;
+      display: flex;
+      flex-wrap: wrap;
+      gap: .2rem 1.1rem;
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+    .sif-par { white-space: nowrap; }
+    .sif-par b { color: #666; font-weight: 600; }

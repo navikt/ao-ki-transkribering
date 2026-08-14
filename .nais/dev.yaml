@@ -60,6 +60,8 @@ spec:
       value: NbAiLab/nb-whisper-medium
     - name: HF_HUB_OFFLINE
       value: "1"
+    - name: ECAPA_CACHE
+      value: /app/.cache/speechbrain
 
   observability:
     autoInstrumentation:

@@ -620,6 +620,7 @@ async function startSanntid() {
   document.getElementById("sanntid-stopp-knapp").disabled = false;
   document.getElementById("sanntid-timer").style.display  = "inline";
   document.getElementById("sanntid-status").style.display = "flex";
+  document.getElementById("modul-transkripsjon").style.display = "block";
   document.getElementById("sanntid-tekst").style.display  = "block";
   document.getElementById("sanntid-knapper").style.display = "flex";
   document.getElementById("sanntid-footer").style.display  = "block";
@@ -1088,3 +1089,32 @@ async function lastNedModell() {
 
 // Sjekk modellstatus ved sidelast
 sjekkModellStatus();
+
+// ── Systemstatus (lastes ved sideoppstart) ───────────────────────────────────
+async function lastSystemstatus() {
+  const el = document.getElementById("systeminfo-footer");
+  if (!el) return;
+  try {
+    const d = await fetch("/system/info").then(r => r.json());
+    const par = (label, val) =>
+      `<span class="sif-par"><b>${label}</b> ${val}</span>`;
+    el.innerHTML = [
+      par("ASR sanntid", kortNavn(d.asr.sanntid_modell)),
+      par("ASR batch", kortNavn(d.asr.batch_modell)),
+      par("Backend", d.asr.backend),
+      par("Taler-ID", "ECAPA-TDNN"),
+      par("Vindu", d.diarisering.vindu_s + "s"),
+      par("Stillhet", d.vad.stillhet_s + "s"),
+      par("LLM", d.llm.modell),
+    ].join(" · ");
+    el.style.display = "flex";
+  } catch {
+    /* silent – footer is optional */
+  }
+}
+
+function kortNavn(sti) {
+  return sti.split("/").pop();
+}
+
+lastSystemstatus();

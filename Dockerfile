@@ -35,7 +35,7 @@ WORKDIR /app
 
 USER root
 RUN apk add --no-cache ffmpeg libsndfile \
-    && mkdir -p /app/.cache/huggingface /tmp/transkribering \
+    && mkdir -p /app/.cache/huggingface /app/.cache/speechbrain /tmp/transkribering \
     && chown -R nonroot:nonroot /app /tmp/transkribering
 
 COPY --from=builder /app/.venv /app/.venv
