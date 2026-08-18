@@ -97,7 +97,7 @@ NAIS-teamet ønsker ikke GPU-støtte for denne POC-en. Gjennomgang av NAIS-infra
 |---------|-------|-----|
 | **Transkripsjon** (nb-whisper) | **vLLM** | `POST /v1/audio/transcriptions` (OpenAI-kompatibel) |
 | **Sanntid-transkripsjon** | **vLLM** | `WS /v1/realtime` — streaming WebSocket med `transcription.delta`-events |
-| **Referatgenerering** (Qwen3) | **vLLM** | `POST /v1/chat/completions` |
+| **Referatgenerering** (Borealis-27b) | **vLLM** | `POST /v1/chat/completions` |
 
 ### Hvorfor vLLM for Whisper — og ikke faster-whisper?
 
@@ -122,14 +122,38 @@ er begge byttet ut med vLLM:
   GPU-infrastruktur med PagedAttention og GPU-utnyttelse på produksjonsnivå
 - vLLM brukes av `navikt/copilot-infra` og er verifisert på NAV-infrastruktur
 
+### Valg av LLM-modell for referatgenerering: Borealis-27b
+
+[Borealis](https://ai.nb.no/borealis/) er Nasjonalbibliotekets åpne norske modellserie,
+basert på Gemma 3. Den er fintunet på norsk (bokmål og nynorsk) og distribuert med
+åpen lisens fra en norsk offentlig institusjon — godt egnet for norsk forvaltning.
+
+**Tilgjengelige størrelser:** 270m, 1b, 4b, 12b, 27b (full-release).
+
+**Kan vi kjøre Borealis-27b på én L4 (24 GB VRAM)?**
+
+| Format | Størrelse | Én L4 (24 GB) |
+|--------|-----------|---------------|
+| BF16 (full presisjon) | ~54 GB | ❌ |
+| Q8_0 | ~27 GB | ❌ (marginalt for lite) |
+| Q4_K_M (GGUF) | ~14 GB | ✅ — men vLLM laster ikke GGUF nativt |
+| BF16 + tensor parallelism | ~27 GB | ✅ **to L4-er** |
+
+**Konklusjon:** Borealis-27b kjører i BF16 på **to L4-er** med tensor parallelism
+(`--tensor-parallel-size 2`). vLLM støtter Gemma 3 nativt (`gemma3.py`), og
+Borealis-27b er en direkte finetune av `google/gemma-3-27b-it` — ingen tilpasning nødvendig.
+
+Alternativt kan **Borealis-12b** kjøre på én L4 i BF16 (~24 GB, marginalt) eller
+komfortabelt med lett kvantisering. God fallback om to L4-er viser seg kostbart.
+
+**Modellvekter** lastes fra **GCS ved pod-oppstart** — ikke bakt inn i image.
+nb-whisper-large er ~3 GB; Borealis-27b i BF16 er ~54 GB.
+
 **LiteLLM** (Cloud Run, `INGRESS_TRAFFIC_INTERNAL_ONLY`) brukes som gateway foran
 vLLM. Dette er samme mønster som `navikt/copilot-infra` og gir:
 - Stabil URL som overlever node-churn (GKE scale-to-zero)
 - Retry-logikk og model aliasing
 - `turn_off_message_logging: true` — lyddata og transkripsjon logges ikke
-
-**Modellvekter** lastes fra **GCS ved pod-oppstart** — ikke bakt inn i image.
-nb-whisper-large er ~3 GB og Qwen3 ~20 GB; images forblir håndterbare.
 
 ---
 
@@ -362,12 +386,14 @@ NAIS-appen hvitelister GPU-endepunktets IP i `accessPolicy.outbound`.
 
 | Ressurs | Type | Pris/time | Estimert bruk/mnd | Kostnad/mnd |
 |---------|------|-----------|-------------------|-------------|
-| GPU-node (faster-whisper) | g2-standard-8 + L4 | ~$1.20 | 40 t (pilot) | ~$48 |
-| GPU-node (vLLM / referat) | g2-standard-8 + L4 | ~$1.20 | 40 t (pilot) | ~$48 |
+| GPU-node (nb-whisper) | g2-standard-8 + L4 | ~$1.20 | 40 t (pilot) | ~$48 |
+| GPU-node (Borealis-27b, 2× L4) | g2-standard-24 + 2× L4 | ~$2.40 | 40 t (pilot) | ~$96 |
 | LiteLLM gateway | Cloud Run (min 0 instanser) | per request | — | ~$5 |
 | CPU-node (API) | n2-standard-4 | ~$0.19 | 730 t | ~$140 |
 | Persistent disk | 50 GB SSD | — | — | ~$8 |
-| **Totalt pilot** | | | | **~$250/mnd (~2 650 kr)** |
+| **Totalt pilot** | | | | **~$300/mnd (~3 200 kr)** |
+
+Borealis-12b som alternativ (én L4) reduserer GPU-kostnaden til ~$48/mnd — totalt ~$250/mnd.
 
 GPU-noder autoskalerer til 0 ved inaktivitet → faktisk pilot-kostnad trolig langt lavere.
 
@@ -380,7 +406,8 @@ GPU-noder autoskalerer til 0 ved inaktivitet → faktisk pilot-kostnad trolig la
 | Har NAIS-teamet kapasitet til å legge til VPC peering for teamprosjektet? | ao-ki-taskforce → NAIS | ⬜ |
 | Er `ao-ki-taskforce` et NAIS-team med eget GCP-prosjekt? | ao-ki-taskforce | ⬜ |
 | Hvilken billing account brukes for GPU-infrastrukturen? | PO / økonomi | ⬜ |
-| Hvilken Qwen3-modellstørrelse er riktig for L4 (24 GB VRAM)? vLLM støtter quantisering | ao-ki-taskforce | ⬜ |
+| Borealis-27b (2× L4) eller Borealis-12b (1× L4)? Avhenger av kvalitetsvurdering og budsjett | ao-ki-taskforce | ⬜ |
+| Finnes AWQ/GPTQ-kvantisering av Borealis-27b for å unngå 2× L4? | NbAiLab / ao-ki-taskforce | ⬜ |
 | Kan vi dele LiteLLM-gatewayen med `navikt/copilot-infra`-teamet? | ao-ki-taskforce → NAIS-teamet | ⬜ |
 | Langsiktig: kan GPU-infrastrukturen bli en felles NAV-plattform for åpne modeller? | Teknologiavdelingen | ⬜ |
 
