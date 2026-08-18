@@ -408,7 +408,7 @@ GPU-noder autoskalerer til 0 ved inaktivitet → faktisk pilot-kostnad trolig la
 | Hvilken billing account brukes for GPU-infrastrukturen? | PO / økonomi | ⬜ |
 | Borealis-27b (2× L4) eller Borealis-12b (1× L4)? Avhenger av kvalitetsvurdering og budsjett | ao-ki-taskforce | ⬜ |
 | Finnes AWQ/GPTQ-kvantisering av Borealis-27b for å unngå 2× L4? | NbAiLab / ao-ki-taskforce | ⬜ |
-| Kan vi dele LiteLLM-gatewayen med `navikt/copilot-infra`-teamet? | ao-ki-taskforce → NAIS-teamet | ⬜ |
+| Kan vi dele LiteLLM-gatewayen med `navikt/copilot-infra`-teamet? | **Nei** — ulike krav til datahåndtering (møteopptak vs. kildekode), tilgangskontroll og backend-modeller. Gjenbruk Terraform-modulen som mal, ikke instansen. | ✅ Avklart |
 | Langsiktig: kan GPU-infrastrukturen bli en felles NAV-plattform for åpne modeller? | Teknologiavdelingen | ⬜ |
 
 ---
