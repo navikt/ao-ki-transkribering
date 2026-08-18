@@ -2,12 +2,36 @@
 
 **Status:** Forslag  
 **Dato:** 2026-08-05  
+**Oppdatert:** 2026-08-18 — justert etter gjennomgang av `navikt/copilot-infra`  
 **Forfattere:** ao-ki-taskforce  
 **Forutsetning:** ADR-0001 besluttet egenstyrt Kubernetes-cluster med GPU som fase 2.
 
 ---
 
 ## Kontekst og funn
+
+### Funn fra `navikt/copilot-infra` (2026-08-18)
+
+NAIS-teamet har et eksperimentelt oppsett for egenstyrt LLM-infrastruktur i GCP
+([`navikt/copilot-infra`](https://github.com/navikt/copilot-infra)) for agentisk koding.
+Gjennomgang av dette repoet gir viktige lærdommer for vår arkitektur:
+
+- **Inference-motor:** De bruker **vLLM** (ikke Ollama). vLLM er designet for
+  produksjons-inference med PagedAttention og langt bedre GPU-utnyttelse. Ollama er
+  primært et utviklerverktøy for lokal bruk.
+- **Gateway:** **LiteLLM på Cloud Run** (`INGRESS_TRAFFIC_INTERNAL_ONLY`) som stabil
+  URL foran GPU-noder. Gir retry-logikk, model aliasing og overlever node-churn.
+- **Modellvekter:** Lastes fra **GCS ved oppstart** — ikke bakt inn i image. 675 MiB/s
+  nedlastningshastighet gjør dette praktisk selv for store modeller.
+- **Nettverksgap (G11):** Det finnes ingen ferdig nettverkssti mellom NAIS-clusterne
+  og et eget team-GCP-prosjekt. De løste dette midlertidig med en offentlig auth-shim
+  (Go-tjeneste). For oss er VPC-peering et krav siden vi prosesserer lydopptak av møter —
+  data skal ikke gå via offentlig endepunkt.
+- **Beregningsmodell:** De bruker GCE Managed Instance Groups (ikke GKE). For vår del
+  er GKE Standard fortsatt riktig valg, siden vi har kortere modeller (< 20 GB),
+  on-demand GPU-tilgjengelighet, sanntids-WebSocket-krav og ønsker migreringsvei til NAIS.
+
+### Funn fra NAIS-infrastruktur
 
 NAIS-teamet ønsker ikke GPU-støtte for denne POC-en. Gjennomgang av NAIS-infrastrukturen
 (kildekode i `nais/nais-terraform-modules`) avdekker følgende:
@@ -51,9 +75,11 @@ NAIS-teamet ønsker ikke GPU-støtte for denne POC-en. Gjennomgang av NAIS-infra
 ┌──────────────────────────────────────────────────────────────────┐
 │  GPU-plattform  (se Alternativ A og B under)                     │
 │                                                                  │
-│  Alternativ A: KNADA  (knada-gcp, allerede VPC-peeret)           │
-│    nb-whisper + Ollama som Kubernetes-tjenester                  │
+│  LiteLLM gateway (Cloud Run, intern)                             │
+│    ├── faster-whisper worker (GKE GPU-pod)                       │
+│    └── vLLM worker (GKE GPU-pod)                                 │
 │                                                                  │
+│  Alternativ A: KNADA  (knada-gcp, allerede VPC-peeret)           │
 │  Alternativ B: Eget GKE cluster i team GCP-prosjekt              │
 │    Krever ny VPC peering via NAIS-teamet                         │
 └──────────────────────────────────────────────────────────────────┘
@@ -61,6 +87,50 @@ NAIS-teamet ønsker ikke GPU-støtte for denne POC-en. Gjennomgang av NAIS-infra
 
 **Interntrafikk:** NAIS-appen kaller GPU-tjenestene via intern GCP-nettverkstrafikk
 (private IP over VPC peering) — ingen data forlater NAVs GCP-infrastruktur.
+
+---
+
+## Inference-stack: valg av motor
+
+**Alle modeller kjøres i vLLM** — én motor for både transkripsjon og LLM.
+
+| Oppgave | Motor | API |
+|---------|-------|-----|
+| **Transkripsjon** (nb-whisper) | **vLLM** | `POST /v1/audio/transcriptions` (OpenAI-kompatibel) |
+| **Sanntid-transkripsjon** | **vLLM** | `WS /v1/realtime` — streaming WebSocket med `transcription.delta`-events |
+| **Referatgenerering** (Qwen3) | **vLLM** | `POST /v1/chat/completions` |
+
+### Hvorfor vLLM for Whisper — og ikke faster-whisper?
+
+Det opprinnelige valget var **faster-whisper** (CTranslate2) for transkripsjon og
+**Ollama** for LLM. Etter gjennomgang av `navikt/copilot-infra` og vLLMs kildekode
+er begge byttet ut med vLLM:
+
+**faster-whisper → vLLM:**
+- vLLM har hatt encoder-decoder-støtte siden v0.5+ og leverer egne Whisper-modulfiler
+  (`whisper.py`, `whisper_causal.py`) i v0.27.1
+- vLLM har innebygd `SpeechToTextConfig` med automatisk chunk-splitting for lang lyd
+  — ingen egenutviklet chunking-logikk nødvendig
+- vLLM eksponerer `WS /v1/realtime` med `transcription.delta`-events, nøyaktig det
+  sanntids-WebSocket-funksjonaliteten vår trenger
+- Én motor for alle modeller forenkler infrastrukturen: ett image-format, én
+  deployment-mal, én gateway (LiteLLM) foran alt
+- *Eneste kjente svakhet:* beam search er ineffektivt i vLLM for Whisper (under
+  aktiv optimalisering). Greedy decoding er standard og tilstrekkelig for transkripsjon.
+
+**Ollama → vLLM:**
+- Ollama er primært et utviklerverktøy for lokal bruk — ikke designet for delt
+  GPU-infrastruktur med PagedAttention og GPU-utnyttelse på produksjonsnivå
+- vLLM brukes av `navikt/copilot-infra` og er verifisert på NAV-infrastruktur
+
+**LiteLLM** (Cloud Run, `INGRESS_TRAFFIC_INTERNAL_ONLY`) brukes som gateway foran
+vLLM. Dette er samme mønster som `navikt/copilot-infra` og gir:
+- Stabil URL som overlever node-churn (GKE scale-to-zero)
+- Retry-logikk og model aliasing
+- `turn_off_message_logging: true` — lyddata og transkripsjon logges ikke
+
+**Modellvekter** lastes fra **GCS ved pod-oppstart** — ikke bakt inn i image.
+nb-whisper-large er ~3 GB og Qwen3 ~20 GB; images forblir håndterbare.
 
 ---
 
@@ -149,6 +219,13 @@ trolig nødvendig med mindre KNADA-teamet har planer om GPU i prod.
 
 Dersom KNADA ikke egner seg, opprettes et eget GKE Standard-cluster i teamets
 GCP-prosjekt (som NAIS automatisk oppretter for `ao-ki-taskforce`).
+
+**Hvorfor GKE og ikke GCE MIG (som `navikt/copilot-infra`):**
+- `navikt/copilot-infra` kjører 756 GB-modeller på B200 kun tilgjengelig som Spot —
+  MIG-resiliens er kritisk der. Våre modeller (3–20 GB) er tilgjengelig on-demand.
+- GKE gjenbruker Kubernetes-kompetansen teamet allerede har fra NAIS.
+- Sanntids-WebSocket krever persistent tilkobling — Spot-preemption er uønsket.
+- GKE gir ren migreringsvei til NAIS når GPU-støtte eventuelt kommer.
 
 **Forutsetning:** NAIS-teamet må legge til VPC peering mellom teamets GCP-prosjekt
 og NAIS-clustrenes VPC-er. Dette er en enkel konfigurasjon i
@@ -246,7 +323,10 @@ All trafikk holdes innenfor NAVs GCP-infrastruktur:
 Bruker (naisdevice VPN)
     → intern.nav.no (privat LB, 10.7.8.200)
         → NAIS-pod (FastAPI)
-            → GPU-pod (nb-whisper / Ollama)  [intern VPC, RFC-1918]
+            → LiteLLM gateway (Cloud Run, intern VPC)
+                → vLLM pod — nb-whisper  [POST /v1/audio/transcriptions]
+                → vLLM pod — nb-whisper  [WS   /v1/realtime  (sanntid)]
+                → vLLM pod — Qwen3       [POST /v1/chat/completions]
                 ← Transkripsjon/referat returneres
             ← Returneres til NAIS-pod
         ← Returneres til nettleser
@@ -282,11 +362,12 @@ NAIS-appen hvitelister GPU-endepunktets IP i `accessPolicy.outbound`.
 - [ ] Verifiser GPU-nodepool med `nvidia-smi`
 
 ### Fase 4 — Container-images og deploy (uke 3–4)
-- [ ] Bygg `transkribering`-image med CUDA/faster-whisper + nb-whisper-large
-- [ ] Bygg `referat`-image med Ollama + qwen3:32b (bakt inn eller fra PVC)
-- [ ] Push til Artifact Registry
+- [ ] Bygg vLLM-image med `vllm[audio]` for nb-whisper — vekter lastes fra GCS ved oppstart
+- [ ] Bygg vLLM-image for Qwen3 — vekter lastes fra GCS ved oppstart
+- [ ] Sett opp LiteLLM på Cloud Run (`INGRESS_TRAFFIC_INTERNAL_ONLY`) som gateway
+- [ ] Push images til Artifact Registry
 - [ ] Deploy K8s-manifester til GPU-cluster
-- [ ] Koble NAIS-app mot GPU-tjenester (OLLAMA_URL / intern host)
+- [ ] Koble NAIS-app mot LiteLLM-gateway
 
 ### Fase 5 — Testing og akseptansekriterier (uke 4)
 
@@ -309,11 +390,12 @@ NAIS-appen hvitelister GPU-endepunktets IP i `accessPolicy.outbound`.
 
 | Ressurs | Type | Pris/time | Estimert bruk/mnd | Kostnad/mnd |
 |---------|------|-----------|-------------------|-------------|
-| GPU-node (whisper) | g2-standard-8 + L4 | ~$1.20 | 40 t (pilot) | ~$48 |
-| GPU-node (Ollama) | g2-standard-8 + L4 | ~$1.20 | 40 t (pilot) | ~$48 |
+| GPU-node (faster-whisper) | g2-standard-8 + L4 | ~$1.20 | 40 t (pilot) | ~$48 |
+| GPU-node (vLLM / referat) | g2-standard-8 + L4 | ~$1.20 | 40 t (pilot) | ~$48 |
+| LiteLLM gateway | Cloud Run (min 0 instanser) | per request | — | ~$5 |
 | CPU-node (API) | n2-standard-4 | ~$0.19 | 730 t | ~$140 |
 | Persistent disk | 50 GB SSD | — | — | ~$8 |
-| **Totalt pilot** | | | | **~$245/mnd (~2 600 kr)** |
+| **Totalt pilot** | | | | **~$250/mnd (~2 650 kr)** |
 
 GPU-noder autoskalerer til 0 ved inaktivitet → faktisk pilot-kostnad trolig langt lavere.
 
@@ -327,7 +409,8 @@ GPU-noder autoskalerer til 0 ved inaktivitet → faktisk pilot-kostnad trolig la
 | Har NAIS-teamet kapasitet til å legge til VPC peering for teamprosjektet? | ao-ki-taskforce → NAIS | ⬜ |
 | Er `ao-ki-taskforce` et NAIS-team med eget GCP-prosjekt? | ao-ki-taskforce | ⬜ |
 | Hvilken billing account brukes for GPU-infrastrukturen? | PO / økonomi | ⬜ |
-| Skal Ollama-modellen bakes inn i Docker-image (~22 GB) eller lastes fra GCS PVC? | ao-ki-taskforce | ⬜ |
+| Hvilken Qwen3-modellstørrelse er riktig for L4 (24 GB VRAM)? vLLM støtter quantisering | ao-ki-taskforce | ⬜ |
+| Kan vi dele LiteLLM-gatewayen med `navikt/copilot-infra`-teamet? | ao-ki-taskforce → NAIS-teamet | ⬜ |
 | Langsiktig: kan GPU-infrastrukturen bli en felles NAV-plattform for åpne modeller? | Teknologiavdelingen | ⬜ |
 
 ---
@@ -342,4 +425,5 @@ Når NAIS støtter GPU:    NAIS-app → NAIS GPU-nodepool
 ```
 
 Kun GPU-tjenestene flyttes. Frontend og API på NAIS rører man ikke.
-`OLLAMA_URL`-env-variabelen i `nais.yaml` peker da på NAIS-intern service i stedet.
+LiteLLM-gatewayens URL i `nais.yaml` forblir den samme — kun backendet bak
+den endres til en NAIS-intern service.
