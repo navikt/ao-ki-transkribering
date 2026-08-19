@@ -24,7 +24,8 @@ jobs:
           team: ao-ki-taskforce
           identity_provider: ${{ secrets.NAIS_WORKLOAD_IDENTITY_PROVIDER }}
           project_id: ${{ vars.NAIS_MANAGEMENT_PROJECT_ID }}
-          # Default target: runtime (CPU, full ML stack for real-time WebSocket)
+          target: runtime
+          build_args: REQUIREMENTS=requirements/worker-cpu.txt
 
   build-worker:
     name: Build and push model worker image

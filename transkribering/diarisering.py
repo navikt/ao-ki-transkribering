@@ -1,3 +1,5 @@
+import importlib.util
+import logging
 import os
 import threading
 
@@ -5,10 +7,19 @@ import numpy as np
 
 from transkribering.konstanter import SAMPLE_RATE
 
+log = logging.getLogger(__name__)
+
 # ECAPA-TDNN fra SpeechBrain — ~80 MB, ingen HF-token nødvendig.
 # Sett ECAPA_CACHE til en persistent mappe for å unngå re-nedlasting.
 _ECAPA_KILDE = os.getenv("ECAPA_MODELL", "speechbrain/spkrec-ecapa-voxceleb")
 _ECAPA_CACHE = os.getenv("ECAPA_CACHE", "/app/.cache/speechbrain")
+
+_SPEECHBRAIN_TILGJENGELIG = importlib.util.find_spec("speechbrain") is not None
+if not _SPEECHBRAIN_TILGJENGELIG:
+    log.warning(
+        "speechbrain er ikke installert — taler-diarisering er deaktivert. "
+        "Installer worker-avhengigheter (requirements/worker-cpu.txt) for å aktivere."
+    )
 
 _VINDU_S = 1.5   # sekunder per embedding-vindu
 _RATE    = 3.0   # embeddings per sekund (hop = 1/rate)
@@ -110,6 +121,9 @@ def diariser(
     from sklearn.metrics.pairwise import cosine_similarity
 
     if len(wav) < SAMPLE_RATE * 1.0:
+        return [], prototyper
+
+    if not _SPEECHBRAIN_TILGJENGELIG:
         return [], prototyper
 
     try:
