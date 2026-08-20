@@ -68,10 +68,8 @@ spec:
       value: /app/.cache/speechbrain
 
   observability:
-    # autoInstrumentation disabled: NAIS OTel webhook replaces entrypoint with
-    # /usr/bin/python, which causes /app/python not found crash when api.txt
-    # image is used. Re-enable once opentelemetry-exporter-otlp-proto-grpc
-    # is confirmed available in the runtime image.
+    autoInstrumentation:
+      enabled: false
     logging:
       destinations:
         - id: loki
