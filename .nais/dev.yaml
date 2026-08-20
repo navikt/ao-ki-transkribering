@@ -30,9 +30,13 @@ spec:
   liveness:
     path: /isAlive
     initialDelay: 10
+  startup:
+    path: /isAlive
+    initialDelay: 5
+    failureThreshold: 30
   readiness:
     path: /isReady
-    initialDelay: 10
+    initialDelay: 5
     failureThreshold: 10
 
   azure:
@@ -64,9 +68,10 @@ spec:
       value: /app/.cache/speechbrain
 
   observability:
-    autoInstrumentation:
-      enabled: true
-      runtime: python
+    # autoInstrumentation disabled: NAIS OTel webhook replaces entrypoint with
+    # /usr/bin/python, which causes /app/python not found crash when api.txt
+    # image is used. Re-enable once opentelemetry-exporter-otlp-proto-grpc
+    # is confirmed available in the runtime image.
     logging:
       destinations:
         - id: loki

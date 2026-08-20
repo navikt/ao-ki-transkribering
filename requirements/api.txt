@@ -8,3 +8,5 @@ pydantic>=2.6
 websockets>=12.0
 python-multipart>=0.0.9
 setuptools>=70,<81
+# Required by NAIS OTel auto-instrumentation (otlp_proto_grpc entry point)
+opentelemetry-exporter-otlp-proto-grpc>=1.20

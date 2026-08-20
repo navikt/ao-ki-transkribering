@@ -11,15 +11,21 @@ from api.referat import router as referat_router
 from api.sanntid import router as sanntid_router
 from api.transkripsjon import router as transkripsjon_router
 from core.runtime import start_arbeider, stopp_arbeider
+from core.settings import TRANSKRIPSJON_BACKEND
 
 logging.getLogger("transformers").setLevel(logging.ERROR)
 logging.getLogger("faster_whisper").setLevel(logging.ERROR)
+
+log = logging.getLogger(__name__)
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     prosess = start_arbeider()
-    await sjekk_ollama_modell()
+    if TRANSKRIPSJON_BACKEND == "local":
+        await sjekk_ollama_modell()
+    else:
+        log.info("TRANSKRIPSJON_BACKEND=%s — hopper over Ollama-sjekk ved oppstart", TRANSKRIPSJON_BACKEND)
     yield
     stopp_arbeider(prosess)
 
