@@ -6,8 +6,8 @@ on:
   workflow_dispatch:
 
 jobs:
-  build-api:
-    name: Build and push API image
+  build-frontend:
+    name: Build and push frontend image
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -25,10 +25,10 @@ jobs:
           identity_provider: ${{ secrets.NAIS_WORKLOAD_IDENTITY_PROVIDER }}
           project_id: ${{ vars.NAIS_MANAGEMENT_PROJECT_ID }}
           target: runtime
-          build_args: REQUIREMENTS=requirements/worker-cpu.txt
+          build_args: REQUIREMENTS=requirements/api.txt
 
-  build-worker:
-    name: Build and push model worker image
+  build-backend:
+    name: Build and push backend (ML worker) image
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -51,7 +51,7 @@ jobs:
 
   deploy-dev:
     name: Deploy to dev
-    needs: build-api
+    needs: build-frontend
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -64,11 +64,11 @@ jobs:
         env:
           CLUSTER: dev-gcp
           RESOURCE: .nais/dev.yaml
-          VAR: image=${{ needs.build-api.outputs.image }}
+          VAR: image=${{ needs.build-frontend.outputs.image }}
 
   deploy-prod:
     name: Deploy to prod
-    needs: [build-api, deploy-dev]
+    needs: [build-frontend, deploy-dev]
     runs-on: ubuntu-latest
     environment: production
     permissions:
@@ -82,4 +82,4 @@ jobs:
         env:
           CLUSTER: prod-gcp
           RESOURCE: .nais/prod.yaml
-          VAR: image=${{ needs.build-api.outputs.image }}
+          VAR: image=${{ needs.build-frontend.outputs.image }}

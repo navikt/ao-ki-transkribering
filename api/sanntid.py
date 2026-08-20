@@ -31,7 +31,7 @@ async def _sanntid_lokal(websocket: WebSocket) -> None:
     """Lokal faster-whisper + diarisering."""
     try:
         hent_fw_modell()
-    except FileNotFoundError as e:
+    except (FileNotFoundError, ImportError) as e:
         await websocket.send_json({"type": "feil", "melding": str(e)})
         await websocket.close()
         return
