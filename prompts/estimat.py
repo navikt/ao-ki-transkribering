@@ -1,6 +1,9 @@
 # Estimerte sekundar for LLM-generering per modell (kalibrert på Apple M-seriens MPS).
 # Skaler med transkripsjonslengde i beregn_llm_estimat().
 _LLM_ESTIMAT_SEK: dict[str, float] = {
+    "borealis:12b":         20.0,
+    "borealis:27b":         40.0,
+    "borealis:4b":           8.0,
     "qwen3:32b":            45.0,
     "qwen3.5:latest":       10.0,
     "qwen3.5-128k:latest":  10.0,
@@ -8,7 +11,7 @@ _LLM_ESTIMAT_SEK: dict[str, float] = {
     "glm-4.7-flash:latest": 20.0,
 }
 
-_STANDARD_MODELL = "qwen3.6:35b"
+_STANDARD_MODELL = "borealis:12b"
 
 
 def beregn_llm_estimat(modell: str | None, transkripsjon: str, fallback: str = _STANDARD_MODELL) -> int:

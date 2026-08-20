@@ -7,7 +7,7 @@ from pydantic import BaseModel
 from prompts.normalisering import normaliser_til_bokmal
 
 URL       = os.getenv("OLLAMA_URL",        "http://localhost:11434")
-MODELL    = os.getenv("OLLAMA_MODELL",     "qwen3:8b")
+MODELL    = os.getenv("OLLAMA_MODELL",     "borealis:12b")
 NUM_CTX   = int(os.getenv("OLLAMA_NUM_CTX", "32768"))
 
 _OPTIONS = {"temperature": 0.25, "num_ctx": NUM_CTX, "repeat_penalty": 1.3, "num_predict": 600}
@@ -104,8 +104,8 @@ async def stream_tokens(system: str, bruker: str, modell: str | None = None):
 async def kall(system: str, bruker: str, modell: str | None = None) -> str:
     """Kaller Ollama /api/generate med streaming og returnerer svarteksten.
 
-    Bruker streaming for å unngå timeout ved lange resonnementer (qwen3-tenking).
-    Brukar think=False + buffer-basert stripping av <think>-blokkar.
+    Bruker streaming for å unngå timeout ved lange svar.
+    Brukar think=False + buffer-basert stripping av <think>-blokkar (støtte for reasoning-modellar).
     """
     valgt_modell = modell or MODELL
     deler: list[str] = []
