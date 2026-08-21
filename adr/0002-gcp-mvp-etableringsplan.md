@@ -326,6 +326,19 @@ resource "google_container_node_pool" "gpu" {
 }
 ```
 
+#### Kapasitet og skalering av L4 GPUer
+
+Å velge `europe-west4`/`west1` gir oss tilgang til kvoter på 32 L4 GPUer.
+Selv for en fremtidig oppskalering til hele NAV, er dette tilstrekkelig med god margin:
+
+- **1 times møte** tar ca. 3 minutter å transkribere (nb-whisper på vLLM, konservativ RTF 20x).
+- Referatgenerering tar ca. 30 sekunder (Borealis-12b, context loading + generering).
+- **Skaleringsscenario:** 3 000 en-times møter per dag krever 150 maskintimer til
+  transkripsjon og 25 timer til LLM. Selv i en massiv "toppbelastning" hvor 40% av 
+  møtene skjer i løpet av to timer, vil GKE-clusteret måtte autoskalere opp til
+  omlag ~35 L4-instanser parallelt, noe som er tett på dagens standardkvote.
+  For MVP og bred pilotering er kvoten lang over behovet.
+
 ---
 
 ## Nettverkssikkerhet
