@@ -350,9 +350,9 @@ Bruker (naisdevice VPN)
     → intern.nav.no (privat LB, 10.7.8.200)
         → NAIS-pod (FastAPI)
             → LiteLLM gateway (Cloud Run, intern VPC)
-                → vLLM pod — nb-whisper  [POST /v1/audio/transcriptions]
+                → vLLM pod — nb-whisper  [POST /v1/audio/transcriptions — kun POC-test]
                 → vLLM pod — nb-whisper  [WS   /v1/realtime  (sanntid)]
-                → vLLM pod — Qwen3       [POST /v1/chat/completions]
+                → vLLM pod — Borealis    [POST /v1/chat/completions]
                 ← Transkripsjon/referat returneres
             ← Returneres til NAIS-pod
         ← Returneres til nettleser
@@ -361,6 +361,29 @@ Ingen av stegene over passerer internett.
 
 **GPU-tjenestene eksponeres kun som ClusterIP eller Internal LoadBalancer** (ikke ekstern).
 NAIS-appen hvitelister GPU-endepunktets IP i `accessPolicy.outbound`.
+
+---
+
+## Datalivssyklus og personvern
+
+**Beslutning (2026-08-21):** Løsningen lagrer ingen lyd og ingen transkripsjoner.
+
+- **Lyd:** Streames som korte chunks over WebSocket og kastes fortløpende etter
+  prosessering. Ingen lyddata skrives til disk noe sted i kjeden.
+- **Batch-transkripsjon støttes ikke i produksjon** — kun som testverktøy i POC-fasen.
+- **Verbatim-transkripsjon:** Holdes kun i minne i NAIS-poden og slettes når
+  referatet er generert og godkjent av bruker. Se åpent spørsmål om robusthet.
+- **Referat:** Forlater systemet manuelt — i POC-fasen kopierer/laster brukeren
+  selv referatet inn i dertil egnet arkiveringssystem. Ingen persistens hos oss.
+
+**Konsekvenser:**
+
+| Konsekvens | Vurdering |
+|------------|-----------|
+| DPIA/ROS | Betydelig enklere — ingen lagring av personopplysninger i løsningen |
+| Database | Ikke behov for Postgres i MVP |
+| Cloud Run 32 MB-grense | Ikke relevant — kun små WS-chunks, ingen store filopplastinger |
+| Rettskraftig sletting | Trivielt — ingenting å slette etter sesjonsslutt |
 
 ---
 
@@ -384,7 +407,7 @@ NAIS-appen hvitelister GPU-endepunktets IP i `accessPolicy.outbound`.
 
 ### Fase 4 — Container-images og deploy (uke 3–4)
 - [ ] Bygg vLLM-image med `vllm[audio]` for nb-whisper — vekter lastes fra GCS ved oppstart
-- [ ] Bygg vLLM-image for Qwen3 — vekter lastes fra GCS ved oppstart
+- [ ] Bygg vLLM-image for Borealis — vekter lastes fra GCS ved oppstart
 - [ ] Sett opp LiteLLM på Cloud Run (`INGRESS_TRAFFIC_INTERNAL_ONLY`) som gateway
 - [ ] Push images til Artifact Registry
 - [ ] Deploy K8s-manifester til GPU-cluster
@@ -394,7 +417,7 @@ NAIS-appen hvitelister GPU-endepunktets IP i `accessPolicy.outbound`.
 
 | Test | Akseptabel grense |
 |------|-------------------|
-| Batch-transkripsjon, 45 min møte | < 3 min |
+| Batch-transkripsjon, 45 min møte (kun POC-testverktøy) | < 3 min |
 | Sanntid-segment (10 sek lyd) | < 3 sek |
 | Referatgenerering, 1 000 ord | < 60 sek |
 | Cold start GPU-pod (0 → klar) | < 5 min |
@@ -434,6 +457,7 @@ GPU-noder autoskalerer til 0 ved inaktivitet → faktisk pilot-kostnad trolig la
 | Er `ao-ki-taskforce` et NAIS-team med eget GCP-prosjekt? | ao-ki-taskforce | ⬜ |
 | Hvilken billing account brukes for GPU-infrastrukturen? | PO / økonomi | ⬜ |
 | Region og GPU-type: `europe-west4` med L4, eller `europe-north1` med RTX Pro 6000? | ao-ki-taskforce | ⬜ |
+| Robusthet ved kun-minne-transkripsjon: hva skjer om poden krasjer eller nettverket ryker midt i et møte? Trengs klient-side bufring eller gjenopptakelse? | ao-ki-taskforce | ⬜ |
 | Borealis-27b (2× L4) eller Borealis-12b (1× L4)? Avhenger av kvalitetsvurdering og budsjett | ao-ki-taskforce | ⬜ |
 | Finnes AWQ/GPTQ-kvantisering av Borealis-27b for å unngå 2× L4? | NbAiLab / ao-ki-taskforce | ⬜ |
 | Kan vi dele LiteLLM-gatewayen med `navikt/copilot-infra`-teamet? | **Nei** — ulike krav til datahåndtering (møteopptak vs. kildekode), tilgangskontroll og backend-modeller. Gjenbruk Terraform-modulen som mal, ikke instansen. | ✅ Avklart |
