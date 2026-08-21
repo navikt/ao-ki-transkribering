@@ -221,6 +221,18 @@ KNADA er vurdert og forkastet:
 **Beslutning:** Eget GKE Standard-cluster i teamets GCP-prosjekt (som NAIS automatisk
 oppretter for `ao-ki-taskforce`).
 
+**Utfordring med region og GPU-tilgjengelighet (L4 vs RTX/B200/H100):**
+NAIS-infrastrukturen kjører i `europe-north1` (Hamina, Finland). Sjekk av GPU-kvoter og
+tilgjengelighet i denne regionen avdekker at **L4 (G2-instanser) ikke tilbys i `europe-north1`**.
+De eneste tilgjengelige alternativene i Finland er massive datasenter-GPUer (B200, H100) eller RTX Pro 6000.
+
+Dette gir oss to løyper (uavklart):
+1. **Løype A (Kryss-region):** Beholde L4 (svært kostnadseffektivt for våre 3-20 GB modeller),
+   men plassere GPU-clusteret i `europe-west4` (Nederland) eller `europe-west1` (Belgia).
+   Trafikken rutes transparent via VPC-peering mellom NAIS i `north1` og GPU i `west4`.
+2. **Løype B (Samme region):** Bytte til RTX Pro 6000 (G4-instanser, 24GB VRAM) for å beholde
+   clusteret i `europe-north1`. Dette er dyrere per time og kan ha dårligere on-demand tilgjengelighet enn L4.
+
 **Hvorfor GKE og ikke GCE MIG (som `navikt/copilot-infra`):**
 - `navikt/copilot-infra` kjører 756 GB-modeller på B200 kun tilgjengelig som Spot —
   MIG-resiliens er kritisk der. Våre modeller (3–20 GB) er tilgjengelig on-demand.
@@ -384,6 +396,8 @@ NAIS-appen hvitelister GPU-endepunktets IP i `accessPolicy.outbound`.
 
 ### Alternativ B (eget cluster):
 
+*Merk: Estimatet baserer seg på L4-GPUer (G2-instanser), som forutsetter at GPU-clusteret legges til `europe-west4` eller `europe-west1`, da L4 ikke finnes i `europe-north1` (se avsnitt om Region og GPU-tilgjengelighet).*
+
 | Ressurs | Type | Pris/time | Estimert bruk/mnd | Kostnad/mnd |
 |---------|------|-----------|-------------------|-------------|
 | GPU-node (nb-whisper) | g2-standard-8 + L4 | ~$1.20 | 40 t (pilot) | ~$48 |
@@ -406,6 +420,7 @@ GPU-noder autoskalerer til 0 ved inaktivitet → faktisk pilot-kostnad trolig la
 | Har NAIS-teamet kapasitet til å legge til VPC peering for teamprosjektet? | ao-ki-taskforce → NAIS | ⬜ |
 | Er `ao-ki-taskforce` et NAIS-team med eget GCP-prosjekt? | ao-ki-taskforce | ⬜ |
 | Hvilken billing account brukes for GPU-infrastrukturen? | PO / økonomi | ⬜ |
+| Region og GPU-type: `europe-west4` med L4, eller `europe-north1` med RTX Pro 6000? | ao-ki-taskforce | ⬜ |
 | Borealis-27b (2× L4) eller Borealis-12b (1× L4)? Avhenger av kvalitetsvurdering og budsjett | ao-ki-taskforce | ⬜ |
 | Finnes AWQ/GPTQ-kvantisering av Borealis-27b for å unngå 2× L4? | NbAiLab / ao-ki-taskforce | ⬜ |
 | Kan vi dele LiteLLM-gatewayen med `navikt/copilot-infra`-teamet? | **Nei** — ulike krav til datahåndtering (møteopptak vs. kildekode), tilgangskontroll og backend-modeller. Gjenbruk Terraform-modulen som mal, ikke instansen. | ✅ Avklart |
