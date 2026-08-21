@@ -387,6 +387,24 @@ NAIS-appen hvitelister GPU-endepunktets IP i `accessPolicy.outbound`.
 
 ---
 
+## Observability og kostnadskontroll på GPU-siden
+
+NAIS gir Grafana/Loki gratis på app-siden, men GPU-plattformen (GKE + Cloud Run)
+ligger i teamets GCP-prosjekt og må utstyres bevisst. `navikt/copilot-infra` har
+verifiserte mønstre som bør kopieres:
+
+- **Kostnadsvakt:** Budsjettvarsler (GCP Budget Alerts) med varslingsadresser.
+  Copilot-infra varsler når en node har stått over 12 t — tilsvarende terskel
+  bør settes for vår GPU-nodepool.
+- **Automatisk nedskalering:** Cloud Scheduler som setter GPU-nodepool til 0
+  kveld/helg. Selv med `min_node_count = 0` i autoskaleringen er en aktiv
+  scheduler en dobbeltsikring mot at noder glemtes stående.
+- **Logging/metrikker:** Cloud Logging/Monitoring på GKE-siden. LiteLLM kjører
+  med `turn_off_message_logging: true` — kun metadata logges, aldri innhold
+  (lyd, transkripsjon, referat).
+
+---
+
 ## Faseplan
 
 ### Fase 1 — Avklar GPU-plattform (uke 1)
@@ -404,6 +422,14 @@ NAIS-appen hvitelister GPU-endepunktets IP i `accessPolicy.outbound`.
 - [ ] Opprett GKE Standard-cluster med Terraform (se over)
 - [ ] Be NAIS-teamet om VPC peering (enkelt PR til `nais-terraform-modules`)
 - [ ] Verifiser GPU-nodepool med `nvidia-smi`
+- [ ] **Spike: verifiser sanntidskjeden ende-til-ende** — vLLM `WS /v1/realtime` med
+  nb-whisper, proxied gjennom LiteLLM på Cloud Run. Uverifisert territorium:
+  copilot-infra bruker kun chat completions, og vi er avhengige av at LiteLLMs
+  WS-passthrough og Cloud Runs WS-støtte (~60 min connection timeout) tåler
+  møter av normal lengde. Fallback: NAIS-pod kobler direkte mot GKE-tjenesten
+  (Internal LB) og dropper LiteLLM for sanntidsflyten.
+- [ ] Mål round-trip-latenstid NAIS (`north1`) → GPU-cluster dersom kryss-region
+  velges (`west4`/`west1`) — påvirker sanntidsopplevelsen
 
 ### Fase 4 — Container-images og deploy (uke 3–4)
 - [ ] Bygg vLLM-image med `vllm[audio]` for nb-whisper — vekter lastes fra GCS ved oppstart
@@ -412,6 +438,11 @@ NAIS-appen hvitelister GPU-endepunktets IP i `accessPolicy.outbound`.
 - [ ] Push images til Artifact Registry
 - [ ] Deploy K8s-manifester til GPU-cluster
 - [ ] Koble NAIS-app mot LiteLLM-gateway
+- [ ] Fjern faster-whisper fra API-poden og nedjuster ressursprofil i `nais.yaml`
+  (dagens 2–4 Gi memory-limit er dimensjonert for in-pod-modell) — avhengig av
+  at sanntidsspiaken i Fase 3 er grønn
+- [ ] Sett opp budsjettvarsler og Cloud Scheduler for nedskalering av GPU-nodepool
+  utenfor arbeidstid (se avsnitt om kostnadskontroll)
 
 ### Fase 5 — Testing og akseptansekriterier (uke 4)
 
@@ -420,9 +451,15 @@ NAIS-appen hvitelister GPU-endepunktets IP i `accessPolicy.outbound`.
 | Batch-transkripsjon, 45 min møte (kun POC-testverktøy) | < 3 min |
 | Sanntid-segment (10 sek lyd) | < 3 sek |
 | Referatgenerering, 1 000 ord | < 60 sek |
-| Cold start GPU-pod (0 → klar) | < 5 min |
+| Cold start GPU-pod (0 → klar) | < 5 min ⚠️ |
 | Ingen lyddata på disk etter sesjon | ✅ verifisert |
 | Kun tilgjengelig via naisdevice | ✅ verifisert |
+
+⚠️ **Kaldstart er urealistisk å nå for Borealis-27b fra null:** 54 GB vekter fra
+GCS (~80 sek ved 675 MiB/s) + node-provisioning + driver-installasjon overstiger
+5 min. Realistiske tiltak: `min 1` GPU-node i arbeidstiden via scheduler (som
+copilot-infra), eller pre-staged vekter på disk-snapshot. nb-whisper (~3 GB) når
+trolig kriteriet uten tiltak.
 
 ---
 
