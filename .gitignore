@@ -14,3 +14,8 @@ nohup.out
 *.webm
 *.json
 .env
+# Terraform — state is in GCS, never commit locally
+terraform/**/.terraform/
+terraform/**/.terraform.lock.hcl
+terraform/**/*.tfstate
+terraform/**/*.tfstate.backup
