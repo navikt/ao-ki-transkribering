@@ -104,7 +104,7 @@ NAIS-teamet ønsker ikke GPU-støtte for denne POC-en. Gjennomgang av NAIS-infra
 |---------|-------|-----|
 | **Transkripsjon** (nb-whisper) | **vLLM** | `POST /v1/audio/transcriptions` (OpenAI-kompatibel) |
 | **Sanntid-transkripsjon** | **vLLM** | `WS /v1/realtime` — streaming WebSocket med `transcription.delta`-events |
-| **Referatgenerering** (Borealis-27b) | **vLLM** | `POST /v1/chat/completions` |
+| **Referatgenerering** (Borealis-12b) | **vLLM** | `POST /v1/chat/completions` |
 
 ### Hvorfor vLLM for Whisper — og ikke faster-whisper?
 
@@ -146,15 +146,16 @@ basert på Gemma 3. Den er fintunet på norsk (bokmål og nynorsk) og distribuer
 | Q4_K_M (GGUF) | ~14 GB | ✅ — men vLLM laster ikke GGUF nativt |
 | BF16 + tensor parallelism | ~27 GB | ✅ **to L4-er** |
 
-**Konklusjon:** Borealis-27b kjører i BF16 på **to L4-er** med tensor parallelism
-(`--tensor-parallel-size 2`). vLLM støtter Gemma 3 nativt (`gemma3.py`), og
-Borealis-27b er en direkte finetune av `google/gemma-3-27b-it` — ingen tilpasning nødvendig.
+**Beslutning (2026-08-25): Borealis-12b for piloten** — kjører på én L4 i BF16
+(~24 GB). vLLM støtter Gemma 3 nativt (`gemma3.py`), og Borealis er en direkte
+finetune av `google/gemma-3-12b-it` — ingen tilpasning nødvendig.
 
-Alternativt kan **Borealis-12b** kjøre på én L4 i BF16 (~24 GB, marginalt) eller
-komfortabelt med lett kvantisering. God fallback om to L4-er viser seg kostbart.
+**Oppgraderingsvei:** Borealis-27b kjører i BF16 på **to L4-er** med tensor
+parallelism (`--tensor-parallel-size 2`) dersom kvalitetsvurderingen viser at
+12b ikke er god nok. 27b er finetune av `google/gemma-3-27b-it`.
 
 **Modellvekter** lastes fra **GCS ved pod-oppstart** — ikke bakt inn i image.
-nb-whisper-large er ~3 GB; Borealis-27b i BF16 er ~54 GB.
+nb-whisper-large er ~3 GB; Borealis-12b i BF16 er ~24 GB.
 
 **LiteLLM** kjøres som en **Deployment i GKE-clusteret** (ClusterIP eller Internal
 LoadBalancer) — ikke på Cloud Run slik `navikt/copilot-infra` gjør. Begrunnelse:
@@ -492,12 +493,13 @@ Cloud Scheduler, eller pre-staged vekter på disk-snapshot.
 | GKE Standard-kontrollplan | fast | — | — | ~$73 |
 | GKE system-noder (CPU, alltid på) | e2-standard-2 × 1 | ~$0.07 | 730 t | ~$50 |
 | GPU-node (nb-whisper) | g2-standard-8 + L4 | ~$1.20 | 40 t (pilot) | ~$48 |
-| GPU-node (Borealis-27b, 2× L4) | g2-standard-24 + 2× L4 | ~$2.40 | 40 t (pilot) | ~$96 |
+| GPU-node (Borealis-12b) | g2-standard-12 + 1× L4 | ~$1.40 | 40 t (pilot) | ~$56 |
 | LiteLLM gateway | CPU-pod i GKE (min 1 replica) | — | 730 t | ~$10 |
 | Persistent disk | 50 GB SSD | — | — | ~$8 |
-| **Totalt pilot** | | | | **~$285/mnd (~3 000 kr)** |
+| **Totalt pilot** | | | | **~$245/mnd (~2 600 kr)** |
 
-Borealis-12b som alternativ (én L4) reduserer GPU-kostnaden til ~$48/mnd — totalt ~$235/mnd.
+Oppgradering til Borealis-27b (2× L4, `g2-standard-24`) øker LLM-kostnaden til
+~$96/mnd — totalt ~$285/mnd.
 
 GPU-noder autoskalerer til 0 ved inaktivitet → faktisk pilot-kostnad trolig langt lavere.
 API/frontend kjører på NAIS og er ikke medregnet her (intern NAIS-kostnad).
