@@ -24,8 +24,10 @@ Gjennomgang av dette repoet gir viktige lærdommer for vår arkitektur:
 - **Inference-motor:** De bruker **vLLM** (ikke Ollama). vLLM er designet for
   produksjons-inference med PagedAttention og langt bedre GPU-utnyttelse. Ollama er
   primært et utviklerverktøy for lokal bruk.
-- **Gateway:** **LiteLLM på Cloud Run** (`INGRESS_TRAFFIC_INTERNAL_ONLY`) som stabil
-  URL foran GPU-noder. Gir retry-logikk, model aliasing og overlever node-churn.
+- **Gateway:** De bruker **LiteLLM på Cloud Run** (`INGRESS_TRAFFIC_INTERNAL_ONLY`)
+  som stabil URL foran GPU-noder. For oss kjøres LiteLLM i stedet som en Deployment
+  i GKE-clusteret — det aligner med NAIS-porteringen og unngår Cloud Runs begrensninger
+  (WS-timeout ~60 min, 32 MB request-grense). Se eget avsnitt under.
 - **Modellvekter:** Lastes fra **GCS ved oppstart** — ikke bakt inn i image. 675 MiB/s
   nedlastningshastighet gjør dette praktisk selv for store modeller.
 - **Nettverksgap (G11):** Det finnes ingen ferdig nettverkssti mellom NAIS-clusterne
@@ -81,9 +83,9 @@ NAIS-teamet ønsker ikke GPU-støtte for denne POC-en. Gjennomgang av NAIS-infra
 ┌──────────────────────────────────────────────────────────────────┐
 │  GPU-plattform  (eget GKE cluster i team GCP-prosjekt)           │
 │                                                                  │
-│  LiteLLM gateway (Cloud Run, intern)                             │
+│  LiteLLM gateway (GKE Deployment, ClusterIP/Internal LB)         │
 │    ├── vLLM — nb-whisper (GKE GPU-pod)                           │
-│    └── vLLM — Qwen3      (GKE GPU-pod)                           │
+│    └── vLLM — Borealis   (GKE GPU-pod)                           │
 │                                                                  │
 │  Krever VPC peering fra NAIS-teamet                              │
 └──────────────────────────────────────────────────────────────────┘
@@ -154,11 +156,22 @@ komfortabelt med lett kvantisering. God fallback om to L4-er viser seg kostbart.
 **Modellvekter** lastes fra **GCS ved pod-oppstart** — ikke bakt inn i image.
 nb-whisper-large er ~3 GB; Borealis-27b i BF16 er ~54 GB.
 
-**LiteLLM** (Cloud Run, `INGRESS_TRAFFIC_INTERNAL_ONLY`) brukes som gateway foran
-vLLM. Dette er samme mønster som `navikt/copilot-infra` og gir:
-- Stabil URL som overlever node-churn (GKE scale-to-zero)
-- Retry-logikk og model aliasing
-- `turn_off_message_logging: true` — lyddata og transkripsjon logges ikke
+**LiteLLM** kjøres som en **Deployment i GKE-clusteret** (ClusterIP eller Internal
+LoadBalancer) — ikke på Cloud Run slik `navikt/copilot-infra` gjør. Begrunnelse:
+
+- **NAIS-portering:** Hele GPU-plattformen blir rene K8s-manifester. Ved migrering
+  til NAIS flyttes deploymenten 1:1 — Cloud Run-tjenester kan ikke flyttes som K8s-workloads.
+- **WebSocket:** Sanntidsflyten vår er WS-basert. Cloud Run terminerer
+  WS-tilkoblinger etter ~60 min (akkurat ved normal møtelengde) og har en 32 MB
+  request-grense. I GKE går LiteLLM mot vLLM via ClusterIP uten slike begrensninger.
+- **Kostnad:** Mister scale-to-zero for gatewayen, men den er en liten CPU-tjeneste —
+  én `min 1` replica er ubetydelig sammenlignet med GPU-nodene.
+
+Gatewayen gir fortsatt: stabil URL som overlever node-churn (GKE scale-to-zero),
+retry-logikk, model aliasing, og `turn_off_message_logging: true` — lyddata og
+transkripsjon logges ikke. Master key mountes som K8s Secret.
+LiteLLM-konfigurasjonen i `navikt/copilot-infra`s `model-gateway`-modul
+(generert fra deployments-map) brukes som mal.
 
 ---
 
@@ -354,7 +367,7 @@ All trafikk holdes innenfor NAVs GCP-infrastruktur:
 Bruker (naisdevice VPN)
     → intern.nav.no (privat LB, 10.7.8.200)
         → NAIS-pod (FastAPI)
-            → LiteLLM gateway (Cloud Run, intern VPC)
+            → LiteLLM gateway (GKE Deployment, intern VPC)
                 → vLLM pod — nb-whisper  [POST /v1/audio/transcriptions — kun POC-test]
                 → vLLM pod — nb-whisper  [WS   /v1/realtime  (sanntid)]
                 → vLLM pod — Borealis    [POST /v1/chat/completions]
@@ -387,14 +400,14 @@ NAIS-appen hvitelister GPU-endepunktets IP i `accessPolicy.outbound`.
 |------------|-----------|
 | DPIA/ROS | Betydelig enklere — ingen lagring av personopplysninger i løsningen |
 | Database | Ikke behov for Postgres i MVP |
-| Cloud Run 32 MB-grense | Ikke relevant — kun små WS-chunks, ingen store filopplastinger |
+| Cloud Run 32 MB-grense | Ikke relevant — LiteLLM kjøres i GKE, ikke Cloud Run |
 | Rettskraftig sletting | Trivielt — ingenting å slette etter sesjonsslutt |
 
 ---
 
 ## Observability og kostnadskontroll på GPU-siden
 
-NAIS gir Grafana/Loki gratis på app-siden, men GPU-plattformen (GKE + Cloud Run)
+NAIS gir Grafana/Loki gratis på app-siden, men GPU-plattformen (GKE)
 ligger i teamets GCP-prosjekt og må utstyres bevisst. `navikt/copilot-infra` har
 verifiserte mønstre som bør kopieres:
 
@@ -430,21 +443,27 @@ verifiserte mønstre som bør kopieres:
 - [ ] Be NAIS-teamet om VPC peering (`#nais` Slack)
 - [ ] Verifiser GPU-nodepool med `nvidia-smi`
 - [ ] **Spike: verifiser sanntidskjeden ende-til-ende** — vLLM `WS /v1/realtime` med
-  nb-whisper, proxied gjennom LiteLLM på Cloud Run. Uverifisert territorium:
+  nb-whisper, proxied gjennom LiteLLM i GKE. Uverifisert territorium:
   copilot-infra bruker kun chat completions, og vi er avhengige av at LiteLLMs
-  WS-passthrough og Cloud Runs WS-støtte (~60 min connection timeout) tåler
-  møter av normal lengde. Fallback: NAIS-pod kobler direkte mot GKE Internal LB
-  og dropper LiteLLM for sanntidsflyten.
+  WS-passthrough tåler møter av normal lengde uten timeout. Fallback: NAIS-pod
+  kobler direkte mot vLLM-tjenesten (ClusterIP) og dropper LiteLLM for
+  sanntidsflyten.
+- [ ] Mål round-trip-latenstid NAIS (`north1`) → GPU-cluster dersom kryss-region
+  velges (`west4`/`west1`) — påvirker sanntidsopplevelsen
 
 ### Fase 4 — Container-images og deploy (uke 3–4)
-- [ ] Last opp modellvekter til GCS (nb-whisper-large ~3 GB, Borealis-12b ~24 GB)
+- [ ] Last opp modellvekter til GCS (nb-whisper-large ~3 GB, Borealis-12b ~24 GB) —
+  vekter lastes inn i podene fra GCS ved oppstart
 - [ ] Bygg vLLM-image med `vllm[audio]` for nb-whisper
 - [ ] Bygg vLLM-image for Borealis-12b
 - [ ] Push images til Artifact Registry (`europe-west4-docker.pkg.dev/ao-ki-taskforce-prod-2472/`)
-- [ ] Sett opp LiteLLM på Cloud Run (`INGRESS_TRAFFIC_INTERNAL_ONLY`) som gateway
+- [ ] Sett opp LiteLLM som Deployment i GKE (ClusterIP/Internal LB, master key
+  som K8s Secret — bruk `navikt/copilot-infra`s `model-gateway`-modul som mal)
 - [ ] Deploy K8s-manifester til GPU-cluster (`k8s/`)
 - [ ] Koble NAIS-app mot LiteLLM-gateway (oppdater `TRANSKRIPSJON_SERVICE_URL` og `OLLAMA_URL` i secrets)
 - [ ] Fjern faster-whisper fra `worker/` og nedjuster ressursprofil i `nais.yaml`
+  (dagens 2–4 Gi memory-limit er dimensjonert for in-pod-modell) — avhengig av
+  at sanntidsspiaken i Fase 3 er grønn
 - [ ] Sett opp budsjettvarsler og Cloud Scheduler for nedskalering av GPU-nodepool
 
 ### Fase 5 — Testing og akseptansekriterier (uke 4)
@@ -476,7 +495,7 @@ Cloud Scheduler, eller pre-staged vekter på disk-snapshot.
 |---------|------|-----------|-------------------|-------------|
 | GPU-node (nb-whisper) | g2-standard-8 + L4 | ~$1.20 | 40 t (pilot) | ~$48 |
 | GPU-node (Borealis-27b, 2× L4) | g2-standard-24 + 2× L4 | ~$2.40 | 40 t (pilot) | ~$96 |
-| LiteLLM gateway | Cloud Run (min 0 instanser) | per request | — | ~$5 |
+| LiteLLM gateway | CPU-pod i GKE (min 1 replica) | — | 730 t | ~$10 |
 | CPU-node (API) | n2-standard-4 | ~$0.19 | 730 t | ~$140 |
 | Persistent disk | 50 GB SSD | — | — | ~$8 |
 | **Totalt pilot** | | | | **~$300/mnd (~3 200 kr)** |
