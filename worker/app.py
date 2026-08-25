@@ -4,8 +4,8 @@ from pathlib import Path
 
 from fastapi import FastAPI, File, Form, UploadFile
 
-from contracts.transcription import HelseSvar, KlarSvar, TranskripsjonSvar
-from core.settings import MODELL_ID
+from shared.contracts.transcription import HelseSvar, KlarSvar, TranskripsjonSvar
+from shared.core.settings import MODELL_ID
 from worker.transkribering.batch import LokalBatchTranskriberer
 
 app = FastAPI(title="NB-Whisper model worker")

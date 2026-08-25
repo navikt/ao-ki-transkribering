@@ -5,9 +5,9 @@ from pathlib import Path
 import httpx
 from fastapi import APIRouter, BackgroundTasks, File, Form, HTTPException, UploadFile
 
-from core.runtime import job_store, jobbkø
-from core.settings import MODELL_ID, TRANSKRIPSJON_BACKEND, TRANSKRIPSJON_SERVICE_URL
-from services.transkripsjon_client import transkriber_remote
+from shared.core.runtime import job_store, jobbkø
+from shared.core.settings import MODELL_ID, TRANSKRIPSJON_BACKEND, TRANSKRIPSJON_SERVICE_URL
+from shared.services.transkripsjon_client import transkriber_remote
 from worker.transkribering.batch import estimert_total_s
 
 router = APIRouter()

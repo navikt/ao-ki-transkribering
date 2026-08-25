@@ -1,4 +1,4 @@
-from services.jobs import JobStore
+from shared.services.jobs import JobStore
 
 
 def test_job_store_writes_and_reads_state(tmp_path):

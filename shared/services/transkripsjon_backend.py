@@ -1,7 +1,7 @@
 from pathlib import Path
 from typing import Any, Callable, Protocol
 
-from contracts.transcription import TranskripsjonSvar
+from shared.contracts.transcription import TranskripsjonSvar
 
 
 StatusCallback = Callable[[dict[str, Any]], None]

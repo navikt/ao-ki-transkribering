@@ -3,7 +3,7 @@ import os
 import traceback
 from pathlib import Path
 
-from services.jobs import JobStore
+from shared.services.jobs import JobStore
 from worker.transkribering.batch import LokalBatchTranskriberer
 
 

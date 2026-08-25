@@ -11,8 +11,8 @@ from frontend.routes.modell import router as modell_router, sjekk_ollama_modell
 from frontend.routes.referat import router as referat_router
 from frontend.routes.sanntid import router as sanntid_router
 from frontend.routes.transkripsjon import router as transkripsjon_router
-from core.runtime import start_arbeider, stopp_arbeider
-from core.settings import TRANSKRIPSJON_BACKEND
+from shared.core.runtime import start_arbeider, stopp_arbeider
+from shared.core.settings import TRANSKRIPSJON_BACKEND
 
 logging.getLogger("transformers").setLevel(logging.ERROR)
 logging.getLogger("faster_whisper").setLevel(logging.ERROR)

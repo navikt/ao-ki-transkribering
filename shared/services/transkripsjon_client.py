@@ -2,8 +2,8 @@ from pathlib import Path
 
 import httpx
 
-from contracts.transcription import TranskripsjonSvar
-from core.settings import TRANSKRIPSJON_SERVICE_URL
+from shared.contracts.transcription import TranskripsjonSvar
+from shared.core.settings import TRANSKRIPSJON_SERVICE_URL
 
 
 async def transkriber_remote(

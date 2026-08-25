@@ -1,8 +1,8 @@
 import multiprocessing
 from typing import Optional
 
-from core.settings import ARBEIDSMAPPE, MODELL_ID, START_LOKAL_WORKER
-from services.jobs import JobStore
+from shared.core.settings import ARBEIDSMAPPE, MODELL_ID, START_LOKAL_WORKER
+from shared.services.jobs import JobStore
 from worker.workers.transkripsjon import arbeider
 
 mp_ctx = multiprocessing.get_context("spawn")

@@ -1,4 +1,4 @@
-from contracts.transcription import TranskripsjonSvar
+from shared.contracts.transcription import TranskripsjonSvar
 
 
 def test_transkripsjon_svar_validates_segments():
