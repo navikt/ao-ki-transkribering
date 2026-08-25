@@ -150,6 +150,11 @@ basert på Gemma 3. Den er fintunet på norsk (bokmål og nynorsk) og distribuer
 (~24 GB). vLLM støtter Gemma 3 nativt (`gemma3.py`), og Borealis er en direkte
 finetune av `google/gemma-3-12b-it` — ingen tilpasning nødvendig.
 
+*Dette er en hypotese som skal falsifiseres i piloten:* at 12b produserer
+møtereferater av tilstrekkelig kvalitet. Piloten må derfor inneholde en
+kvalitetsvurdering (f.eks. side-ved-side mot 27b eller menneskelig vurdering
+av et utvalg referater) før beslutningen begrunnes som permanent.
+
 **Oppgraderingsvei:** Borealis-27b kjører i BF16 på **to L4-er** med tensor
 parallelism (`--tensor-parallel-size 2`) dersom kvalitetsvurderingen viser at
 12b ikke er god nok. 27b er finetune av `google/gemma-3-27b-it`.
