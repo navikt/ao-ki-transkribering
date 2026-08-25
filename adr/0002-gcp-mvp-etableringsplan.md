@@ -1,10 +1,15 @@
 # ADR-0002: GCP MVP-etableringsplan — Hybrid NAIS + GPU-infrastruktur
 
-**Status:** Forslag  
+**Status:** Godkjent  
 **Dato:** 2026-08-05  
-**Oppdatert:** 2026-08-18 — justert etter gjennomgang av `navikt/copilot-infra`  
+**Oppdatert:** 2026-08-25  
 **Forfattere:** ao-ki-taskforce  
 **Forutsetning:** ADR-0001 besluttet egenstyrt Kubernetes-cluster med GPU som fase 2.
+
+> **2026-08-25:** KNADA-alternativet forkastet — går med eget GCP-prosjekt (`ao-ki-taskforce-prod-2472`).
+> Region endret til `europe-west4-b` (L4 ikke tilgjengelig i `europe-north1`).
+> Modell endret til **Borealis-12b** (én L4, 24 GB VRAM) for piloten — kan oppgraderes til 27b.
+> GKE-cluster og Terraform-infrastruktur er etablert. Fase 1 og 2 fullført.
 
 ---
 
@@ -122,7 +127,7 @@ er begge byttet ut med vLLM:
   GPU-infrastruktur med PagedAttention og GPU-utnyttelse på produksjonsnivå
 - vLLM brukes av `navikt/copilot-infra` og er verifisert på NAV-infrastruktur
 
-### Valg av LLM-modell for referatgenerering: Borealis-27b
+### Valg av LLM-modell for referatgenerering: Borealis-12b (pilot)
 
 [Borealis](https://ai.nb.no/borealis/) er Nasjonalbibliotekets åpne norske modellserie,
 basert på Gemma 3. Den er fintunet på norsk (bokmål og nynorsk) og distribuert med
@@ -407,42 +412,40 @@ verifiserte mønstre som bør kopieres:
 
 ## Faseplan
 
-### Fase 1 — Avklar GPU-plattform (uke 1)
-- [ ] Ta kontakt med KNADA-teamet (`#knada` Slack): støttes persistent GPU-tjenester?
-- [ ] Hvis nei: klargjør team GCP-prosjekt (NAIS oppretter automatisk for `ao-ki-taskforce`)
-- [ ] Hent GCP-prosjekt-ID og bekreft billing-konto
+### Fase 1 — Avklar GPU-plattform ✅ Fullført (2026-08-24)
+- [x] ~~Ta kontakt med KNADA-teamet~~ — KNADA forkastet, går med eget GCP-prosjekt
+- [x] GCP-prosjekt bekreftet: `ao-ki-taskforce-prod-2472` (NAIS-provisjonert)
+- [x] Billing-konto bekreftet (koblet av NAIS)
 
-### Fase 2 — Frontend på NAIS (uke 1–2)
-- [ ] Opprett `nais.yaml` (basert på eksempel over) i repoet
-- [ ] Bygg Docker-image uten GPU-avhengigheter (kun frontend + FastAPI uten whisper-last)
-- [ ] Deploy til `dev-gcp` med `intern.dev.nav.no`
-- [ ] Verifiser Azure AD-autentisering og intern-only tilgang
+### Fase 2 — Frontend på NAIS ✅ Fullført (2026-08-20)
+- [x] `nais.yaml` opprettet og deployet til `dev-gcp`
+- [x] Docker-image uten GPU-avhengigheter (`requirements/api.txt`)
+- [x] Tilgjengelig på `https://ao-ki-transkribering.intern.dev.nav.no`
+- [x] Azure AD-autentisering verifisert (Wonderwall + Texas)
 
-### Fase 3 — GPU-infrastruktur (uke 2–3)
-- [ ] Opprett GKE Standard-cluster med Terraform (se over)
-- [ ] Be NAIS-teamet om VPC peering (enkelt PR til `nais-terraform-modules`)
+### Fase 3 — GPU-infrastruktur (pågår)
+- [x] GKE Standard-cluster opprettet med Terraform (`europe-west4-b`, `g2-standard-12`, 1× L4)
+- [x] GCS-bucket for modellvekter opprettet (`ao-ki-taskforce-prod-2472-modeller`)
+- [x] Workload Identity konfigurert
+- [ ] Be NAIS-teamet om VPC peering (`#nais` Slack)
 - [ ] Verifiser GPU-nodepool med `nvidia-smi`
 - [ ] **Spike: verifiser sanntidskjeden ende-til-ende** — vLLM `WS /v1/realtime` med
   nb-whisper, proxied gjennom LiteLLM på Cloud Run. Uverifisert territorium:
   copilot-infra bruker kun chat completions, og vi er avhengige av at LiteLLMs
   WS-passthrough og Cloud Runs WS-støtte (~60 min connection timeout) tåler
-  møter av normal lengde. Fallback: NAIS-pod kobler direkte mot GKE-tjenesten
-  (Internal LB) og dropper LiteLLM for sanntidsflyten.
-- [ ] Mål round-trip-latenstid NAIS (`north1`) → GPU-cluster dersom kryss-region
-  velges (`west4`/`west1`) — påvirker sanntidsopplevelsen
+  møter av normal lengde. Fallback: NAIS-pod kobler direkte mot GKE Internal LB
+  og dropper LiteLLM for sanntidsflyten.
 
 ### Fase 4 — Container-images og deploy (uke 3–4)
-- [ ] Bygg vLLM-image med `vllm[audio]` for nb-whisper — vekter lastes fra GCS ved oppstart
-- [ ] Bygg vLLM-image for Borealis — vekter lastes fra GCS ved oppstart
+- [ ] Last opp modellvekter til GCS (nb-whisper-large ~3 GB, Borealis-12b ~24 GB)
+- [ ] Bygg vLLM-image med `vllm[audio]` for nb-whisper
+- [ ] Bygg vLLM-image for Borealis-12b
+- [ ] Push images til Artifact Registry (`europe-west4-docker.pkg.dev/ao-ki-taskforce-prod-2472/`)
 - [ ] Sett opp LiteLLM på Cloud Run (`INGRESS_TRAFFIC_INTERNAL_ONLY`) som gateway
-- [ ] Push images til Artifact Registry
-- [ ] Deploy K8s-manifester til GPU-cluster
-- [ ] Koble NAIS-app mot LiteLLM-gateway
-- [ ] Fjern faster-whisper fra API-poden og nedjuster ressursprofil i `nais.yaml`
-  (dagens 2–4 Gi memory-limit er dimensjonert for in-pod-modell) — avhengig av
-  at sanntidsspiaken i Fase 3 er grønn
+- [ ] Deploy K8s-manifester til GPU-cluster (`k8s/`)
+- [ ] Koble NAIS-app mot LiteLLM-gateway (oppdater `TRANSKRIPSJON_SERVICE_URL` og `OLLAMA_URL` i secrets)
+- [ ] Fjern faster-whisper fra `worker/` og nedjuster ressursprofil i `nais.yaml`
 - [ ] Sett opp budsjettvarsler og Cloud Scheduler for nedskalering av GPU-nodepool
-  utenfor arbeidstid (se avsnitt om kostnadskontroll)
 
 ### Fase 5 — Testing og akseptansekriterier (uke 4)
 
@@ -455,11 +458,9 @@ verifiserte mønstre som bør kopieres:
 | Ingen lyddata på disk etter sesjon | ✅ verifisert |
 | Kun tilgjengelig via naisdevice | ✅ verifisert |
 
-⚠️ **Kaldstart er urealistisk å nå for Borealis-27b fra null:** 54 GB vekter fra
-GCS (~80 sek ved 675 MiB/s) + node-provisioning + driver-installasjon overstiger
-5 min. Realistiske tiltak: `min 1` GPU-node i arbeidstiden via scheduler (som
-copilot-infra), eller pre-staged vekter på disk-snapshot. nb-whisper (~3 GB) når
-trolig kriteriet uten tiltak.
+⚠️ **Kaldstart:** Borealis-12b (~24 GB) tar ~36 sek å laste fra GCS. Med node-provisioning
+kan total cold start overskride 5 min. Tiltak: `min 1` GPU-node i arbeidstiden via
+Cloud Scheduler, eller pre-staged vekter på disk-snapshot.
 
 ---
 
@@ -490,14 +491,14 @@ GPU-noder autoskalerer til 0 ved inaktivitet → faktisk pilot-kostnad trolig la
 
 | Spørsmål | Ansvarlig | Status |
 |----------|-----------|--------|
-| Har NAIS-teamet kapasitet til å legge til VPC peering for teamprosjektet? | ao-ki-taskforce → NAIS | ⬜ |
-| Er `ao-ki-taskforce` et NAIS-team med eget GCP-prosjekt? | ao-ki-taskforce | ⬜ |
-| Hvilken billing account brukes for GPU-infrastrukturen? | PO / økonomi | ⬜ |
-| Region og GPU-type: `europe-west4` med L4, eller `europe-north1` med RTX Pro 6000? | ao-ki-taskforce | ⬜ |
-| Robusthet ved kun-minne-transkripsjon: hva skjer om poden krasjer eller nettverket ryker midt i et møte? Trengs klient-side bufring eller gjenopptakelse? | ao-ki-taskforce | ⬜ |
-| Borealis-27b (2× L4) eller Borealis-12b (1× L4)? Avhenger av kvalitetsvurdering og budsjett | ao-ki-taskforce | ⬜ |
-| Finnes AWQ/GPTQ-kvantisering av Borealis-27b for å unngå 2× L4? | NbAiLab / ao-ki-taskforce | ⬜ |
-| Kan vi dele LiteLLM-gatewayen med `navikt/copilot-infra`-teamet? | **Nei** — ulike krav til datahåndtering (møteopptak vs. kildekode), tilgangskontroll og backend-modeller. Gjenbruk Terraform-modulen som mal, ikke instansen. | ✅ Avklart |
+| Be NAIS-teamet om VPC peering fra `ao-ki-taskforce-prod-2472` | ao-ki-taskforce → NAIS | ⬜ |
+| Robusthet: hva skjer om nettverket ryker midt i et møte? Klient-side bufring? | ao-ki-taskforce | ⬜ |
+| Borealis-12b kvalitet — er den god nok, eller trenger vi 27b (2× L4)? | ao-ki-taskforce | ⬜ |
+| Kan vi dele LiteLLM-gatewayen med `navikt/copilot-infra`-teamet? | **Nei** — ulike datakrav, tilgangskontroll og modeller. Gjenbruk Terraform-modulen som mal. | ✅ Avklart |
+| Region `europe-west4` vs `europe-north1` | **`europe-west4-b`** valgt — L4 ikke tilgjengelig i north1 | ✅ Avklart |
+| GCP-prosjekt for GPU-infrastruktur | **`ao-ki-taskforce-prod-2472`** | ✅ Avklart |
+| Modell: Borealis-27b (2× L4) eller Borealis-12b (1× L4)? | **Borealis-12b** for pilot | ✅ Avklart |
+| KNADA som alternativ plattform | **Forkastet** — går med eget GCP-prosjekt | ✅ Avklart |
 | Langsiktig: kan GPU-infrastrukturen bli en felles NAV-plattform for åpne modeller? | Teknologiavdelingen | ⬜ |
 
 ---

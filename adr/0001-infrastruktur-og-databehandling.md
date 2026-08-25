@@ -1,11 +1,15 @@
 # ADR-0001: Infrastruktur og databehandling for transkripsjon av §14a-møter
 
-**Status:** Forslag  
+**Status:** Godkjent  
 **Dato:** 2026-06-11  
-**Oppdatert:** 2026-08-05  
+**Oppdatert:** 2026-08-25  
 **Forfattere:** ao-ki-taskforce  
-**Gjeldende løsning:** Alternativ 1 (lokal kjøring)  
-**Planlagt løsning:** Alternativ 4 (egenstyrt K8s med GPU)
+**Gjeldende løsning:** Alternativ 4 (egenstyrt GKE med GPU) — i etablering  
+**Utviklingsmodus:** Alternativ 1 (lokal kjøring) beholdes for lokal utvikling
+
+> **2026-08-25:** Beslutning godkjent. GKE Standard-cluster opprettet i `europe-west4-b`
+> (ikke `europe-north1` som opprinnelig skissert — L4 GPU ikke tilgjengelig i north1).
+> Se ADR-0002 for detaljert etableringsplan.
 
 ---
 

@@ -6,5 +6,5 @@ ADR-format: [Lightweight ADR](https://adr.github.io/) (Michael Nygard-stil).
 
 | Nr | Tittel | Status |
 |----|--------|--------|
-| [0001](0001-infrastruktur-og-databehandling.md) | Infrastruktur og databehandling for transkripsjon | Forslag |
-| [0002](0002-gcp-mvp-etableringsplan.md) | GCP MVP-etableringsplan — Kubernetes med GPU | Forslag |
+| [0001](0001-infrastruktur-og-databehandling.md) | Infrastruktur og databehandling for transkripsjon | Godkjent |
+| [0002](0002-gcp-mvp-etableringsplan.md) | GCP MVP-etableringsplan — Kubernetes med GPU | Godkjent |
