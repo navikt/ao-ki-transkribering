@@ -76,7 +76,7 @@ NAIS-teamet ønsker ikke GPU-støtte for denne POC-en. Gjennomgang av NAIS-infra
 │  │  • Zero-trust nettverkspolicy                              │  │
 │  └──────────────────────┬─────────────────────────────────────┘  │
 │                         │ intern K8s DNS / HTTP                   │
-│                  VPC peering (allerede etablert)                  │
+│                  VPC peering (MÅ ETABLERES — se G11)              │
 └──────────────────────────────────────────────────────────────────┘
                           │
                           ▼
@@ -485,24 +485,48 @@ Cloud Scheduler, eller pre-staged vekter på disk-snapshot.
 
 ## Kostnadsestimat
 
-### Alternativ A (KNADA): Avklares med KNADA-teamet — trolig intern fordeling.
-
-### Alternativ B (eget cluster):
-
 *Merk: Estimatet baserer seg på L4-GPUer (G2-instanser), som forutsetter at GPU-clusteret legges til `europe-west4` eller `europe-west1`, da L4 ikke finnes i `europe-north1` (se avsnitt om Region og GPU-tilgjengelighet).*
 
 | Ressurs | Type | Pris/time | Estimert bruk/mnd | Kostnad/mnd |
 |---------|------|-----------|-------------------|-------------|
+| GKE Standard-kontrollplan | fast | — | — | ~$73 |
+| GKE system-noder (CPU, alltid på) | e2-standard-2 × 1 | ~$0.07 | 730 t | ~$50 |
 | GPU-node (nb-whisper) | g2-standard-8 + L4 | ~$1.20 | 40 t (pilot) | ~$48 |
 | GPU-node (Borealis-27b, 2× L4) | g2-standard-24 + 2× L4 | ~$2.40 | 40 t (pilot) | ~$96 |
 | LiteLLM gateway | CPU-pod i GKE (min 1 replica) | — | 730 t | ~$10 |
-| CPU-node (API) | n2-standard-4 | ~$0.19 | 730 t | ~$140 |
 | Persistent disk | 50 GB SSD | — | — | ~$8 |
-| **Totalt pilot** | | | | **~$300/mnd (~3 200 kr)** |
+| **Totalt pilot** | | | | **~$285/mnd (~3 000 kr)** |
 
-Borealis-12b som alternativ (én L4) reduserer GPU-kostnaden til ~$48/mnd — totalt ~$250/mnd.
+Borealis-12b som alternativ (én L4) reduserer GPU-kostnaden til ~$48/mnd — totalt ~$235/mnd.
 
 GPU-noder autoskalerer til 0 ved inaktivitet → faktisk pilot-kostnad trolig langt lavere.
+API/frontend kjører på NAIS og er ikke medregnet her (intern NAIS-kostnad).
+
+---
+
+## Modelldrift (vekter, versjoner, rollback)
+
+Modelvekter lastes fra GCS ved pod-oppstart. For å ikke drifte «latest»:
+
+- **Staging-skript:** Eget skript (jf. `stage-weights.py` i `navikt/copilot-infra`)
+  som laster vekter fra HuggingFace til teamets GCS-bucket, med størrelses-/
+  hash-verifisering. Borealis distribueres signert (`SHA256SUMS.sig`) — verifiser.
+- **Versjonering:** GCS-path inkluderer modellversjon (f.eks.
+  `gs://<bucket>/models/nb-whisper-large/v1/`). Pod-manifest pinner stien.
+- **vLLM-image pinnes på digest** (jf. copilot-infra-praksis). Whisper-støtten i
+  vLLM er ung — nye versjoner testes i dev før prod.
+- **Rollback:** Ny modellversjon rulles ut som ny Deployment ved siden av gammel;
+  LiteLLM model-alias flippes etter verifisering. Gammel versjon beholdes på GCS
+  til ny er akseptert.
+
+## GPU-driver og node-image
+
+`gpu_driver_installation_config` i Terraform-snutten forutsetter at GKE støtter
+automatisk driver-installasjon for valgt GPU/region-kombinasjon. Copilot-infra
+brukte mye av sin fase 1 på nøyaktig driver-problematikk (deres G19-gap:
+fraksjonelle G4-instanser krevde egen GRID-driver, og standard DLVM-image manglet
+container-runtime). For G2/L4 er GKE-støtten moden, men dette verifiseres
+eksplisitt som første steg i Fase 3 (podium-kommando `nvidia-smi`).
 
 ---
 
@@ -512,13 +536,23 @@ GPU-noder autoskalerer til 0 ved inaktivitet → faktisk pilot-kostnad trolig la
 |----------|-----------|--------|
 | Be NAIS-teamet om VPC peering fra `ao-ki-taskforce-prod-2472` | ao-ki-taskforce → NAIS | ⬜ |
 | Robusthet: hva skjer om nettverket ryker midt i et møte? Klient-side bufring? | ao-ki-taskforce | ⬜ |
+| Hva møter brukeren når GPU-clusteret er nede/kaldt (scale-to-zero, 5+ min kaldstart)? Er "møtet kan ikke startes før GPU er varm" akseptabelt i pilot, eller trengs graceful degradation? | Produkteier + ao-ki-taskforce | ⬜ |
 | Borealis-12b kvalitet — er den god nok, eller trenger vi 27b (2× L4)? | ao-ki-taskforce | ⬜ |
+| Finnes AWQ/GPTQ-kvantisering av Borealis-27b for å unngå 2× L4 (om 27b viser seg nødvendig)? | NbAiLab / ao-ki-taskforce | ⬜ |
 | Kan vi dele LiteLLM-gatewayen med `navikt/copilot-infra`-teamet? | **Nei** — ulike datakrav, tilgangskontroll og modeller. Gjenbruk Terraform-modulen som mal. | ✅ Avklart |
 | Region `europe-west4` vs `europe-north1` | **`europe-west4-b`** valgt — L4 ikke tilgjengelig i north1 | ✅ Avklart |
 | GCP-prosjekt for GPU-infrastruktur | **`ao-ki-taskforce-prod-2472`** | ✅ Avklart |
 | Modell: Borealis-27b (2× L4) eller Borealis-12b (1× L4)? | **Borealis-12b** for pilot | ✅ Avklart |
 | KNADA som alternativ plattform | **Forkastet** — går med eget GCP-prosjekt | ✅ Avklart |
 | Langsiktig: kan GPU-infrastrukturen bli en felles NAV-plattform for åpne modeller? | Teknologiavdelingen | ⬜ |
+
+### Utsettes til pilot-fasen (ikke MVP-kritiske)
+
+| Tema | Beskrivelse |
+|------|-------------|
+| **NetworkPolicy i GKE** | I dag sikres GPU-plattformen med privat cluster + Internal LB + master key. I pilot bør K8s NetworkPolicy eksplisitt begrense trafikk til LiteLLM fra NAIS-CIDR-ene, og vLLM-poder fra kun gatewayen. |
+| **Master key-rotasjon** | LiteLLM master key i K8s Secret: hvem eier rotasjon, hvor ofte, og hvordan ruller vi uten nedetid? Enkelt å styre manuelt i pilot. |
+| **Modelloppdateringsrutine** | Modelldrift-avsnittet definerer mønsteret, men rutine for å følge med på nye Borealis-/nb-whisper-releases (og vurdere oppgradering) etableres i pilot. |
 
 ---
 
