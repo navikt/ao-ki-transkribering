@@ -3,13 +3,14 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.responses import FileResponse
+from pathlib import Path
 from fastapi.staticfiles import StaticFiles
 
-from api.helse import router as helse_router
-from api.modell import router as modell_router, sjekk_ollama_modell
-from api.referat import router as referat_router
-from api.sanntid import router as sanntid_router
-from api.transkripsjon import router as transkripsjon_router
+from frontend.routes.helse import router as helse_router
+from frontend.routes.modell import router as modell_router, sjekk_ollama_modell
+from frontend.routes.referat import router as referat_router
+from frontend.routes.sanntid import router as sanntid_router
+from frontend.routes.transkripsjon import router as transkripsjon_router
 from core.runtime import start_arbeider, stopp_arbeider
 from core.settings import TRANSKRIPSJON_BACKEND
 
@@ -33,11 +34,12 @@ async def lifespan(app: FastAPI):
 def create_app() -> FastAPI:
     app = FastAPI(title="NB-Whisper transkribering", lifespan=lifespan)
 
-    app.mount("/static", StaticFiles(directory="static", html=True), name="static")
+    _STATIC = Path(__file__).parent / "static"
+    app.mount("/static", StaticFiles(directory=str(_STATIC), html=True), name="static")
 
     @app.get("/", include_in_schema=False)
     def rot():
-        return FileResponse("static/index.html")
+        return FileResponse(str(_STATIC / "index.html"))
 
     app.include_router(helse_router)
     app.include_router(modell_router)

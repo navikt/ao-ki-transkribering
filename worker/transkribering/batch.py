@@ -6,8 +6,8 @@ import numpy as np
 
 from contracts.transcription import Segment, TranskripsjonSvar
 from services.transkripsjon_backend import StatusCallback
-from transkribering.hallusinasjon import trim_null_ord, trim_etter_stille, fjern_hallusinasjon
-from transkribering.diarisering import diariser, tilordne_taler
+from worker.transkribering.hallusinasjon import trim_null_ord, trim_etter_stille, fjern_hallusinasjon
+from worker.transkribering.diarisering import diariser, tilordne_taler
 
 # Estimert prosesseringstid som andel av lydens varighet (kalibrert for MPS).
 _MODELL_FAKTOR = {"tiny": 0.08, "base": 0.12, "small": 0.20, "medium": 0.33, "large": 0.60}

@@ -1,4 +1,4 @@
-from transkribering.konstanter import (
+from worker.transkribering.konstanter import (
     SAMPLE_RATE,
     FRAME_SAMPLES,
     ENERGI_TERSKEL,
@@ -6,7 +6,7 @@ from transkribering.konstanter import (
     MAKS_BUFFER_S,
     MIN_TALE_S,
 )
-from transkribering.hallusinasjon import (
+from worker.transkribering.hallusinasjon import (
     HALLUSINASJON_BLOCKLIST,
     er_hallusinasjon,
     trim_null_ord,
@@ -14,14 +14,14 @@ from transkribering.hallusinasjon import (
     trim_etter_stille,
     fjern_hallusinasjon,
 )
-from transkribering.diarisering import (
+from worker.transkribering.diarisering import (
     hent_voice_encoder,
     auto_n_talere,
     diariser,
     tilordne_taler,
 )
-from transkribering.batch import LokalBatchTranskriberer, estimert_total_s
-from transkribering.sanntid import hent_fw_modell, transkriber_pcm, VadBuffer
+from worker.transkribering.batch import LokalBatchTranskriberer, estimert_total_s
+from worker.transkribering.sanntid import hent_fw_modell, transkriber_pcm, VadBuffer
 
 __all__ = [
     "SAMPLE_RATE", "FRAME_SAMPLES", "ENERGI_TERSKEL",

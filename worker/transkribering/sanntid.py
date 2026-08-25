@@ -5,7 +5,7 @@ from pathlib import Path
 
 import numpy as np
 
-from transkribering.konstanter import (
+from worker.transkribering.konstanter import (
     SAMPLE_RATE,
     FRAME_SAMPLES,
     ENERGI_TERSKEL,
@@ -13,8 +13,8 @@ from transkribering.konstanter import (
     MAKS_BUFFER_S,
     MIN_TALE_S,
 )
-from transkribering.hallusinasjon import er_hallusinasjon, trim_null_ord_fw
-from transkribering.diarisering import diariser, tilordne_taler
+from worker.transkribering.hallusinasjon import er_hallusinasjon, trim_null_ord_fw
+from worker.transkribering.diarisering import diariser, tilordne_taler
 
 _CT2_MODELL_STI = os.getenv("WHISPER_SANNTID_MODELL", "modeller/nb-whisper-medium")
 

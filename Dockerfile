@@ -50,11 +50,11 @@ ENV PYTHONPATH="/app/.venv/lib/python3.12/site-packages"
 USER nonroot
 EXPOSE 8765
 ENTRYPOINT ["/app/.venv/bin/python"]
-CMD ["-m", "uvicorn", "apps.api.app:app", "--host", "0.0.0.0", "--port", "8765"]
+CMD ["-m", "uvicorn", "frontend.app:app", "--host", "0.0.0.0", "--port", "8765"]
 
 # ── Stage 3: Model worker ────────────────────────────────────────────────────
 # Separate image target for running the model worker as a standalone service.
 # Build: docker build --target model-worker -t ao-ki-transkribering-worker .
 FROM runtime AS model-worker
 EXPOSE 9000
-CMD ["-m", "uvicorn", "apps.model_worker.app:app", "--host", "0.0.0.0", "--port", "9000"]
+CMD ["-m", "uvicorn", "worker.app:app", "--host", "0.0.0.0", "--port", "9000"]

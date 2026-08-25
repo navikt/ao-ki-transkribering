@@ -4,7 +4,7 @@ import json
 import numpy as np
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
-from transkribering.sanntid import (
+from worker.transkribering.sanntid import (
     VadBuffer,
     hent_fw_modell,
     transkriber_pcm,

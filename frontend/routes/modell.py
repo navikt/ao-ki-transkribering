@@ -6,7 +6,7 @@ import httpx
 from fastapi import APIRouter
 from fastapi.responses import StreamingResponse
 
-from ollama.klient import MODELL as OLLAMA_MODELL, URL as OLLAMA_URL
+from worker.ollama.klient import MODELL as OLLAMA_MODELL, URL as OLLAMA_URL
 
 router = APIRouter()
 log = logging.getLogger(__name__)

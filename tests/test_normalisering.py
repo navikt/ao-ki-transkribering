@@ -1,5 +1,5 @@
 import pytest
-from prompts.normalisering import normaliser_til_bokmal
+from worker.prompts.normalisering import normaliser_til_bokmal
 
 
 @pytest.mark.parametrize("inn, forventet", [

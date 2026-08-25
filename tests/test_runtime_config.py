@@ -10,8 +10,8 @@ def test_api_can_start_without_local_worker_flag():
         [
             sys.executable,
             "-c",
-            "import app_api; from core.runtime import lokal_arbeider_aktiv; "
-            "assert app_api.app.title; assert lokal_arbeider_aktiv is False",
+            "from frontend.app import app; from core.runtime import lokal_arbeider_aktiv; "
+            "assert app.title; assert lokal_arbeider_aktiv is False",
         ],
         env=env,
         capture_output=True,

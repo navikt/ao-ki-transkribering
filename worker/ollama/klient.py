@@ -4,7 +4,7 @@ import os
 import httpx
 from pydantic import BaseModel
 
-from prompts.normalisering import normaliser_til_bokmal
+from worker.prompts.normalisering import normaliser_til_bokmal
 
 URL       = os.getenv("OLLAMA_URL",        "http://localhost:11434")
 MODELL    = os.getenv("OLLAMA_MODELL",     "borealis:12b")

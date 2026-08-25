@@ -18,9 +18,9 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 import pytest
 
-from ollama.klient import stream_tokens, MODELL
-from prompts import SYSTEM_REFERAT, BRUKER_REFERAT
-from prompts.normalisering import normaliser_til_bokmal
+from worker.ollama.klient import stream_tokens, MODELL
+from worker.prompts import SYSTEM_REFERAT, BRUKER_REFERAT
+from worker.prompts.normalisering import normaliser_til_bokmal
 
 
 async def _kjoer_referat(fil: Path, modell: str | None, debug: bool = False) -> None:
@@ -34,8 +34,8 @@ async def _kjoer_referat(fil: Path, modell: str | None, debug: bool = False) -> 
     if debug:
         # Raw mode: dump chunks directly from Ollama to diagnose state machine
         import httpx as _httpx
-        from ollama.klient import URL, _OPTIONS
-        from prompts import SYSTEM_REFERAT as _SYS
+        from worker.ollama.klient import URL, _OPTIONS
+        from worker.prompts import SYSTEM_REFERAT as _SYS
         import json as _json
         chunk_count = 0
         async with _httpx.AsyncClient(timeout=_httpx.Timeout(10.0, read=300.0)) as klient:

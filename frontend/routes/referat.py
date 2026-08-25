@@ -4,13 +4,13 @@ import httpx
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
 
-from ollama.klient import (
+from worker.ollama.klient import (
     MODELL as OLLAMA_MODELL,
     OllamaForesporsel,
     kall as kall_ollama,
     stream_tokens as stream_ollama_tokens,
 )
-from prompts import (
+from worker.prompts import (
     BRUKER_REFERAT,
     BRUKER_RULLERENDE,
     BRUKER_SAMMENDRAG,

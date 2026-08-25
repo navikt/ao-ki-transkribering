@@ -1,6 +1,6 @@
 import numpy as np
 import pytest
-from transkribering.hallusinasjon import (
+from worker.transkribering.hallusinasjon import (
     er_hallusinasjon,
     fjern_hallusinasjon,
     trim_null_ord,

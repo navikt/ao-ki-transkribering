@@ -30,7 +30,7 @@ async def _mock_stream(linjer: list[str]):
 
 async def _samle_tokens(linjer: list[str]) -> tuple[list[str], str]:
     """Køyrer stream_tokens med mocka HTTP og returnerer (yieldta tokens, sluttekst)."""
-    from ollama.klient import stream_tokens
+    from worker.ollama.klient import stream_tokens
 
     yielda = []
     sluttekst = ""
@@ -50,7 +50,7 @@ async def _samle_tokens(linjer: list[str]) -> tuple[list[str], str]:
     mock_klient_cm.__aenter__ = AsyncMock(return_value=mock_klient)
     mock_klient_cm.__aexit__ = AsyncMock(return_value=False)
 
-    with patch("ollama.klient.httpx.AsyncClient", return_value=mock_klient_cm):
+    with patch("worker.ollama.klient.httpx.AsyncClient", return_value=mock_klient_cm):
         async for token, ferdig, tekst in stream_tokens("system", "bruker"):
             if ferdig:
                 sluttekst = tekst

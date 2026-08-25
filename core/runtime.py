@@ -3,7 +3,7 @@ from typing import Optional
 
 from core.settings import ARBEIDSMAPPE, MODELL_ID, START_LOKAL_WORKER
 from services.jobs import JobStore
-from workers.transkripsjon import arbeider
+from worker.workers.transkripsjon import arbeider
 
 mp_ctx = multiprocessing.get_context("spawn")
 

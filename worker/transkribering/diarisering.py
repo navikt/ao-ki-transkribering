@@ -5,7 +5,7 @@ import threading
 
 import numpy as np
 
-from transkribering.konstanter import SAMPLE_RATE
+from worker.transkribering.konstanter import SAMPLE_RATE
 
 log = logging.getLogger(__name__)
 

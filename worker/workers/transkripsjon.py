@@ -4,7 +4,7 @@ import traceback
 from pathlib import Path
 
 from services.jobs import JobStore
-from transkribering.batch import LokalBatchTranskriberer
+from worker.transkribering.batch import LokalBatchTranskriberer
 
 
 def arbeider(

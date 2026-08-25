@@ -3,10 +3,10 @@ from fastapi import APIRouter, Response
 from core.runtime import arbeider_klar, job_store, lokal_arbeider_aktiv
 from core.settings import TRANSKRIPSJON_BACKEND, TRANSKRIPSJON_SERVICE_URL
 from core.settings import MODELL_ID
-from ollama.klient import MODELL as OLLAMA_MODELL, URL as OLLAMA_URL
-from transkribering.konstanter import STILLHET_TERSKEL_S, MAKS_BUFFER_S, ENERGI_TERSKEL
-from transkribering.diarisering import _ECAPA_KILDE, _VINDU_S, _RATE
-from transkribering.sanntid import _CT2_MODELL_STI
+from worker.ollama.klient import MODELL as OLLAMA_MODELL, URL as OLLAMA_URL
+from worker.transkribering.konstanter import STILLHET_TERSKEL_S, MAKS_BUFFER_S, ENERGI_TERSKEL
+from worker.transkribering.diarisering import _ECAPA_KILDE, _VINDU_S, _RATE
+from worker.transkribering.sanntid import _CT2_MODELL_STI
 
 router = APIRouter()
 

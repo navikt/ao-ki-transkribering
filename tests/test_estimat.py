@@ -1,5 +1,5 @@
 import pytest
-from prompts.estimat import beregn_llm_estimat
+from worker.prompts.estimat import beregn_llm_estimat
 
 
 def test_kjent_modell_gir_estimat():

@@ -21,8 +21,8 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 import pytest
 
-from transkribering.konstanter import SAMPLE_RATE, FRAME_SAMPLES
-from transkribering.sanntid import VadBuffer, transkriber_pcm
+from worker.transkribering.konstanter import SAMPLE_RATE, FRAME_SAMPLES
+from worker.transkribering.sanntid import VadBuffer, transkriber_pcm
 
 
 def les_pcm(lydfil: Path) -> np.ndarray:

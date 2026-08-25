@@ -1,4 +1,4 @@
-from prompts.motereferat import (
+from worker.prompts.motereferat import (
     SYSTEM_REFERAT,
     BRUKER_REFERAT,
     SYSTEM_SAMMENDRAG,
@@ -6,8 +6,8 @@ from prompts.motereferat import (
     SYSTEM_RULLERENDE,
     BRUKER_RULLERENDE,
 )
-from prompts.normalisering import normaliser_til_bokmal
-from prompts.estimat import beregn_llm_estimat
+from worker.prompts.normalisering import normaliser_til_bokmal
+from worker.prompts.estimat import beregn_llm_estimat
 
 __all__ = [
     "SYSTEM_REFERAT",
