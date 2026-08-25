@@ -245,25 +245,31 @@ personsensitive data som §14a-møter — er det nødvendig å etablere egen Kub
 infrastruktur utenfor NAIS. Dette gir også grunnlag for en bredere NAV-plattform for
 åpne modeller på sensitiv data.
 
+> **Teknisk detaljplan:** Den endelige arkitekturen er en hybrid — frontend og API
+> kjører på NAIS, mens GPU-tjenestene kjører i et egenstyrt GKE-cluster i teamets
+> GCP-prosjekt (`ao-ki-taskforce-prod-2472`, `europe-west4-b`). Se **ADR-0002** for
+> den autoritative tekniske planen (motorvalg, modellvalg, nettverk, faseplan).
+> Punktene under er oppdatert for å gjenspeile beslutningene i ADR-0002.
+
 ```
-[Mikrofon] → [Nettleser] → [ID-porten/Azure AD] → [K8s Ingress (GKE Standard)]
-                                                          ↓
-                                            [Transkriberingstjeneste]
-                                          [nb-whisper (NVIDIA L4 GPU)]
-                                                          ↓
-                                            [Referattjeneste (Ollama)]
-                                          [qwen3:32b el. tilsvarende LLM]
-                                                          ↓
-                                     [Referat returneres kryptert over TLS]
-                                                          ↓
-                                          [Lydfil slettes fra minnet]
+[NAV-ansatt (naisdevice)] → [NAIS-app (frontend + FastAPI, Azure AD)]
+                                       │  VPC peering (intern GCP-trafikk)
+                                       ▼
+                            [LiteLLM gateway (GKE Deployment)]
+                                       ↓
+                    [vLLM — nb-whisper (L4) | vLLM — Borealis-12b (L4)]
+                                       ↓
+                       [Referat returneres kryptert over TLS]
+                                       ↓
+                        [Ingen lyd eller transkripsjon lagres]
 ```
 
-**Teknisk:** GKE Standard cluster i `europe-north1` (Finland), egenstyrt av
-ao-ki-taskforce/AI-teamet — ikke driftet av NAIS. Dedikert GPU-nodepool med
-NVIDIA L4 (24 GB VRAM). To Kubernetes-tjenester:
-- `transkribering`: nb-whisper-large på L4, autoskalering 0→N pods
-- `referat`: Ollama (qwen3:32b eller tilsvarende), GPU-delt eller egen nodepool
+**Teknisk:** GKE Standard-cluster i `europe-west4-b` (Nederland — L4 GPU er ikke
+tilgjengelig i `europe-north1`), egenstyrt av ao-ki-taskforce. Dedikert
+GPU-nodepool med NVIDIA L4 (24 GB VRAM), autoskalering 0→N. Alle modeller kjøres
+i **vLLM** (både nb-whisper for transkripsjon og Borealis-12b for referat),
+eksponert via en **LiteLLM-gateway** i samme cluster. Frontend og API kjører på
+NAIS og når GPU-clusteret via VPC peering — ingen data passerer internett.
 
 Denne infrastrukturen kan på sikt tjene som intern NAV-plattform for åpenvektede
 modeller på personsensitiv data — ikke bare for transkriberingsverktøyet.
@@ -280,15 +286,18 @@ modeller på personsensitiv data — ikke bare for transkriberingsverktøyet.
 - Skalerbar — håndterer toppbelastning (mange samtidige møter)
 - Sentral oppdatering av modeller og sikkerhetspatcher
 - Uavhengig av NAIS — kan inneholde GPU-nodepooler uten å vente på plattformteamet
+- Frontend/API på NAIS gir gratis Azure AD-autentisering, intern-only ingress
+  og observability (Grafana/Loki) — kun GPU-delen driftes egenhendig
 - Grunnlag for bredere intern AI-infrastruktur for åpne modeller i NAV
 
 **Ulemper:**
 - Krever egenstyrt Kubernetes-cluster — mer driftsansvar enn NAIS-alternativet
+- Krever at NAIS-teamet etablerer VPC peering til teamets GCP-prosjekt
 - GCP er ekstern databehandler — krever aktiv DPA og etterlevelsesdokumentasjon
-- GPU-nodepooler i europe-north1 støtter L4/T4 (ikke A100/H100)
-- Cloud Run med GPU er **ikke** tilgjengelig i europe-north1 (kun europe-west4)
-- Ingen NAIS-plattformtjenester (automatisk sertifikathåndtering, Vault, etc.) —
-  må etableres manuelt eller via Terraform
+- GPU-nodepoolen ligger i `europe-west4` mens NAIS kjører i `europe-north1` —
+  kryss-region-latenstid må måles for sanntidsflyten
+- Ingen NAIS-plattformtjenester i GPU-clusteret (automatisk sertifikathåndtering,
+  Vault, etc.) — må etableres manuelt eller via Terraform
 
 **Juridisk vurdering:**
 
@@ -298,7 +307,7 @@ kreves. NAV har allerede inngått DPA med Google via Digitaliseringsrundskrivet.
 Verifiser at DPA dekker lydbehandling og AI-prosessering.
 
 *Geografisk plassering:*
-`europe-north1` (Hamina, Finland) er innenfor EU/EØS. Ingen overføring til tredjeland.
+`europe-west4` (Eemshaven, Nederland) er innenfor EU/EØS. Ingen overføring til tredjeland.
 Schrems II-problematikk er ikke aktuell så lenge data ikke forlater regionen.
 
 *Transient lydbehandling:*
@@ -357,9 +366,10 @@ For produksjonssetting anbefales en trinnvis tilnærming:
 1. **Fase 1 (nå):** Lokal kjøring — ingen DPA-krav, enkel juridisk profil, rask
    iterasjon. Egnet for pilotering på enkeltkontor med dedikert maskinvare.
 
-2. **Fase 2 (mål):** Egenstyrt Kubernetes-cluster med GPU i `europe-north1`
+2. **Fase 2 (mål):** Egenstyrt Kubernetes-cluster med GPU i `europe-west4-b`
    (alternativ 4) — avklart august 2026 som nødvendig vei siden NAIS ikke
-   tilbyr GPU-støtte for denne POC-en. Infrastrukturen kan etableres som en
+   tilbyr GPU-støtte for denne POC-en. Frontend og API kjører på NAIS i en
+   hybridarkitektur; detaljplan i ADR-0002. Infrastrukturen kan etableres som en
    bredere NAV-intern plattform for åpne modeller på personsensitiv data.
    **Forutsetter** avklaring av delt behandlingsansvar (§15) med PVO og KS.
 
