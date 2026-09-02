@@ -1,0 +1,107 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: vllm-borealis
+  namespace: vllm
+  labels:
+    app: vllm-borealis
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: vllm-borealis
+  template:
+    metadata:
+      labels:
+        app: vllm-borealis
+    spec:
+      serviceAccountName: vllm
+      nodeSelector:
+        cloud.google.com/gke-nodepool: gpu-l4
+      tolerations:
+        - key: nvidia.com/gpu
+          value: present
+          effect: NoSchedule
+      initContainers:
+        - name: last-ned-modell
+          image: google/cloud-sdk:slim
+          command:
+            - gcloud
+            - storage
+            - cp
+            - --recursive
+            - gs://ao-ki-taskforce-prod-2472-modeller/borealis-12b/
+            - /models/borealis-12b/
+          volumeMounts:
+            - name: modeller
+              mountPath: /models
+          resources:
+            requests:
+              cpu: "1"
+              memory: 2Gi
+      containers:
+        - name: vllm
+          # TODO: mirror to Artifact Registry and pin digest before prod
+          image: vllm/vllm-openai:latest
+          args:
+            - --model
+            - /models/borealis-12b
+            - --port
+            - "8000"
+            - --dtype
+            - bfloat16
+            # Borealis-12b fills the L4 (24 GB VRAM) exactly in BF16.
+            # Limit context to leave headroom for KV cache.
+            - --max-model-len
+            - "8192"
+            - --trust-remote-code
+          ports:
+            - containerPort: 8000
+              name: http
+          resources:
+            requests:
+              cpu: "4"
+              memory: 32Gi
+              nvidia.com/gpu: "1"
+            limits:
+              nvidia.com/gpu: "1"
+          volumeMounts:
+            - name: modeller
+              mountPath: /models
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            # Model loading takes ~36 sec from GCS + warm-up time
+            initialDelaySeconds: 90
+            periodSeconds: 15
+            failureThreshold: 20
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 120
+            periodSeconds: 30
+      volumes:
+        - name: modeller
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: vllm-borealis
+  namespace: vllm
+  annotations:
+    networking.gke.io/load-balancer-type: "Internal"
+spec:
+  selector:
+    app: vllm-borealis
+  ports:
+    - port: 8000
+      targetPort: 8000
+      name: http
+  type: LoadBalancer
+  # IP reserved by Terraform. Get it with:
+  #   terraform -chdir=terraform/gke output -raw vllm_borealis_ilb_ip
+  # Or run: scripts/apply-k8s.sh (substitutes automatically)
+  loadBalancerIP: ""  # filled by scripts/apply-k8s.sh

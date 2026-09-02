@@ -23,3 +23,24 @@ output "vllm_pod_sa" {
   description = "GCP service account email to annotate the vllm Kubernetes SA with"
   value       = google_service_account.vllm_pod.email
 }
+
+output "litellm_url" {
+  description = "Public LiteLLM Cloud Run URL — use as TRANSKRIPSJON_SERVICE_URL in NAIS"
+  value       = google_cloud_run_v2_service.litellm.uri
+}
+
+output "litellm_api_key" {
+  description = "LiteLLM master API key — store in NAIS secret LITELLM_API_KEY"
+  value       = "sk-${random_password.litellm_api_key.result}"
+  sensitive   = true
+}
+
+output "vllm_whisper_ilb_ip" {
+  description = "Reserved internal IP for vllm-whisper — used in k8s/vllm-whisper.yaml loadBalancerIP"
+  value       = google_compute_address.vllm_whisper_ilb.address
+}
+
+output "vllm_borealis_ilb_ip" {
+  description = "Reserved internal IP for vllm-borealis — used in k8s/vllm-borealis.yaml loadBalancerIP"
+  value       = google_compute_address.vllm_borealis_ilb.address
+}

@@ -1,0 +1,105 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: vllm-whisper
+  namespace: vllm
+  labels:
+    app: vllm-whisper
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: vllm-whisper
+  template:
+    metadata:
+      labels:
+        app: vllm-whisper
+    spec:
+      serviceAccountName: vllm
+      nodeSelector:
+        cloud.google.com/gke-nodepool: gpu-l4
+      tolerations:
+        - key: nvidia.com/gpu
+          value: present
+          effect: NoSchedule
+      # Init container downloads model weights from GCS before vLLM starts.
+      initContainers:
+        - name: last-ned-modell
+          image: google/cloud-sdk:slim
+          command:
+            - gcloud
+            - storage
+            - cp
+            - --recursive
+            - gs://ao-ki-taskforce-prod-2472-modeller/whisper/
+            - /models/nb-whisper-large/
+          volumeMounts:
+            - name: modeller
+              mountPath: /models
+          resources:
+            requests:
+              cpu: "1"
+              memory: 1Gi
+      containers:
+        - name: vllm
+          # TODO: mirror to Artifact Registry and pin digest before prod
+          image: vllm/vllm-openai:latest
+          args:
+            - --model
+            - /models/nb-whisper-large
+            - --port
+            - "8000"
+            - --task
+            - transcribe
+            - --dtype
+            - float16
+          ports:
+            - containerPort: 8000
+              name: http
+          resources:
+            requests:
+              cpu: "4"
+              memory: 8Gi
+              nvidia.com/gpu: "1"
+            limits:
+              nvidia.com/gpu: "1"
+          volumeMounts:
+            - name: modeller
+              mountPath: /models
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            failureThreshold: 12
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 60
+            periodSeconds: 30
+      volumes:
+        - name: modeller
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: vllm-whisper
+  namespace: vllm
+  annotations:
+    # Internal LB — reachable from Cloud Run (Direct VPC egress) but not public internet.
+    networking.gke.io/load-balancer-type: "Internal"
+spec:
+  selector:
+    app: vllm-whisper
+  ports:
+    - port: 8000
+      targetPort: 8000
+      name: http
+  type: LoadBalancer
+  # IP reserved by Terraform. Get it with:
+  #   terraform -chdir=terraform/gke output -raw vllm_whisper_ilb_ip
+  # Or run: scripts/apply-k8s.sh (substitutes automatically)
+  loadBalancerIP: ""  # filled by scripts/apply-k8s.sh
