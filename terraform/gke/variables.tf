@@ -33,3 +33,9 @@ variable "gpu_max_nodes" {
   type        = number
   default     = 2
 }
+
+variable "litellm_image" {
+  description = "Container image for LiteLLM (must be from docker.pkg.dev, gcr.io, or docker.io mirrorable)"
+  type        = string
+  default     = "europe-west4-docker.pkg.dev/ao-ki-taskforce-prod-2472/vllm/litellm:main-latest"
+}

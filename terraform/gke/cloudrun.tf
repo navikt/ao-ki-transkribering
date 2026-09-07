@@ -4,11 +4,22 @@ resource "random_password" "litellm_api_key" {
   special = false
 }
 
+resource "random_password" "litellm_salt_key" {
+  length  = 40
+  special = false
+}
+
 # ── Secret Manager ────────────────────────────────────────────────────────────
 resource "google_secret_manager_secret" "litellm_api_key" {
   project   = var.project_id
   secret_id = "litellm-api-key"
-  replication { auto {} }
+  replication {
+    user_managed {
+      replicas {
+        location = var.region
+      }
+    }
+  }
   depends_on = [google_project_service.apis["secretmanager.googleapis.com"]]
 }
 
@@ -21,8 +32,32 @@ resource "google_secret_manager_secret_version" "litellm_api_key" {
 resource "google_secret_manager_secret" "litellm_config" {
   project   = var.project_id
   secret_id = "litellm-config"
-  replication { auto {} }
+  replication {
+    user_managed {
+      replicas {
+        location = var.region
+      }
+    }
+  }
   depends_on = [google_project_service.apis["secretmanager.googleapis.com"]]
+}
+
+resource "google_secret_manager_secret" "litellm_salt_key" {
+  project   = var.project_id
+  secret_id = "litellm-salt-key"
+  replication {
+    user_managed {
+      replicas {
+        location = var.region
+      }
+    }
+  }
+  depends_on = [google_project_service.apis["secretmanager.googleapis.com"]]
+}
+
+resource "google_secret_manager_secret_version" "litellm_salt_key" {
+  secret      = google_secret_manager_secret.litellm_salt_key.id
+  secret_data = random_password.litellm_salt_key.result
 }
 
 resource "google_secret_manager_secret_version" "litellm_config" {
@@ -88,13 +123,18 @@ resource "google_secret_manager_secret_iam_member" "litellm_reads_config" {
   member    = "serviceAccount:${google_service_account.litellm.email}"
 }
 
+resource "google_secret_manager_secret_iam_member" "litellm_reads_salt_key" {
+  project   = var.project_id
+  secret_id = google_secret_manager_secret.litellm_salt_key.secret_id
+  role      = "roles/secretmanager.secretAccessor"
+  member    = "serviceAccount:${google_service_account.litellm.email}"
+}
+
 # ── Cloud Run: LiteLLM gateway ────────────────────────────────────────────────
 resource "google_cloud_run_v2_service" "litellm" {
   project  = var.project_id
   name     = "litellm"
   location = var.region
-
-  deletion_protection = false
 
   template {
     service_account = google_service_account.litellm.email
@@ -111,13 +151,13 @@ resource "google_cloud_run_v2_service" "litellm" {
 
     containers {
       # TODO: pin to a specific digest before prod
-      image = "ghcr.io/berriai/litellm:main-latest"
-      args  = ["--config", "/app/config/config.yaml", "--port", "4000", "--num_workers", "2"]
+      image = var.litellm_image
+      args = ["--config", "/app/config/config.yaml", "--host", "0.0.0.0", "--port", "4000"]
 
       ports { container_port = 4000 }
 
       resources {
-        limits   = { cpu = "1", memory = "512Mi" }
+        limits   = { cpu = "1", memory = "2Gi" }
         cpu_idle = true  # scale to zero between requests
       }
 
@@ -126,6 +166,15 @@ resource "google_cloud_run_v2_service" "litellm" {
         value_source {
           secret_key_ref {
             secret  = google_secret_manager_secret.litellm_api_key.secret_id
+            version = "latest"
+          }
+        }
+      }
+      env {
+        name = "LITELLM_SALT_KEY"
+        value_source {
+          secret_key_ref {
+            secret  = google_secret_manager_secret.litellm_salt_key.secret_id
             version = "latest"
           }
         }
@@ -154,6 +203,7 @@ resource "google_cloud_run_v2_service" "litellm" {
     google_project_service.apis["run.googleapis.com"],
     google_secret_manager_secret_iam_member.litellm_reads_api_key,
     google_secret_manager_secret_iam_member.litellm_reads_config,
+    google_secret_manager_secret_iam_member.litellm_reads_salt_key,
   ]
 }
 
