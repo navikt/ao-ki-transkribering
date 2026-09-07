@@ -46,20 +46,25 @@ spec:
       enabled: true
       autoLogin: true
 
-  # accessPolicy.outbound.external: add GPU cluster hostnames here once provisioned
-  # - host: <model-worker hostname>
-  # - host: <ollama hostname>
+  # accessPolicy.outbound.external:
+  # - host: <litellm-cloud-run-hostname>
 
   env:
     - name: TRANSKRIPSJON_BACKEND
       value: remote
     - name: START_LOKAL_WORKER
       value: "false"
-    # TODO: move these to Nais secrets once GPU cluster URLs are known
+    # TODO: move proxy URL/API key to Nais secrets
+    - name: AI_PROXY_URL
+      value: "https://TODO-litellm-xxxxxxxx-ew.a.run.app"
+    - name: AI_PROXY_API_KEY
+      value: "TODO-set-from-nais-secret"
     - name: TRANSKRIPSJON_SERVICE_URL
-      value: "http://TODO-model-worker:9000"
-    - name: OLLAMA_URL
-      value: "http://TODO-ollama:11434"
+      value: "https://TODO-litellm-xxxxxxxx-ew.a.run.app"
+    - name: TRANSKRIPSJON_API_PATH
+      value: "/v1/audio/transcriptions"
+    - name: LLM_MODELL
+      value: "borealis-12b"
     - name: WHISPER_MODELL
       value: NbAiLab/nb-whisper-medium
     - name: HF_HUB_OFFLINE

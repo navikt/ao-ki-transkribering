@@ -848,7 +848,7 @@ function nullstillSanntid() {
 }
 
 // ============================================================
-// MØTEREFERAT OG SAMMENDRAG – Ollama-integrasjon
+// MØTEREFERAT OG SAMMENDRAG – AI-proxy
 // ============================================================
 
 function _hentTranskripsjonTekst(kilde) {

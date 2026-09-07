@@ -4,12 +4,8 @@ import httpx
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
 
-from worker.ollama.klient import (
-    MODELL as OLLAMA_MODELL,
-    OllamaForesporsel,
-    kall as kall_ollama,
-    stream_tokens as stream_ollama_tokens,
-)
+from shared.core.settings import LLM_MODELL
+from shared.services.llm_proxy_client import LlmForesporsel, kall as kall_llm, stream_tokens as stream_llm_tokens
 from worker.prompts import (
     BRUKER_REFERAT,
     BRUKER_RULLERENDE,
@@ -25,7 +21,7 @@ router = APIRouter()
 
 
 def beregn_llm_estimat(modell: str | None, transkripsjon: str) -> int:
-    return beregn_llm_estimat_base(modell, transkripsjon, fallback=OLLAMA_MODELL)
+    return beregn_llm_estimat_base(modell, transkripsjon, fallback=LLM_MODELL)
 
 
 def sse(data: dict) -> str:
@@ -33,58 +29,58 @@ def sse(data: dict) -> str:
 
 
 @router.post("/sammendrag")
-async def lag_sammendrag(foresporsel: OllamaForesporsel):
+async def lag_sammendrag(foresporsel: LlmForesporsel):
     """Genererer et løpende sammendrag av transkripsjon hittil (Prompt B)."""
     if not foresporsel.transkripsjon.strip():
         raise HTTPException(status_code=400, detail="Transkripsjon mangler")
     try:
         transkripsjon_normalisert = normaliser_til_bokmal(foresporsel.transkripsjon)
         bruker_prompt = BRUKER_SAMMENDRAG.format(transkripsjon=transkripsjon_normalisert)
-        tekst = await kall_ollama(SYSTEM_SAMMENDRAG, bruker_prompt, foresporsel.modell)
+        tekst = await kall_llm(SYSTEM_SAMMENDRAG, bruker_prompt, foresporsel.modell)
         tekst = normaliser_til_bokmal(tekst)
     except httpx.ConnectError:
-        raise HTTPException(status_code=503, detail="Kan ikke nå Ollama - er tjenesten startet?")
+        raise HTTPException(status_code=503, detail="Kan ikke nå AI-proxyen")
     except httpx.HTTPStatusError as e:
-        raise HTTPException(status_code=502, detail=f"Ollama svarte med feil: {e.response.status_code}")
+        raise HTTPException(status_code=502, detail=f"AI-proxy svarte med feil: {e.response.status_code}")
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Feil ved generering av sammendrag: {e}")
-    return {"tekst": tekst, "modell": foresporsel.modell or OLLAMA_MODELL}
+    return {"tekst": tekst, "modell": foresporsel.modell or LLM_MODELL}
 
 
 @router.post("/referat")
-async def lag_referat(foresporsel: OllamaForesporsel):
+async def lag_referat(foresporsel: LlmForesporsel):
     """Genererer et fullt møtereferat fra transkripsjon (Prompt A)."""
     if not foresporsel.transkripsjon.strip():
         raise HTTPException(status_code=400, detail="Transkripsjon mangler")
     try:
         transkripsjon_normalisert = normaliser_til_bokmal(foresporsel.transkripsjon)
         bruker_prompt = BRUKER_REFERAT.format(transkripsjon=transkripsjon_normalisert)
-        tekst = await kall_ollama(SYSTEM_REFERAT, bruker_prompt, foresporsel.modell)
+        tekst = await kall_llm(SYSTEM_REFERAT, bruker_prompt, foresporsel.modell)
         tekst = normaliser_til_bokmal(tekst)
     except httpx.ConnectError:
-        raise HTTPException(status_code=503, detail="Kan ikke nå Ollama - er tjenesten startet?")
+        raise HTTPException(status_code=503, detail="Kan ikke nå AI-proxyen")
     except httpx.HTTPStatusError as e:
-        raise HTTPException(status_code=502, detail=f"Ollama svarte med feil: {e.response.status_code}")
+        raise HTTPException(status_code=502, detail=f"AI-proxy svarte med feil: {e.response.status_code}")
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Feil ved generering av referat: {e}")
-    return {"tekst": tekst, "modell": foresporsel.modell or OLLAMA_MODELL}
+    return {"tekst": tekst, "modell": foresporsel.modell or LLM_MODELL}
 
 
 @router.post("/referat/stream")
-async def lag_referat_stream(foresporsel: OllamaForesporsel):
+async def lag_referat_stream(foresporsel: LlmForesporsel):
     """Streaming SSE-versjon av /referat."""
     if not foresporsel.transkripsjon.strip():
         raise HTTPException(status_code=400, detail="Transkripsjon mangler")
 
     estimat = beregn_llm_estimat(foresporsel.modell, foresporsel.transkripsjon)
-    valgt_modell = foresporsel.modell or OLLAMA_MODELL
+    valgt_modell = foresporsel.modell or LLM_MODELL
     transkripsjon_normalisert = normaliser_til_bokmal(foresporsel.transkripsjon)
     bruker_prompt = BRUKER_REFERAT.format(transkripsjon=transkripsjon_normalisert)
 
     async def generator():
         yield sse({"type": "start", "estimert_sek": estimat, "modell": valgt_modell})
         try:
-            async for token, ferdig, full_tekst in stream_ollama_tokens(
+            async for token, ferdig, full_tekst in stream_llm_tokens(
                 SYSTEM_REFERAT, bruker_prompt, foresporsel.modell
             ):
                 if ferdig:
@@ -92,7 +88,7 @@ async def lag_referat_stream(foresporsel: OllamaForesporsel):
                 elif token:
                     yield sse({"type": "token", "tekst": token})
         except httpx.ConnectError:
-            yield sse({"type": "feil", "melding": "Kan ikke nå Ollama - er tjenesten startet?"})
+            yield sse({"type": "feil", "melding": "Kan ikke nå AI-proxyen"})
         except Exception as e:
             yield sse({"type": "feil", "melding": str(e)})
 
@@ -104,20 +100,20 @@ async def lag_referat_stream(foresporsel: OllamaForesporsel):
 
 
 @router.post("/sammendrag/stream")
-async def lag_sammendrag_stream(foresporsel: OllamaForesporsel):
+async def lag_sammendrag_stream(foresporsel: LlmForesporsel):
     """Streaming SSE-versjon av /sammendrag."""
     if not foresporsel.transkripsjon.strip():
         raise HTTPException(status_code=400, detail="Transkripsjon mangler")
 
     estimat = beregn_llm_estimat(foresporsel.modell, foresporsel.transkripsjon)
-    valgt_modell = foresporsel.modell or OLLAMA_MODELL
+    valgt_modell = foresporsel.modell or LLM_MODELL
     transkripsjon_normalisert = normaliser_til_bokmal(foresporsel.transkripsjon)
     bruker_prompt = BRUKER_SAMMENDRAG.format(transkripsjon=transkripsjon_normalisert)
 
     async def generator():
         yield sse({"type": "start", "estimert_sek": estimat, "modell": valgt_modell})
         try:
-            async for token, ferdig, full_tekst in stream_ollama_tokens(
+            async for token, ferdig, full_tekst in stream_llm_tokens(
                 SYSTEM_SAMMENDRAG, bruker_prompt, foresporsel.modell
             ):
                 if ferdig:
@@ -125,7 +121,7 @@ async def lag_sammendrag_stream(foresporsel: OllamaForesporsel):
                 elif token:
                     yield sse({"type": "token", "tekst": token})
         except httpx.ConnectError:
-            yield sse({"type": "feil", "melding": "Kan ikke nå Ollama - er tjenesten startet?"})
+            yield sse({"type": "feil", "melding": "Kan ikke nå AI-proxyen"})
         except Exception as e:
             yield sse({"type": "feil", "melding": str(e)})
 
@@ -137,20 +133,20 @@ async def lag_sammendrag_stream(foresporsel: OllamaForesporsel):
 
 
 @router.post("/referat/rullerende/stream")
-async def lag_rullerende_referat_stream(foresporsel: OllamaForesporsel):
+async def lag_rullerende_referat_stream(foresporsel: LlmForesporsel):
     """Rullerende utkast-referat for pågående møte (sanntid-modus)."""
     if not foresporsel.transkripsjon.strip():
         raise HTTPException(status_code=400, detail="Transkripsjon mangler")
 
     estimat = beregn_llm_estimat(foresporsel.modell, foresporsel.transkripsjon)
-    valgt_modell = foresporsel.modell or OLLAMA_MODELL
+    valgt_modell = foresporsel.modell or LLM_MODELL
     transkripsjon_normalisert = normaliser_til_bokmal(foresporsel.transkripsjon)
     bruker_prompt = BRUKER_RULLERENDE.format(transkripsjon=transkripsjon_normalisert)
 
     async def generator():
         yield sse({"type": "start", "estimert_sek": estimat, "modell": valgt_modell})
         try:
-            async for token, ferdig, full_tekst in stream_ollama_tokens(
+            async for token, ferdig, full_tekst in stream_llm_tokens(
                 SYSTEM_RULLERENDE, bruker_prompt, foresporsel.modell
             ):
                 if ferdig:
@@ -162,7 +158,7 @@ async def lag_rullerende_referat_stream(foresporsel: OllamaForesporsel):
                 elif token:
                     yield sse({"type": "token", "tekst": token})
         except httpx.ConnectError:
-            yield sse({"type": "feil", "melding": "Kan ikke nå Ollama - er tjenesten startet?"})
+            yield sse({"type": "feil", "melding": "Kan ikke nå AI-proxyen"})
         except Exception as e:
             yield sse({"type": "feil", "melding": str(e)})
 

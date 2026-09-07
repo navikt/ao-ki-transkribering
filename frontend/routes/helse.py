@@ -1,9 +1,7 @@
 from fastapi import APIRouter, Response
 
 from shared.core.runtime import arbeider_klar, job_store, lokal_arbeider_aktiv
-from shared.core.settings import TRANSKRIPSJON_BACKEND, TRANSKRIPSJON_SERVICE_URL
-from shared.core.settings import MODELL_ID
-from worker.ollama.klient import MODELL as OLLAMA_MODELL, URL as OLLAMA_URL
+from shared.core.settings import AI_PROXY_URL, LLM_MODELL, MODELL_ID, TRANSKRIPSJON_BACKEND, TRANSKRIPSJON_SERVICE_URL
 from worker.transkribering.konstanter import STILLHET_TERSKEL_S, MAKS_BUFFER_S, ENERGI_TERSKEL
 from worker.transkribering.diarisering import _ECAPA_KILDE, _VINDU_S, _RATE
 from worker.transkribering.sanntid import _CT2_MODELL_STI
@@ -57,10 +55,11 @@ def worker_is_ready():
 @router.get("/system/info")
 def system_info():
     """Teknisk konfigurasjon for visning i UI."""
+    sanntid_modell = MODELL_ID if TRANSKRIPSJON_BACKEND == "remote" else _CT2_MODELL_STI
     return {
         "asr": {
             "batch_modell": MODELL_ID,
-            "sanntid_modell": _CT2_MODELL_STI,
+            "sanntid_modell": sanntid_modell,
             "backend": TRANSKRIPSJON_BACKEND,
         },
         "diarisering": {
@@ -74,7 +73,7 @@ def system_info():
             "energi_terskel": ENERGI_TERSKEL,
         },
         "llm": {
-            "modell": OLLAMA_MODELL,
-            "url": OLLAMA_URL,
+            "modell": LLM_MODELL,
+            "url": AI_PROXY_URL,
         },
     }
