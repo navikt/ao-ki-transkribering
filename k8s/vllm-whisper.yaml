@@ -6,7 +6,8 @@ metadata:
   labels:
     app: vllm-whisper
 spec:
-  replicas: 1
+  # The working-hours scaler raises this to 1 during the workday.
+  replicas: 0
   selector:
     matchLabels:
       app: vllm-whisper
@@ -27,12 +28,11 @@ spec:
         - name: last-ned-modell
           image: google/cloud-sdk:slim
           command:
-            - gcloud
-            - storage
-            - cp
-            - --recursive
-            - gs://ao-ki-taskforce-prod-2472-modeller/whisper/
-            - /models/nb-whisper-large/
+            - /bin/sh
+            - -c
+            - |
+              mkdir -p /models/nb-whisper-large
+              gcloud storage cp --recursive gs://ao-ki-taskforce-prod-2472-modeller/whisper/ /models/nb-whisper-large/
           volumeMounts:
             - name: modeller
               mountPath: /models

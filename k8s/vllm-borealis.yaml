@@ -6,7 +6,8 @@ metadata:
   labels:
     app: vllm-borealis
 spec:
-  replicas: 1
+  # The working-hours scaler raises this to 1 during the workday.
+  replicas: 0
   selector:
     matchLabels:
       app: vllm-borealis
@@ -26,12 +27,11 @@ spec:
         - name: last-ned-modell
           image: google/cloud-sdk:slim
           command:
-            - gcloud
-            - storage
-            - cp
-            - --recursive
-            - gs://ao-ki-taskforce-prod-2472-modeller/borealis-12b/
-            - /models/borealis-12b/
+            - /bin/sh
+            - -c
+            - |
+              mkdir -p /models/borealis-12b
+              gcloud storage cp --recursive gs://ao-ki-taskforce-prod-2472-modeller/borealis-12b/ /models/borealis-12b/
           volumeMounts:
             - name: modeller
               mountPath: /models

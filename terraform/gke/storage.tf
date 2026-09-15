@@ -22,7 +22,7 @@ resource "google_storage_bucket" "modeller" {
   # Prevent accidental deletion of model weights
   lifecycle_rule {
     action {
-      type = "SetStorageClass"
+      type          = "SetStorageClass"
       storage_class = "NEARLINE"
     }
     condition {

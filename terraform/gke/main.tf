@@ -16,9 +16,10 @@ resource "google_project_service" "apis" {
 
 # ── GKE cluster ───────────────────────────────────────────────────────────────
 resource "google_container_cluster" "gpu" {
-  name     = var.cluster_name
-  project  = var.project_id
-  location = var.zone
+  name           = var.cluster_name
+  project        = var.project_id
+  location       = var.region
+  node_locations = var.node_locations
 
   # Remove the default node pool — we manage pools explicitly.
   remove_default_node_pool = true
@@ -54,11 +55,12 @@ resource "google_container_node_pool" "system" {
   name     = "system"
   project  = var.project_id
   cluster  = google_container_cluster.gpu.name
-  location = var.zone
+  location = var.region
 
   autoscaling {
-    min_node_count = 1
-    max_node_count = 2
+    total_min_node_count = 1
+    total_max_node_count = 2
+    location_policy      = "BALANCED"
   }
 
   node_config {
@@ -83,18 +85,19 @@ resource "google_container_node_pool" "system" {
 # ── GPU nodepool ──────────────────────────────────────────────────────────────
 # g2-standard-12: 12 vCPU, 48 GB RAM, 1× L4 (24 GB VRAM)
 # Fits Borealis-12b in BF16 (~24 GB) and nb-whisper-large (~3 GB) on separate pods.
-# Autoscales to 0 outside working hours (use Cloud Scheduler — see README).
+# Autoscales to 0 outside working hours when the CronJobs scale deployments down.
 resource "google_container_node_pool" "gpu" {
   name     = "gpu-l4"
   project  = var.project_id
   cluster  = google_container_cluster.gpu.name
-  location = var.zone
+  location = var.region
 
   initial_node_count = 0
 
   autoscaling {
-    min_node_count = var.gpu_min_nodes
-    max_node_count = var.gpu_max_nodes
+    total_min_node_count = var.gpu_min_nodes
+    total_max_node_count = var.gpu_max_nodes
+    location_policy      = "ANY"
   }
 
   node_config {

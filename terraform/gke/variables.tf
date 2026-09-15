@@ -10,10 +10,10 @@ variable "region" {
   default     = "europe-west4"
 }
 
-variable "zone" {
-  description = "GCP zone for the zonal GKE cluster"
-  type        = string
-  default     = "europe-west4-b"
+variable "node_locations" {
+  description = "Zones where regional GKE node pools may provision nodes"
+  type        = list(string)
+  default     = ["europe-west4-a", "europe-west4-b", "europe-west4-c"]
 }
 
 variable "cluster_name" {

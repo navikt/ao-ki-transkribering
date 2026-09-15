@@ -1,0 +1,81 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: vllm-scaler
+  namespace: vllm
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: vllm-scaler
+  namespace: vllm
+rules:
+  - apiGroups: ["apps"]
+    resources: ["deployments", "deployments/scale"]
+    verbs: ["get", "list", "patch", "update"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: vllm-scaler
+  namespace: vllm
+subjects:
+  - kind: ServiceAccount
+    name: vllm-scaler
+    namespace: vllm
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: vllm-scaler
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: vllm-scale-up
+  namespace: vllm
+spec:
+  # Weekdays at 07:00 Oslo time.
+  schedule: "0 7 * * 1-5"
+  timeZone: Europe/Oslo
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          serviceAccountName: vllm-scaler
+          restartPolicy: OnFailure
+          containers:
+            - name: kubectl
+              image: bitnami/kubectl:latest
+              command:
+                - /bin/sh
+                - -c
+                - kubectl -n vllm scale deployment/vllm-whisper deployment/vllm-borealis --replicas=1
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: vllm-scale-down
+  namespace: vllm
+spec:
+  # Weekdays at 17:00 Oslo time.
+  schedule: "0 17 * * 1-5"
+  timeZone: Europe/Oslo
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          serviceAccountName: vllm-scaler
+          restartPolicy: OnFailure
+          containers:
+            - name: kubectl
+              image: bitnami/kubectl:latest
+              command:
+                - /bin/sh
+                - -c
+                - kubectl -n vllm scale deployment/vllm-whisper deployment/vllm-borealis --replicas=0

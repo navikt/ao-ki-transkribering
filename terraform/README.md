@@ -1,6 +1,6 @@
 # GKE GPU cluster — ao-ki-taskforce
 
-GKE Standard cluster in `europe-west4-b` with NVIDIA L4 GPUs for running
+Regional GKE Standard cluster in `europe-west4` with NVIDIA L4 GPUs for running
 nb-whisper (transcription) and Borealis-12b (meeting summaries) via vLLM.
 
 ## Prerequisites
@@ -24,18 +24,26 @@ gcloud storage buckets create gs://ao-ki-taskforce-prod-2472-tfstate \
 
 ## Deploy
 
+One-step deploy from the repository root:
+
+```bash
+./scripts/deploy-gpu-stack.sh
+```
+
+Or run the steps manually:
+
 ```bash
 cd terraform/gke
-terraform init
-terraform plan
-terraform apply
+tofu init
+tofu plan
+tofu apply
 ```
 
 After apply, configure kubectl:
 
 ```bash
 gcloud container clusters get-credentials ao-ki-gpu \
-  --zone=europe-west4-b \
+  --region=europe-west4 \
   --project=ao-ki-taskforce-prod-2472
 ```
 
@@ -45,10 +53,16 @@ Verify GPU nodes scale up:
 kubectl get nodes -l cloud.google.com/gke-accelerator=nvidia-l4 -w
 ```
 
+Deploy the Kubernetes vLLM resources and working-hours scaler:
+
+```bash
+./scripts/apply-k8s.sh
+```
+
 ## Upload model weights
 
 ```bash
-MODEL_BUCKET=$(terraform output -raw model_bucket)
+MODEL_BUCKET=$(tofu output -raw model_bucket)
 
 # nb-whisper-large (~3 GB, ~5 sec download at GKE startup)
 gsutil -m cp -r /path/to/NbAiLab/nb-whisper-large gs://$MODEL_BUCKET/whisper/
@@ -61,21 +75,26 @@ gsutil -m cp -r ~/.cache/huggingface/hub/models--NbAiLab--borealis-12b \
 
 ## Cost control
 
-GPU nodes autoscale to 0 when idle. To ensure scale-to-zero outside working hours,
-create a Cloud Scheduler job (or use `terraform/scheduler/` — coming in Phase 4):
+GPU nodes autoscale to 0 when no GPU pods are scheduled. The vLLM deployments
+start with `replicas: 0`; `k8s/working-hours-scaler.yaml` installs Kubernetes
+CronJobs that scale both deployments up and down on weekdays:
+
+- `07:00 Europe/Oslo`: `vllm-whisper=1`, `vllm-borealis=1`
+- `17:00 Europe/Oslo`: `vllm-whisper=0`, `vllm-borealis=0`
+
+Manual start/stop:
 
 ```bash
-# Scale down at 18:00 CET weekdays
-gcloud scheduler jobs create http gpu-scale-down \
-  --schedule="0 16 * * 1-5" \
-  --uri="https://container.googleapis.com/v1/projects/ao-ki-taskforce-prod-2472/zones/europe-west4-b/clusters/ao-ki-gpu/nodePools/gpu-l4/setSize" \
-  --message-body='{"nodeCount": 0}' \
-  --oauth-service-account-email=<scheduler-sa>@ao-ki-taskforce-prod-2472.iam.gserviceaccount.com \
-  --location=europe-west4
+kubectl -n vllm scale deployment/vllm-whisper deployment/vllm-borealis --replicas=1
+kubectl -n vllm scale deployment/vllm-whisper deployment/vllm-borealis --replicas=0
 ```
 
 Estimated cost with autoscaling: **~$150–200/month** for a pilot
 (GPU nodes active ~40 h/week, system pool always on).
+
+The cluster is regional and may place nodes in `europe-west4-a`,
+`europe-west4-b`, or `europe-west4-c`. This gives the autoscaler more than one
+zone to try when L4 capacity is temporarily unavailable.
 
 ## VPC peering
 
@@ -92,7 +111,7 @@ can reach the vLLM services via internal IP.
 NAIS prod-gcp (nais-prod-020f)
   └── ao-ki-transkribering pod
         └── VPC peering → ao-ki-taskforce-prod-2472
-                            └── GKE ao-ki-gpu (europe-west4-b)
+                            └── GKE ao-ki-gpu (europe-west4, zones a/b/c)
                                   ├── vLLM: nb-whisper-large  (gpu-l4 nodepool)
                                   └── vLLM: Borealis-12b      (gpu-l4 nodepool)
                             └── LiteLLM gateway (Cloud Run, internal only)

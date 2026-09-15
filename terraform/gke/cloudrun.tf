@@ -24,7 +24,7 @@ resource "google_secret_manager_secret" "litellm_api_key" {
 }
 
 resource "google_secret_manager_secret_version" "litellm_api_key" {
-  secret      = google_secret_manager_secret.litellm_api_key.id
+  secret = google_secret_manager_secret.litellm_api_key.id
   # sk- prefix required by LiteLLM master key format
   secret_data = "sk-${random_password.litellm_api_key.result}"
 }
@@ -152,13 +152,13 @@ resource "google_cloud_run_v2_service" "litellm" {
     containers {
       # TODO: pin to a specific digest before prod
       image = var.litellm_image
-      args = ["--config", "/app/config/config.yaml", "--host", "0.0.0.0", "--port", "4000"]
+      args  = ["--config", "/app/config/config.yaml", "--host", "0.0.0.0", "--port", "4000"]
 
       ports { container_port = 4000 }
 
       resources {
         limits   = { cpu = "1", memory = "2Gi" }
-        cpu_idle = true  # scale to zero between requests
+        cpu_idle = true # scale to zero between requests
       }
 
       env {

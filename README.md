@@ -11,6 +11,16 @@ møtereferat og sammendrag etter NAVs §14a-mal.
 
 ---
 
+## Ordliste (enkelt forklart)
+
+**API:** En "dør" mellom to systemer. API-et bestemmer hvordan de kan sende informasjon til hverandre på en trygg og strukturert måte.
+
+**Infrastruktur:** Grunnmuren som får løsningen til å fungere i praksis, for eksempel servere, nettverk, lagring og oppsett rundt applikasjonen.
+
+**IP (IP-adresse):** Et nummer som identifiserer en enhet i et nettverk, omtrent som en adresse slik at data finner riktig mottaker.
+
+---
+
 ## Krav til maskinvare
 
 | | Minimum | Anbefalt |

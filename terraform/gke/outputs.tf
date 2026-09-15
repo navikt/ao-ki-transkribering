@@ -11,7 +11,7 @@ output "cluster_endpoint" {
 
 output "kubeconfig_command" {
   description = "Command to configure kubectl for this cluster"
-  value       = "gcloud container clusters get-credentials ${google_container_cluster.gpu.name} --zone=${var.zone} --project=${var.project_id}"
+  value       = "gcloud container clusters get-credentials ${google_container_cluster.gpu.name} --region=${var.region} --project=${var.project_id}"
 }
 
 output "model_bucket" {
