@@ -8,6 +8,7 @@ from worker.prompts.motereferat import (
 )
 from worker.prompts.normalisering import normaliser_til_bokmal
 from worker.prompts.estimat import beregn_llm_estimat
+from worker.prompts.handlinger import LLM_HANDLINGER, LlmHandling, hent_handling, list_handlinger
 
 __all__ = [
     "SYSTEM_REFERAT",
@@ -18,4 +19,8 @@ __all__ = [
     "BRUKER_RULLERENDE",
     "normaliser_til_bokmal",
     "beregn_llm_estimat",
+    "LLM_HANDLINGER",
+    "LlmHandling",
+    "hent_handling",
+    "list_handlinger",
 ]
