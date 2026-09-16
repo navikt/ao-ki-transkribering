@@ -1,4 +1,5 @@
 import json
+import logging
 
 import httpx
 from fastapi import APIRouter, HTTPException
@@ -15,6 +16,7 @@ from worker.prompts import (
 from worker.prompts.handlinger import LlmHandling
 
 router = APIRouter()
+log = logging.getLogger(__name__)
 
 
 def beregn_llm_estimat(modell: str | None, transkripsjon: str) -> int:
@@ -50,8 +52,9 @@ async def _kjor_handling(handling_id: str, foresporsel: LlmForesporsel):
         raise HTTPException(status_code=503, detail="Kan ikke nå AI-proxyen")
     except httpx.HTTPStatusError as e:
         raise HTTPException(status_code=502, detail=f"AI-proxy svarte med feil: {e.response.status_code}")
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Feil ved generering av {handling.tittel}: {e}")
+    except Exception as exc:
+        log.exception("Feil ved generering av LLM-handling %s", handling.id)
+        raise HTTPException(status_code=500, detail=f"Feil ved generering av {handling.tittel}") from exc
     return {"tekst": tekst, "modell": foresporsel.modell or LLM_MODELL, "handling": handling.id}
 
 
@@ -82,8 +85,9 @@ def _stream_handling(handling_id: str, foresporsel: LlmForesporsel):
                     yield sse({"type": "token", "tekst": token})
         except httpx.ConnectError:
             yield sse({"type": "feil", "melding": "Kan ikke nå AI-proxyen"})
-        except Exception as e:
-            yield sse({"type": "feil", "melding": str(e)})
+        except Exception:
+            log.exception("Feil ved streaming av LLM-handling %s", handling.id)
+            yield sse({"type": "feil", "melding": f"Feil ved generering av {handling.tittel}"})
 
     return StreamingResponse(
         generator(),

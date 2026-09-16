@@ -42,3 +42,9 @@ def test_job_store_writes_failure(tmp_path):
     store.write_failed(paths.result_path, "boom")
 
     assert store.read(paths.job_id) == {"status": "feil", "feilmelding": "boom"}
+
+
+def test_job_store_rejects_invalid_job_id(tmp_path):
+    store = JobStore(tmp_path)
+
+    assert not store.exists("../annen-fil")

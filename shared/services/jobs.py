@@ -24,15 +24,34 @@ class JobStore:
         job_id = str(uuid.uuid4())
         return JobPaths(
             job_id=job_id,
-            audio_path=self.work_dir / f"{job_id}{suffix}",
+            audio_path=self._path_in_work_dir(f"{job_id}{suffix}"),
             result_path=self.result_path(job_id),
         )
 
     def result_path(self, job_id: str) -> Path:
-        return self.work_dir / f"{job_id}.json"
+        return self._path_in_work_dir(f"{self._validate_job_id(job_id)}.json")
+
+    def _validate_job_id(self, job_id: str) -> str:
+        try:
+            parsed = uuid.UUID(job_id)
+        except ValueError:
+            raise ValueError("Ugyldig jobb-ID") from None
+        if str(parsed) != job_id:
+            raise ValueError("Ugyldig jobb-ID")
+        return job_id
+
+    def _path_in_work_dir(self, name: str) -> Path:
+        path = (self.work_dir / name).resolve()
+        work_dir = self.work_dir.resolve()
+        if path.parent != work_dir:
+            raise ValueError("Ugyldig jobbfil")
+        return path
 
     def exists(self, job_id: str) -> bool:
-        return self.result_path(job_id).exists()
+        try:
+            return self.result_path(job_id).exists()
+        except ValueError:
+            return False
 
     def read(self, job_id: str) -> dict[str, Any]:
         return self.read_path(self.result_path(job_id))
@@ -85,6 +104,8 @@ class JobStore:
         self.write_path(result_path, {"status": "feil", "feilmelding": message})
 
     def write_path(self, result_path: Path, data: dict[str, Any]) -> None:
+        if result_path.resolve().parent != self.work_dir.resolve():
+            raise ValueError("Ugyldig jobbfil")
         result_path.parent.mkdir(parents=True, exist_ok=True)
         tmp_path = result_path.with_name(f"{result_path.name}.{uuid.uuid4().hex}.tmp")
         tmp_path.write_text(json.dumps(data, ensure_ascii=False))
