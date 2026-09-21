@@ -102,7 +102,7 @@ resource "google_container_node_pool" "gpu" {
 
   node_config {
     machine_type = "g2-standard-12"
-    disk_size_gb = 100
+    disk_size_gb = 200
     disk_type    = "pd-ssd"
     image_type   = "COS_CONTAINERD"
 

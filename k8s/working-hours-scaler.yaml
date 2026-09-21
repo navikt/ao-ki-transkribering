@@ -52,7 +52,7 @@ spec:
               command:
                 - /bin/sh
                 - -c
-                - kubectl -n vllm scale deployment/vllm-whisper deployment/vllm-borealis --replicas=1
+                - kubectl -n vllm scale deployment/vllm-whisper --replicas=1
 ---
 apiVersion: batch/v1
 kind: CronJob

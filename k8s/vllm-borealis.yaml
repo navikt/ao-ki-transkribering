@@ -31,7 +31,7 @@ spec:
             - -c
             - |
               mkdir -p /models/borealis-12b
-              gcloud storage cp --recursive gs://ao-ki-taskforce-prod-2472-modeller/borealis-12b/ /models/borealis-12b/
+              gcloud storage cp --recursive gs://ao-ki-taskforce-prod-2472-modeller/borealis-12b/borealis-12b/* /models/borealis-12b/
           volumeMounts:
             - name: modeller
               mountPath: /models
@@ -50,10 +50,16 @@ spec:
             - "8000"
             - --dtype
             - bfloat16
-            # Borealis-12b fills the L4 (24 GB VRAM) exactly in BF16.
-            # Limit context to leave headroom for KV cache.
+            # Borealis-12b fills the L4 (24 GB VRAM) in BF16.
+            # Keep context conservative for the single-L4 pilot; larger contexts
+            # need quantization, a larger GPU, or more aggressive offload.
             - --max-model-len
-            - "8192"
+            - "768"
+            - --gpu-memory-utilization
+            - "0.88"
+            - --cpu-offload-gb
+            - "6"
+            - --enforce-eager
             - --trust-remote-code
           ports:
             - containerPort: 8000
@@ -68,6 +74,12 @@ spec:
           volumeMounts:
             - name: modeller
               mountPath: /models
+          startupProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            periodSeconds: 10
+            failureThreshold: 90
           readinessProbe:
             httpGet:
               path: /health

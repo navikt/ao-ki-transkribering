@@ -77,17 +77,20 @@ gsutil -m cp -r ~/.cache/huggingface/hub/models--NbAiLab--borealis-12b \
 
 GPU nodes autoscale to 0 when no GPU pods are scheduled. The vLLM deployments
 start with `replicas: 0`; `k8s/working-hours-scaler.yaml` installs Kubernetes
-CronJobs that scale both deployments up and down on weekdays:
+CronJobs that scale Whisper up and both deployments down on weekdays:
 
-- `07:00 Europe/Oslo`: `vllm-whisper=1`, `vllm-borealis=1`
+- `07:00 Europe/Oslo`: `vllm-whisper=1`
 - `17:00 Europe/Oslo`: `vllm-whisper=0`, `vllm-borealis=0`
 
 Manual start/stop:
 
 ```bash
-kubectl -n vllm scale deployment/vllm-whisper deployment/vllm-borealis --replicas=1
+kubectl -n vllm scale deployment/vllm-whisper --replicas=1
+kubectl -n vllm scale deployment/vllm-borealis --replicas=1
 kubectl -n vllm scale deployment/vllm-whisper deployment/vllm-borealis --replicas=0
 ```
+
+Borealis is kept manual until its startup time and memory profile are verified.
 
 Estimated cost with autoscaling: **~$150–200/month** for a pilot
 (GPU nodes active ~40 h/week, system pool always on).

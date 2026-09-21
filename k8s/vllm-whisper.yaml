@@ -31,8 +31,23 @@ spec:
             - /bin/sh
             - -c
             - |
+              set -euo pipefail
               mkdir -p /models/nb-whisper-large
-              gcloud storage cp --recursive gs://ao-ki-taskforce-prod-2472-modeller/whisper/ /models/nb-whisper-large/
+              BASE=gs://ao-ki-taskforce-prod-2472-modeller/whisper/nb-whisper-large
+              gcloud storage cp \
+                "$BASE/added_tokens.json" \
+                "$BASE/config.json" \
+                "$BASE/generation_config.json" \
+                "$BASE/merges.txt" \
+                "$BASE/model-00001-of-00002.safetensors" \
+                "$BASE/model-00002-of-00002.safetensors" \
+                "$BASE/model.safetensors.index.json" \
+                "$BASE/preprocessor_config.json" \
+                "$BASE/special_tokens_map.json" \
+                "$BASE/tokenizer.json" \
+                "$BASE/tokenizer_config.json" \
+                "$BASE/vocab.json" \
+                /models/nb-whisper-large/
           volumeMounts:
             - name: modeller
               mountPath: /models
@@ -42,15 +57,14 @@ spec:
               memory: 1Gi
       containers:
         - name: vllm
-          # TODO: mirror to Artifact Registry and pin digest before prod
-          image: vllm/vllm-openai:latest
+          # OpenAI-compatible vLLM server with audio extras for Whisper.
+          # See adr/0004-openai-kompatibelt-modell-api.md.
+          image: europe-west4-docker.pkg.dev/ao-ki-taskforce-prod-2472/vllm/vllm-whisper-audio:latest
           args:
             - --model
             - /models/nb-whisper-large
             - --port
             - "8000"
-            - --task
-            - transcribe
             - --dtype
             - float16
           ports:
@@ -66,6 +80,12 @@ spec:
           volumeMounts:
             - name: modeller
               mountPath: /models
+          startupProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            periodSeconds: 10
+            failureThreshold: 60
           readinessProbe:
             httpGet:
               path: /health

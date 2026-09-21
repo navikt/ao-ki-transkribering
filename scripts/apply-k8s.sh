@@ -48,8 +48,8 @@ if ! $DRY_RUN; then
   OSLO_HOUR=$(TZ=Europe/Oslo date +%H)
   if (( OSLO_DAY <= 5 && 10#$OSLO_HOUR >= 7 && 10#$OSLO_HOUR < 17 )); then
     echo ""
-    echo "▶ Innenfor arbeidstid — starter vLLM-deployments nå..."
-    kubectl -n vllm scale deployment/vllm-whisper deployment/vllm-borealis --replicas=1
+    echo "▶ Innenfor arbeidstid — starter vLLM-whisper nå..."
+    kubectl -n vllm scale deployment/vllm-whisper --replicas=1
   fi
 fi
 
@@ -57,9 +57,11 @@ echo ""
 echo "━━━ Ferdig ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo ""
 echo "Neste steg:"
-echo "  1. vLLM starter automatisk på hverdager 07:00 Europe/Oslo og stoppes 17:00."
+echo "  1. vLLM-whisper starter automatisk på hverdager 07:00 Europe/Oslo og stoppes 17:00."
 echo "     Start manuelt ved behov:"
-echo "       kubectl -n vllm scale deployment/vllm-whisper deployment/vllm-borealis --replicas=1"
+echo "       kubectl -n vllm scale deployment/vllm-whisper --replicas=1"
+echo "     vLLM-borealis startes manuelt når minneprofilen er verifisert:"
+echo "       kubectl -n vllm scale deployment/vllm-borealis --replicas=1"
 echo ""
 echo "  2. Følg oppstart:"
 echo "       kubectl get pods -n vllm -w"
