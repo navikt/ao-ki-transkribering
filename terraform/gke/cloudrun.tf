@@ -67,13 +67,13 @@ resource "google_secret_manager_secret_version" "litellm_config" {
     model_list:
       - model_name: nb-whisper-large
         litellm_params:
-          model: openai/nb-whisper-large
-          api_base: "http://${google_compute_address.vllm_whisper_ilb.address}:8000"
+          model: openai//models/nb-whisper-large
+          api_base: "http://${google_compute_address.vllm_whisper_ilb.address}:8000/v1"
           api_key: none
       - model_name: borealis-12b
         litellm_params:
-          model: openai/borealis-12b
-          api_base: "http://${google_compute_address.vllm_borealis_ilb.address}:8000"
+          model: openai//models/borealis-12b
+          api_base: "http://${google_compute_address.vllm_borealis_ilb.address}:8000/v1"
           api_key: none
     general_settings:
       max_parallel_requests: 10

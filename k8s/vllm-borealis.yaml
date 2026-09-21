@@ -30,8 +30,21 @@ spec:
             - /bin/sh
             - -c
             - |
+              set -euo pipefail
               mkdir -p /models/borealis-12b
-              gcloud storage cp --recursive gs://ao-ki-taskforce-prod-2472-modeller/borealis-12b/borealis-12b/* /models/borealis-12b/
+              BASE=gs://ao-ki-taskforce-prod-2472-modeller/borealis-12b/borealis-12b
+              gcloud storage cp \
+                "$BASE/chat_template.jinja" \
+                "$BASE/config.json" \
+                "$BASE/generation_config.json" \
+                "$BASE/model.safetensors" \
+                "$BASE/preprocessor_config.json" \
+                "$BASE/processor_config.json" \
+                "$BASE/special_tokens_map.json" \
+                "$BASE/tokenizer.json" \
+                "$BASE/tokenizer.model" \
+                "$BASE/tokenizer_config.json" \
+                /models/borealis-12b/
           volumeMounts:
             - name: modeller
               mountPath: /models

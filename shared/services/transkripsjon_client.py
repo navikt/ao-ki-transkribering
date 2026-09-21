@@ -82,15 +82,15 @@ async def _call_transkripsjon_service(
 ) -> TranskripsjonSvar:
     url = service_url.rstrip("/") + TRANSKRIPSJON_API_PATH
     timeout = httpx.Timeout(10.0, read=None, write=None, pool=10.0)
-    files = {"lydfil": (filename, content, "audio/wav")}
-
     if _is_openai_audio_path(TRANSKRIPSJON_API_PATH):
+        files = {"file": (filename, content, "audio/wav")}
         data = {
             "model": MODELL_ID,
             "response_format": "verbose_json",
             "language": "no",
         }
     else:
+        files = {"lydfil": (filename, content, "audio/wav")}
         data = {"n_talere": str(n_talere)}
 
     async with httpx.AsyncClient(timeout=timeout) as klient:
