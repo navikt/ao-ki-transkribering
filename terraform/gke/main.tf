@@ -106,6 +106,10 @@ resource "google_container_node_pool" "gpu" {
     disk_type    = "pd-ssd"
     image_type   = "COS_CONTAINERD"
 
+    gcfs_config {
+      enabled = true
+    }
+
     guest_accelerator {
       type  = "nvidia-l4"
       count = 1
@@ -163,6 +167,10 @@ resource "google_container_node_pool" "gpu_l4_fallback" {
     disk_size_gb = 200
     disk_type    = "pd-ssd"
     image_type   = "COS_CONTAINERD"
+
+    gcfs_config {
+      enabled = true
+    }
 
     labels = {
       "ao-ki-gpu-purpose" = "borealis-fallback"

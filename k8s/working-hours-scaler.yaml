@@ -34,8 +34,8 @@ metadata:
   name: vllm-scale-up
   namespace: vllm
 spec:
-  # Weekdays at 07:00 Oslo time.
-  schedule: "0 7 * * 1-5"
+  # Weekdays at 06:45 Oslo time so Whisper is warm before office hours.
+  schedule: "45 6 * * 1-5"
   timeZone: Europe/Oslo
   concurrencyPolicy: Forbid
   successfulJobsHistoryLimit: 1
