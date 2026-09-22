@@ -6,7 +6,13 @@ from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
 
 from shared.core.settings import LLM_MODELL
-from shared.services.llm_proxy_client import LlmForesporsel, kall as kall_llm, stream_tokens as stream_llm_tokens
+from shared.services.llm_proxy_client import (
+    LlmForesporsel,
+    LlmStatus,
+    hent_status as hent_llm_status,
+    kall as kall_llm,
+    stream_tokens as stream_llm_tokens,
+)
 from worker.prompts import (
     beregn_llm_estimat as beregn_llm_estimat_base,
     hent_handling,
@@ -39,6 +45,27 @@ def _bygg_prompt(handling: LlmHandling, transkripsjon: str) -> str:
     return handling.bygg_bruker_prompt(tekst)
 
 
+def _er_modell_utilgjengelig(exc: httpx.HTTPStatusError) -> bool:
+    status = exc.response.status_code
+    if status in {404, 429, 503}:
+        return True
+
+    tekst = exc.response.text.lower()
+    return "no deployments available" in tekst or "does not exist" in tekst
+
+
+def _http_error_for_llm(exc: httpx.HTTPStatusError) -> HTTPException:
+    if _er_modell_utilgjengelig(exc):
+        return HTTPException(status_code=503, detail="AI-modellen er ikke tilgjengelig nå")
+    return HTTPException(status_code=502, detail=f"AI-proxy svarte med feil: {exc.response.status_code}")
+
+
+def _sse_melding_for_llm(exc: httpx.HTTPStatusError) -> str:
+    if _er_modell_utilgjengelig(exc):
+        return "AI-modellen er ikke tilgjengelig nå"
+    return f"AI-proxy svarte med feil: {exc.response.status_code}"
+
+
 async def _kjor_handling(handling_id: str, foresporsel: LlmForesporsel):
     if not foresporsel.transkripsjon.strip():
         raise HTTPException(status_code=400, detail="Transkripsjon mangler")
@@ -51,7 +78,7 @@ async def _kjor_handling(handling_id: str, foresporsel: LlmForesporsel):
     except httpx.ConnectError:
         raise HTTPException(status_code=503, detail="Kan ikke nå AI-proxyen")
     except httpx.HTTPStatusError as e:
-        raise HTTPException(status_code=502, detail=f"AI-proxy svarte med feil: {e.response.status_code}")
+        raise _http_error_for_llm(e)
     except Exception as exc:
         log.exception("Feil ved generering av LLM-handling %s", handling.id)
         raise HTTPException(status_code=500, detail=f"Feil ved generering av {handling.tittel}") from exc
@@ -85,6 +112,8 @@ def _stream_handling(handling_id: str, foresporsel: LlmForesporsel):
                     yield sse({"type": "token", "tekst": token})
         except httpx.ConnectError:
             yield sse({"type": "feil", "melding": "Kan ikke nå AI-proxyen"})
+        except httpx.HTTPStatusError as e:
+            yield sse({"type": "feil", "melding": _sse_melding_for_llm(e)})
         except Exception:
             log.exception("Feil ved streaming av LLM-handling %s", handling.id)
             yield sse({"type": "feil", "melding": f"Feil ved generering av {handling.tittel}"})
@@ -100,6 +129,17 @@ def _stream_handling(handling_id: str, foresporsel: LlmForesporsel):
 async def hent_llm_handlinger():
     """Lister faste LLM-handlinger som kan kjøres fra frontend/API."""
     return {"handlinger": list_handlinger()}
+
+
+@router.get("/llm/status", response_model=LlmStatus)
+async def llm_status():
+    """Sjekker om modell-API-et kan nås og hvilke modeller gatewayen eksponerer."""
+    try:
+        return await hent_llm_status()
+    except httpx.ConnectError as exc:
+        raise HTTPException(status_code=503, detail="Kan ikke nå AI-proxyen") from exc
+    except httpx.HTTPStatusError as exc:
+        raise _http_error_for_llm(exc)
 
 
 @router.post("/llm/handlinger/{handling_id}")

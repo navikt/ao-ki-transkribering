@@ -1,7 +1,12 @@
+from unittest.mock import AsyncMock
+
+import httpx
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
+import frontend.routes.referat as referat_routes
 from frontend.routes.referat import router
+from shared.services.llm_proxy_client import LlmModell, LlmStatus
 from worker.prompts.handlinger import LLM_HANDLINGER, hent_handling, list_handlinger
 
 
@@ -41,3 +46,51 @@ def test_ukjent_handling_gir_404():
     res = klient.post("/llm/handlinger/finnes-ikke", json={"transkripsjon": "tekst"})
 
     assert res.status_code == 404
+
+
+def test_llm_status_lister_modeller(monkeypatch):
+    app = FastAPI()
+    app.include_router(router)
+    klient = TestClient(app)
+    monkeypatch.setattr(
+        referat_routes,
+        "hent_llm_status",
+        AsyncMock(
+            return_value=LlmStatus(
+                tilgjengelig=True,
+                standard_modell="borealis-12b",
+                modeller=[LlmModell(id="borealis-12b")],
+            )
+        ),
+    )
+
+    res = klient.get("/llm/status")
+
+    assert res.status_code == 200
+    assert res.json() == {
+        "tilgjengelig": True,
+        "standard_modell": "borealis-12b",
+        "modeller": [{"id": "borealis-12b"}],
+    }
+
+
+def test_utilgjengelig_llm_modell_gir_503(monkeypatch):
+    app = FastAPI()
+    app.include_router(router)
+    klient = TestClient(app)
+    request = httpx.Request("POST", "http://test/v1/chat/completions")
+    response = httpx.Response(
+        429,
+        request=request,
+        text="No deployments available for selected model",
+    )
+    monkeypatch.setattr(
+        referat_routes,
+        "kall_llm",
+        AsyncMock(side_effect=httpx.HTTPStatusError("utilgjengelig", request=request, response=response)),
+    )
+
+    res = klient.post("/llm/handlinger/sammendrag", json={"transkripsjon": "Hei"})
+
+    assert res.status_code == 503
+    assert res.json()["detail"] == "AI-modellen er ikke tilgjengelig nå"

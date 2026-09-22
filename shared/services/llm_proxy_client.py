@@ -1,7 +1,7 @@
 import json
 
 import httpx
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from shared.core.settings import AI_PROXY_API_KEY, AI_PROXY_URL, LLM_MODELL
 from worker.prompts.normalisering import normaliser_til_bokmal
@@ -14,6 +14,16 @@ class LlmForesporsel(BaseModel):
     modell: str | None = None
 
 
+class LlmModell(BaseModel):
+    id: str
+
+
+class LlmStatus(BaseModel):
+    tilgjengelig: bool
+    standard_modell: str
+    modeller: list[LlmModell] = Field(default_factory=list)
+
+
 def _headers() -> dict[str, str]:
     headers = {"Content-Type": "application/json"}
     if AI_PROXY_API_KEY:
@@ -23,6 +33,10 @@ def _headers() -> dict[str, str]:
 
 def _chat_url() -> str:
     return AI_PROXY_URL.rstrip("/") + "/v1/chat/completions"
+
+
+def _models_url() -> str:
+    return AI_PROXY_URL.rstrip("/") + "/v1/models"
 
 
 def sse(data: dict) -> str:
@@ -75,6 +89,25 @@ async def kall(system: str, bruker: str, modell: str | None = None) -> str:
         resp.raise_for_status()
         data = resp.json()
         return normaliser_til_bokmal(_extract_text_from_response(data))
+
+
+async def hent_status() -> LlmStatus:
+    async with httpx.AsyncClient(timeout=httpx.Timeout(5.0, read=15.0)) as klient:
+        resp = await klient.get(_models_url(), headers=_headers())
+        resp.raise_for_status()
+        data = resp.json()
+
+    modeller = []
+    for item in data.get("data", []):
+        model_id = item.get("id")
+        if isinstance(model_id, str) and model_id:
+            modeller.append(LlmModell(id=model_id))
+
+    return LlmStatus(
+        tilgjengelig=True,
+        standard_modell=LLM_MODELL,
+        modeller=modeller,
+    )
 
 
 async def stream_tokens(system: str, bruker: str, modell: str | None = None):

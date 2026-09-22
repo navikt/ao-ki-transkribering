@@ -136,3 +136,64 @@ resource "google_container_node_pool" "gpu" {
     auto_upgrade = true
   }
 }
+
+# ── Per-zone GPU fallback pools ───────────────────────────────────────────────
+# The regional pool above lets GKE choose a zone automatically. These zero-min
+# pools are only used by scripts/start-borealis-with-gpu-fallback.sh when we want
+# deterministic retries across zones after a capacity failure.
+resource "google_container_node_pool" "gpu_l4_fallback" {
+  for_each = toset(var.node_locations)
+
+  name           = "gpu-l4-${replace(each.value, "${var.region}-", "")}"
+  project        = var.project_id
+  cluster        = google_container_cluster.gpu.name
+  location       = var.region
+  node_locations = [each.value]
+
+  initial_node_count = 0
+
+  autoscaling {
+    total_min_node_count = 0
+    total_max_node_count = 1
+    location_policy      = "ANY"
+  }
+
+  node_config {
+    machine_type = "g2-standard-12"
+    disk_size_gb = 200
+    disk_type    = "pd-ssd"
+    image_type   = "COS_CONTAINERD"
+
+    labels = {
+      "ao-ki-gpu-purpose" = "borealis-fallback"
+      "ao-ki-gpu-zone"    = each.value
+    }
+
+    guest_accelerator {
+      type  = "nvidia-l4"
+      count = 1
+
+      gpu_driver_installation_config {
+        gpu_driver_version = "LATEST"
+      }
+    }
+
+    taint {
+      key    = "nvidia.com/gpu"
+      value  = "present"
+      effect = "NO_SCHEDULE"
+    }
+
+    workload_metadata_config {
+      mode = "GKE_METADATA"
+    }
+
+    service_account = google_service_account.vllm_node.email
+    oauth_scopes    = ["https://www.googleapis.com/auth/cloud-platform"]
+  }
+
+  management {
+    auto_repair  = true
+    auto_upgrade = true
+  }
+}

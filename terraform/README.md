@@ -86,18 +86,23 @@ Manual start/stop:
 
 ```bash
 kubectl -n vllm scale deployment/vllm-whisper --replicas=1
-kubectl -n vllm scale deployment/vllm-borealis --replicas=1
+./scripts/start-borealis-with-gpu-fallback.sh
 kubectl -n vllm scale deployment/vllm-whisper deployment/vllm-borealis --replicas=0
 ```
 
 Borealis is kept manual until its startup time and memory profile are verified.
+The default regional `gpu-l4` pool is still used for normal GPU workloads.
+Additional zero-min fallback pools (`gpu-l4-a`, `gpu-l4-b`, `gpu-l4-c`) allow
+the Borealis starter script to try one zone at a time when L4 capacity is scarce.
+They do not create GPU nodes unless Borealis is explicitly started through the
+fallback script.
 
 Estimated cost with autoscaling: **~$150–200/month** for a pilot
 (GPU nodes active ~40 h/week, system pool always on).
 
-The cluster is regional and may place nodes in `europe-west4-a`,
-`europe-west4-b`, or `europe-west4-c`. This gives the autoscaler more than one
-zone to try when L4 capacity is temporarily unavailable.
+The cluster is regional and may place default GPU nodes in `europe-west4-a`,
+`europe-west4-b`, or `europe-west4-c`. The per-zone fallback pools make the
+zone retry order explicit for Borealis.
 
 ## VPC peering
 
@@ -116,7 +121,7 @@ NAIS prod-gcp (nais-prod-020f)
         └── VPC peering → ao-ki-taskforce-prod-2472
                             └── GKE ao-ki-gpu (europe-west4, zones a/b/c)
                                   ├── vLLM: nb-whisper-large  (gpu-l4 nodepool)
-                                  └── vLLM: Borealis-12b      (gpu-l4 nodepool)
+                                  └── vLLM: Borealis-12b      (gpu-l4-* fallback nodepools)
                             └── LiteLLM gateway (Cloud Run, internal only)
                             └── GCS: ao-ki-taskforce-prod-2472-modeller
 ```
