@@ -456,6 +456,12 @@ h1 {
   overflow-y: auto;
 }
 .referat-panel-body strong { font-weight: 700; }
+.referat-panel-body.llm-utilgjengelig,
+.live-referat-body.llm-utilgjengelig {
+  border-left: 3px solid var(--color-orange-400);
+  color: var(--color-gray-700);
+  padding-left: .75rem;
+}
 .referat-laster {
   display: flex; align-items: center; gap: .75rem;
   padding: 1rem 0 .5rem;
@@ -557,4 +563,3 @@ h1 {
   .segment-liste th, .segment-liste td { padding: .25rem .35rem; }
   .referat-footer { align-items: flex-start; flex-direction: column; }
 }
-

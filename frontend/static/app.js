@@ -468,6 +468,7 @@ let _liveReferatTekst        = "";     // siste ferdigstilte utkast
 let _liveReferatReader       = null;   // aktiv fetch-reader
 const _LIVE_REFERAT_TERSKEL  = 200;    // ord før første oppdatering
 const _LIVE_REFERAT_DELTA    = 150;    // min nye ord mellom oppdateringer
+let _llmGatewayTilgjengelig  = true;
 
 function _telSanntidOrd() {
   const boks = document.getElementById("sanntid-tekst");
@@ -517,7 +518,23 @@ function _settLiveReferatStatus(tekst, oppdaterer) {
   puls.style.display = oppdaterer ? "block" : "none";
 }
 
+function _erLlmUtilgjengeligMelding(melding) {
+  return (melding || "").toLowerCase().includes("ikke tilgjengelig");
+}
+
+function _settLlmHandlingerTilgjengelig(tilgjengelig, melding) {
+  _llmGatewayTilgjengelig = tilgjengelig;
+  document.querySelectorAll(
+    "button[onclick^='hentReferat'], button[onclick='hentSammendrag()'], button[onclick='oppdaterLiveReferatNaa()']"
+  ).forEach(knapp => {
+    knapp.disabled = !tilgjengelig;
+    knapp.title = tilgjengelig ? "" : (melding || "AI-modellen er ikke tilgjengelig nå");
+  });
+  if (!tilgjengelig) _settLiveReferatStatus("AI utilgjengelig", false);
+}
+
 async function _triggerLiveReferat(transkripsjon) {
+  if (!_llmGatewayTilgjengelig) return;
   if (_liveReferatOppdaterer) return; // allerede pågår
   _liveReferatOppdaterer = true;
   _liveReferatOrdTalt = _telSanntidOrd();
@@ -532,6 +549,7 @@ async function _triggerLiveReferat(transkripsjon) {
 
   let buffer = "";
   tekstEl.innerHTML = '<span class="live-referat-tom">Genererer …</span>';
+  tekstEl.classList.remove("llm-utilgjengelig");
 
   try {
     const res = await fetch("/referat/rullerende/stream", {
@@ -570,8 +588,9 @@ async function _triggerLiveReferat(transkripsjon) {
             document.getElementById("live-referat-tid").textContent =
               "Modell: " + (evt.modell || "");
           } else if (evt.type === "feil") {
-            tekstEl.textContent = "⚠️ " + evt.melding;
-            _settLiveReferatStatus("feil", false);
+            tekstEl.textContent = evt.melding;
+            tekstEl.classList.toggle("llm-utilgjengelig", _erLlmUtilgjengeligMelding(evt.melding));
+            _settLiveReferatStatus(_erLlmUtilgjengeligMelding(evt.melding) ? "AI utilgjengelig" : "feil", false);
           }
         } catch {}
       }
@@ -909,6 +928,8 @@ function _stopReferatProgress() {
 
 function _visReferatStream(tekst) {
   const boks = document.getElementById("referat-tekst");
+  boks.classList.remove("llm-utilgjengelig");
+  boks.style.color = "";
   boks.textContent = tekst;   // rå tekst under generering
   boks.style.display = "block";
 }
@@ -917,6 +938,8 @@ function _visReferatResultat(tekst, modell) {
   _stopReferatProgress();
   document.getElementById("referat-laster").style.display = "none";
   const boks = document.getElementById("referat-tekst");
+  boks.classList.remove("llm-utilgjengelig");
+  boks.style.color = "";
   boks.innerHTML = tekst
     .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
     .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
@@ -932,7 +955,19 @@ function _visReferatFeil(melding) {
   _stopReferatProgress();
   document.getElementById("referat-laster").style.display = "none";
   const boks = document.getElementById("referat-tekst");
-  boks.innerHTML = `<span style="color:#ba3a26">⚠️ ${melding}</span>`;
+  boks.classList.remove("llm-utilgjengelig");
+  boks.textContent = melding;
+  boks.style.color = "#ba3a26";
+  boks.style.display = "block";
+}
+
+function _visLlmUtilgjengelig(melding) {
+  _stopReferatProgress();
+  document.getElementById("referat-laster").style.display = "none";
+  const boks = document.getElementById("referat-tekst");
+  boks.classList.add("llm-utilgjengelig");
+  boks.style.color = "";
+  boks.textContent = melding || "AI-modellen er ikke tilgjengelig nå. Prøv igjen senere.";
   boks.style.display = "block";
 }
 
@@ -944,7 +979,12 @@ async function _streamReferat(endepunkt, tekst, tittel) {
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({ detail: res.statusText }));
-    _visReferatFeil(err.detail || "Ukjent feil");
+    const melding = err.detail || "Ukjent feil";
+    if (res.status === 503 || _erLlmUtilgjengeligMelding(melding)) {
+      _visLlmUtilgjengelig(melding);
+    } else {
+      _visReferatFeil(melding);
+    }
     return;
   }
   const reader = res.body.getReader();
@@ -970,7 +1010,11 @@ async function _streamReferat(endepunkt, tekst, tittel) {
       } else if (data.type === "ferdig") {
         _visReferatResultat(data.tekst, data.modell);
       } else if (data.type === "feil") {
-        _visReferatFeil(data.melding);
+        if (_erLlmUtilgjengeligMelding(data.melding)) {
+          _visLlmUtilgjengelig(data.melding);
+        } else {
+          _visReferatFeil(data.melding);
+        }
       }
     }
   }
@@ -1029,8 +1073,20 @@ async function lastSystemstatus() {
   }
 }
 
+async function lastLlmStatus() {
+  try {
+    const res = await fetch("/llm/status");
+    if (!res.ok) throw new Error("HTTP " + res.status);
+    await res.json();
+    _settLlmHandlingerTilgjengelig(true);
+  } catch {
+    _settLlmHandlingerTilgjengelig(false, "AI-proxyen er ikke tilgjengelig nå");
+  }
+}
+
 function kortNavn(sti) {
   return sti.split("/").pop();
 }
 
 lastSystemstatus();
+lastLlmStatus();
