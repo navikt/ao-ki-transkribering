@@ -59,6 +59,8 @@ Deploy the Kubernetes vLLM resources and working-hours scaler:
 ./scripts/apply-k8s.sh
 ```
 
+Day-to-day operation commands live in [`../docs/operations.md`](../docs/operations.md).
+
 ## Upload model weights
 
 ```bash

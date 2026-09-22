@@ -1,4 +1,5 @@
 import json
+import os
 
 import httpx
 from pydantic import BaseModel, Field
@@ -6,7 +7,21 @@ from pydantic import BaseModel, Field
 from shared.core.settings import AI_PROXY_API_KEY, AI_PROXY_URL, LLM_MODELL
 from worker.prompts.normalisering import normaliser_til_bokmal
 
-_OPTIONS = {"temperature": 0.25, "num_ctx": 32768, "repeat_penalty": 1.3, "num_predict": 600}
+
+def _int_env(name: str, default: int) -> int:
+    try:
+        return int(os.getenv(name, str(default)))
+    except ValueError:
+        return default
+
+
+_OPTIONS = {
+    "temperature": 0.25,
+    "num_ctx": _int_env("LLM_NUM_CTX", 32768),
+    "repeat_penalty": 1.3,
+    # Borealis currently runs with --max-model-len=768 on one L4 GPU.
+    "num_predict": _int_env("LLM_MAX_TOKENS", 256),
+}
 
 
 class LlmForesporsel(BaseModel):
@@ -92,7 +107,7 @@ async def kall(system: str, bruker: str, modell: str | None = None) -> str:
 
 
 async def hent_status() -> LlmStatus:
-    async with httpx.AsyncClient(timeout=httpx.Timeout(5.0, read=15.0)) as klient:
+    async with httpx.AsyncClient(timeout=httpx.Timeout(10.0, read=45.0)) as klient:
         resp = await klient.get(_models_url(), headers=_headers())
         resp.raise_for_status()
         data = resp.json()
