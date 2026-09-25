@@ -13,6 +13,106 @@ rules:
   - apiGroups: ["apps"]
     resources: ["deployments", "deployments/scale"]
     verbs: ["get", "list", "patch", "update"]
+  - apiGroups: [""]
+    resources: ["pods", "events"]
+    verbs: ["get", "list"]
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: vllm-gpu-fallback
+  namespace: vllm
+data:
+  start-gpu-deployment-with-fallback.sh: |
+    #!/bin/sh
+    set -eu
+
+    NAMESPACE="${NAMESPACE:-vllm}"
+    DEPLOYMENT="${1:?Usage: start-gpu-deployment-with-fallback.sh <deployment>}"
+    APP_LABEL="${APP_LABEL:-$DEPLOYMENT}"
+    POOLS="${POOLS:-gpu-l4-a gpu-l4-b gpu-l4-c}"
+    SCHEDULE_TIMEOUT_SECONDS="${SCHEDULE_TIMEOUT_SECONDS:-300}"
+    ROLLOUT_TIMEOUT_SECONDS="${ROLLOUT_TIMEOUT_SECONDS:-900}"
+    POLL_SECONDS="${POLL_SECONDS:-10}"
+    WAIT_ROLLOUT="${WAIT_ROLLOUT:-false}"
+    KEEP_PENDING="${KEEP_PENDING:-false}"
+
+    pod_name() {
+      kubectl -n "$NAMESPACE" get pods -l "app=$APP_LABEL" \
+        -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true
+    }
+
+    pod_node() {
+      kubectl -n "$NAMESPACE" get pod "$1" \
+        -o jsonpath='{.spec.nodeName}' 2>/dev/null || true
+    }
+
+    pod_phase() {
+      kubectl -n "$NAMESPACE" get pod "$1" \
+        -o jsonpath='{.status.phase}' 2>/dev/null || true
+    }
+
+    scale_down_and_wait() {
+      kubectl -n "$NAMESPACE" scale "deployment/$DEPLOYMENT" --replicas=0 >/dev/null
+      for _ in $(seq 1 60); do
+        count=$(kubectl -n "$NAMESPACE" get pods -l "app=$APP_LABEL" --no-headers 2>/dev/null | wc -l | tr -d ' ')
+        [ "$count" = "0" ] && return 0
+        sleep 2
+      done
+    }
+
+    try_pool() {
+      pool="$1"
+      echo ""
+      echo "Trying $DEPLOYMENT on GPU pool: $pool"
+
+      scale_down_and_wait
+
+      kubectl -n "$NAMESPACE" patch "deployment/$DEPLOYMENT" --type=json \
+        -p "[{\"op\":\"replace\",\"path\":\"/spec/template/spec/nodeSelector\",\"value\":{\"cloud.google.com/gke-nodepool\":\"$pool\"}}]" \
+        >/dev/null
+      kubectl -n "$NAMESPACE" scale "deployment/$DEPLOYMENT" --replicas=1 >/dev/null
+
+      deadline=$(( $(date +%s) + SCHEDULE_TIMEOUT_SECONDS ))
+      pod=""
+      while [ "$(date +%s)" -lt "$deadline" ]; do
+        pod=$(pod_name)
+        if [ -n "$pod" ]; then
+          node=$(pod_node "$pod")
+          phase=$(pod_phase "$pod")
+          if [ -n "$node" ]; then
+            echo "Pod $pod scheduled on $node (phase: $phase)"
+            if [ "$WAIT_ROLLOUT" = "true" ]; then
+              kubectl -n "$NAMESPACE" rollout status "deployment/$DEPLOYMENT" --timeout="${ROLLOUT_TIMEOUT_SECONDS}s"
+            fi
+            return 0
+          fi
+        fi
+        sleep "$POLL_SECONDS"
+      done
+
+      echo "No schedulable GPU from pool $pool within ${SCHEDULE_TIMEOUT_SECONDS}s"
+      if [ -n "$pod" ]; then
+        kubectl -n "$NAMESPACE" describe pod "$pod" | tail -60 || true
+      fi
+      return 1
+    }
+
+    for pool in $POOLS; do
+      if try_pool "$pool"; then
+        echo "$DEPLOYMENT is running via pool $pool."
+        exit 0
+      fi
+    done
+
+    echo "No fallback GPU pool could schedule $DEPLOYMENT."
+    if [ "$KEEP_PENDING" != "true" ]; then
+      echo "Scaling $DEPLOYMENT back to 0."
+      scale_down_and_wait
+    else
+      echo "Leaving the last $DEPLOYMENT pod pending."
+    fi
+    exit 1
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
@@ -34,7 +134,7 @@ metadata:
   name: vllm-scale-up
   namespace: vllm
 spec:
-  # Weekdays at 06:45 Oslo time so Whisper is warm before office hours.
+  # Weekdays at 06:45 Oslo time so both model pods are warm before office hours.
   schedule: "45 6 * * 1-5"
   timeZone: Europe/Oslo
   concurrencyPolicy: Forbid
@@ -42,17 +142,41 @@ spec:
   failedJobsHistoryLimit: 3
   jobTemplate:
     spec:
+      backoffLimit: 0
+      activeDeadlineSeconds: 2400
       template:
         spec:
           serviceAccountName: vllm-scaler
-          restartPolicy: OnFailure
+          restartPolicy: Never
           containers:
             - name: kubectl
               image: bitnami/kubectl:latest
+              env:
+                - name: WAIT_ROLLOUT
+                  value: "false"
+                - name: SCHEDULE_TIMEOUT_SECONDS
+                  value: "300"
+                - name: KEEP_PENDING
+                  value: "true"
               command:
                 - /bin/sh
                 - -c
-                - kubectl -n vllm scale deployment/vllm-whisper --replicas=1
+                - |
+                  status=0
+                  /scripts/start-gpu-deployment-with-fallback.sh vllm-whisper || status=$?
+                  /scripts/start-gpu-deployment-with-fallback.sh vllm-borealis || status=$?
+                  if [ "$status" != "0" ]; then
+                    echo "No GPU capacity was available yet; leaving model pods pending so autoscaling can keep trying."
+                  fi
+                  exit 0
+              volumeMounts:
+                - name: fallback-script
+                  mountPath: /scripts
+          volumes:
+            - name: fallback-script
+              configMap:
+                name: vllm-gpu-fallback
+                defaultMode: 0755
 ---
 apiVersion: batch/v1
 kind: CronJob

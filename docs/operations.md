@@ -59,23 +59,20 @@ python3 scripts/stress-test-model-api.py
 
 ## Start and Stop Models
 
-Whisper is warmed automatically on weekdays at 06:45 Europe/Oslo and scaled down
-at 17:00. Start or stop it manually:
+Whisper and Borealis are warmed automatically on weekdays at 06:45 Europe/Oslo
+with explicit GPU zone fallback and scaled down at 17:00.
+
+Start Whisper manually:
 
 ```bash
-kubectl -n vllm scale deployment/vllm-whisper --replicas=1
+./scripts/start-gpu-deployment-with-fallback.sh vllm-whisper
 kubectl -n vllm scale deployment/vllm-whisper --replicas=0
 ```
 
-Borealis is manual. Start it with explicit per-zone GPU fallback:
+Borealis:
 
 ```bash
-./scripts/start-borealis-with-gpu-fallback.sh
-```
-
-Stop Borealis:
-
-```bash
+./scripts/start-gpu-deployment-with-fallback.sh vllm-borealis
 kubectl -n vllm scale deployment/vllm-borealis --replicas=0
 ```
 
@@ -101,18 +98,28 @@ Typical capacity messages:
 - `Pod didn't trigger scale-up`
 - `node(s) didn't match Pod's node affinity/selector`
 
-For Borealis, retry the fallback script. It tries the per-zone pools
-`gpu-l4-a`, `gpu-l4-b`, and `gpu-l4-c`:
+Retry the fallback script. It tries the per-zone pools `gpu-l4-a`, `gpu-l4-b`,
+and `gpu-l4-c`:
 
 ```bash
-./scripts/start-borealis-with-gpu-fallback.sh
+KEEP_PENDING=true ./scripts/start-gpu-deployment-with-fallback.sh vllm-whisper
+KEEP_PENDING=true ./scripts/start-gpu-deployment-with-fallback.sh vllm-borealis
 ```
 
-If no zone has L4 capacity, leave the deployment scaled to 0 to avoid waiting
-pods and retry later:
+If no zone has L4 capacity, the deployment can be left pending so GKE keeps the
+GPU request visible to the cluster autoscaler. Scale down manually when you no
+longer want to wait for capacity:
 
 ```bash
-kubectl -n vllm scale deployment/vllm-borealis --replicas=0
+kubectl -n vllm scale deployment/vllm-whisper deployment/vllm-borealis --replicas=0
+```
+
+For manual escalation, Terraform defines zero-min A100 pools in the zones where
+`nvidia-tesla-a100` is available. They are not used by the working-hours CronJob.
+Only run this when L4 has stayed pending and the higher A100 cost is acceptable:
+
+```bash
+./scripts/start-gpu-deployment-on-a100.sh --yes vllm-borealis
 ```
 
 ## Image and Model Caching

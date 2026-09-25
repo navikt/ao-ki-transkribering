@@ -81,14 +81,14 @@ GPU nodes autoscale to 0 when no GPU pods are scheduled. The vLLM deployments
 start with `replicas: 0`; `k8s/working-hours-scaler.yaml` installs Kubernetes
 CronJobs that scale Whisper up and both deployments down on weekdays:
 
-- `06:45 Europe/Oslo`: `vllm-whisper=1`
+- `06:45 Europe/Oslo`: `vllm-whisper=1`, `vllm-borealis=1`
 - `17:00 Europe/Oslo`: `vllm-whisper=0`, `vllm-borealis=0`
 
 Manual start/stop:
 
 ```bash
-kubectl -n vllm scale deployment/vllm-whisper --replicas=1
-./scripts/start-borealis-with-gpu-fallback.sh
+./scripts/start-gpu-deployment-with-fallback.sh vllm-whisper
+./scripts/start-gpu-deployment-with-fallback.sh vllm-borealis
 kubectl -n vllm scale deployment/vllm-whisper deployment/vllm-borealis --replicas=0
 ```
 
@@ -98,14 +98,21 @@ stored in the GCS model bucket; new nodes still need to fetch or stream those
 remote artifacts because their local container cache disappears with the node.
 GPU node pools enable GKE Image Streaming (`gcfs_config`) to reduce container
 image pull latency for Artifact Registry images. The weekday 06:45 warm-up is
-kept so Whisper is normally ready before office hours.
+kept so Whisper and Borealis are normally ready before office hours.
 
-Borealis is kept manual until its startup time and memory profile are verified.
 The default regional `gpu-l4` pool is still used for normal GPU workloads.
 Additional zero-min fallback pools (`gpu-l4-a`, `gpu-l4-b`, `gpu-l4-c`) allow
-the Borealis starter script to try one zone at a time when L4 capacity is scarce.
-They do not create GPU nodes unless Borealis is explicitly started through the
-fallback script.
+the starter script and CronJob to try one zone at a time when L4 capacity is
+scarce. They do not create GPU nodes unless a model deployment is explicitly
+started through the fallback logic.
+
+Manual A100 escalation is available through zero-min pools (`gpu-a100-a`,
+`gpu-a100-b`). They are intentionally not used by the CronJob. Use them only
+when L4 capacity stays unavailable and the higher cost is acceptable:
+
+```bash
+./scripts/start-gpu-deployment-on-a100.sh --yes vllm-borealis
+```
 
 Estimated cost with autoscaling: **~$150–200/month** for a pilot
 (GPU nodes active ~40 h/week, system pool always on).

@@ -143,7 +143,7 @@ resource "google_container_node_pool" "gpu" {
 
 # ── Per-zone GPU fallback pools ───────────────────────────────────────────────
 # The regional pool above lets GKE choose a zone automatically. These zero-min
-# pools are only used by scripts/start-borealis-with-gpu-fallback.sh when we want
+# pools are only used by scripts/start-gpu-deployment-with-fallback.sh when we want
 # deterministic retries across zones after a capacity failure.
 resource "google_container_node_pool" "gpu_l4_fallback" {
   for_each = toset(var.node_locations)
@@ -179,6 +179,70 @@ resource "google_container_node_pool" "gpu_l4_fallback" {
 
     guest_accelerator {
       type  = "nvidia-l4"
+      count = 1
+
+      gpu_driver_installation_config {
+        gpu_driver_version = "LATEST"
+      }
+    }
+
+    taint {
+      key    = "nvidia.com/gpu"
+      value  = "present"
+      effect = "NO_SCHEDULE"
+    }
+
+    workload_metadata_config {
+      mode = "GKE_METADATA"
+    }
+
+    service_account = google_service_account.vllm_node.email
+    oauth_scopes    = ["https://www.googleapis.com/auth/cloud-platform"]
+  }
+
+  management {
+    auto_repair  = true
+    auto_upgrade = true
+  }
+}
+
+# ── Manual higher-tier GPU fallback pools ────────────────────────────────────
+# A100 is significantly more expensive than L4 and is only used when an operator
+# explicitly starts a model with scripts/start-gpu-deployment-on-a100.sh.
+resource "google_container_node_pool" "gpu_a100_manual" {
+  for_each = toset(var.a100_node_locations)
+
+  name           = "gpu-a100-${replace(each.value, "${var.region}-", "")}"
+  project        = var.project_id
+  cluster        = google_container_cluster.gpu.name
+  location       = var.region
+  node_locations = [each.value]
+
+  initial_node_count = 0
+
+  autoscaling {
+    total_min_node_count = 0
+    total_max_node_count = 1
+    location_policy      = "ANY"
+  }
+
+  node_config {
+    machine_type = "a2-highgpu-1g"
+    disk_size_gb = 200
+    disk_type    = "pd-ssd"
+    image_type   = "COS_CONTAINERD"
+
+    gcfs_config {
+      enabled = true
+    }
+
+    labels = {
+      "ao-ki-gpu-purpose" = "manual-a100-escalation"
+      "ao-ki-gpu-zone"    = each.value
+    }
+
+    guest_accelerator {
+      type  = "nvidia-tesla-a100"
       count = 1
 
       gpu_driver_installation_config {

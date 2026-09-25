@@ -1,36 +1,49 @@
 #!/usr/bin/env bash
-# Start Borealis by trying explicit per-zone GPU node pools in order.
+# Start a GPU deployment by trying explicit per-zone GPU node pools in order.
 #
-# Requires the Terraform fallback pools:
-#   gpu-l4-a, gpu-l4-b, gpu-l4-c
+# Examples:
+#   ./scripts/start-gpu-deployment-with-fallback.sh vllm-whisper
+#   ./scripts/start-gpu-deployment-with-fallback.sh vllm-borealis
 set -euo pipefail
 
 NAMESPACE="${NAMESPACE:-vllm}"
-DEPLOYMENT="${DEPLOYMENT:-vllm-borealis}"
-APP_LABEL="${APP_LABEL:-vllm-borealis}"
+DEPLOYMENT="${1:-${DEPLOYMENT:-}}"
+APP_LABEL="${APP_LABEL:-$DEPLOYMENT}"
 POOLS="${POOLS:-gpu-l4-a gpu-l4-b gpu-l4-c}"
 SCHEDULE_TIMEOUT_SECONDS="${SCHEDULE_TIMEOUT_SECONDS:-300}"
 ROLLOUT_TIMEOUT_SECONDS="${ROLLOUT_TIMEOUT_SECONDS:-900}"
 POLL_SECONDS="${POLL_SECONDS:-10}"
-KEEP_PENDING=false
+WAIT_ROLLOUT="${WAIT_ROLLOUT:-true}"
+KEEP_PENDING="${KEEP_PENDING:-false}"
 
 usage() {
   cat <<EOF
-Usage: $0 [--keep-pending]
+Usage: $0 <deployment> [--keep-pending]
+
+Examples:
+  $0 vllm-whisper
+  $0 vllm-borealis
 
 Options:
   --keep-pending  Leave the last attempted pod pending if no pool has capacity.
 
 Environment:
   NAMESPACE                 Default: vllm
-  DEPLOYMENT                Default: vllm-borealis
-  APP_LABEL                 Default: vllm-borealis
+  APP_LABEL                 Default: <deployment>
   POOLS                     Default: "gpu-l4-a gpu-l4-b gpu-l4-c"
   SCHEDULE_TIMEOUT_SECONDS  Default: 300
   ROLLOUT_TIMEOUT_SECONDS   Default: 900
+  POLL_SECONDS              Default: 10
+  WAIT_ROLLOUT              Default: true
 EOF
 }
 
+if [[ -z "$DEPLOYMENT" ]]; then
+  usage >&2
+  exit 2
+fi
+
+shift || true
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --keep-pending)
@@ -79,7 +92,7 @@ scale_down_and_wait() {
 try_pool() {
   local pool="$1"
   echo ""
-  echo "▶ Trying GPU pool: $pool"
+  echo "▶ Trying $DEPLOYMENT on GPU pool: $pool"
 
   scale_down_and_wait
 
@@ -99,8 +112,10 @@ try_pool() {
       phase=$(pod_phase "$pod")
       if [[ -n "$node" ]]; then
         echo "✓ Pod $pod scheduled on $node (phase: $phase)"
-        echo "▶ Waiting for Borealis rollout..."
-        kubectl -n "$NAMESPACE" rollout status "deployment/$DEPLOYMENT" --timeout="${ROLLOUT_TIMEOUT_SECONDS}s"
+        if [[ "$WAIT_ROLLOUT" == "true" ]]; then
+          echo "▶ Waiting for $DEPLOYMENT rollout..."
+          kubectl -n "$NAMESPACE" rollout status "deployment/$DEPLOYMENT" --timeout="${ROLLOUT_TIMEOUT_SECONDS}s"
+        fi
         return 0
       fi
     fi
@@ -117,17 +132,17 @@ try_pool() {
 for pool in $POOLS; do
   if try_pool "$pool"; then
     echo ""
-    echo "Borealis is running via pool $pool."
+    echo "$DEPLOYMENT is running via pool $pool."
     exit 0
   fi
 done
 
 echo ""
-echo "No fallback GPU pool could schedule Borealis."
+echo "No fallback GPU pool could schedule $DEPLOYMENT."
 if ! $KEEP_PENDING; then
   echo "Scaling $DEPLOYMENT back to 0. Re-run with --keep-pending to leave the last request open."
   scale_down_and_wait
 else
-  echo "Leaving the last Borealis pod pending."
+  echo "Leaving the last $DEPLOYMENT pod pending."
 fi
 exit 1

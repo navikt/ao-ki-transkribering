@@ -34,6 +34,12 @@ variable "gpu_max_nodes" {
   default     = 2
 }
 
+variable "a100_node_locations" {
+  description = "Zones with A100 fallback pools for manual, higher-cost escalation"
+  type        = list(string)
+  default     = ["europe-west4-a", "europe-west4-b"]
+}
+
 variable "litellm_image" {
   description = "Container image for LiteLLM (must be from docker.pkg.dev, gcr.io, or docker.io mirrorable)"
   type        = string
