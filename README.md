@@ -208,6 +208,7 @@ python -m uvicorn frontend.app:app --host 127.0.0.1 --port 8765
 | `START_LOKAL_WORKER` | `true` | Starter lokal transkripsjonsarbeider sammen med API-et |
 | `TRANSKRIPSJON_BACKEND` | `local` | `local` eller `remote` modellbackend for batch-transkripsjon |
 | `TRANSKRIPSJON_SERVICE_URL` | `http://127.0.0.1:9000` | URL til ekstern modellarbeider ved `TRANSKRIPSJON_BACKEND=remote` |
+| `TRANSKRIPSJON_MODELL` | `nb-whisper-large` ved remote | Modellnavn sendt til OpenAI-kompatibel transkripsjons-API |
 
 ### Container
 

@@ -70,6 +70,8 @@ spec:
       value: "https://litellm-ohuqkjyjvq-ez.a.run.app"
     - name: TRANSKRIPSJON_API_PATH
       value: "/v1/audio/transcriptions"
+    - name: TRANSKRIPSJON_MODELL
+      value: "nb-whisper-large"
     - name: LLM_MODELL
       value: "borealis-12b"
     - name: WHISPER_MODELL

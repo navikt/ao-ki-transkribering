@@ -6,7 +6,7 @@ import httpx
 import numpy as np
 
 from shared.contracts.transcription import TranskripsjonSvar
-from shared.core.settings import MODELL_ID, TRANSKRIPSJON_API_KEY, TRANSKRIPSJON_API_PATH, TRANSKRIPSJON_SERVICE_URL
+from shared.core.settings import TRANSKRIPSJON_API_KEY, TRANSKRIPSJON_API_PATH, TRANSKRIPSJON_MODELL, TRANSKRIPSJON_SERVICE_URL
 
 _OPENAI_AUDIO_PATH = "/v1/audio/transcriptions"
 
@@ -85,7 +85,7 @@ async def _call_transkripsjon_service(
     if _is_openai_audio_path(TRANSKRIPSJON_API_PATH):
         files = {"file": (filename, content, "audio/wav")}
         data = {
-            "model": MODELL_ID,
+            "model": TRANSKRIPSJON_MODELL,
             "response_format": "verbose_json",
             "language": "no",
         }

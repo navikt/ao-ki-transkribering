@@ -170,6 +170,18 @@ h1 {
   background: none;
   color: var(--color-red-600);
 }
+.kapabilitet-varsel {
+  border-left: 3px solid var(--color-orange-400);
+  color: var(--color-gray-700);
+  font-size: var(--font-sm);
+  line-height: 1.55;
+  margin-bottom: 1rem;
+  padding: .65rem .9rem;
+}
+.kapabilitet-varsel--feil {
+  border-left-color: var(--color-red-600);
+  color: var(--color-red-600);
+}
 
 /* ── Feil-boks (dynamisk via JS) ────────────────────────────── */
 .feil-boks {

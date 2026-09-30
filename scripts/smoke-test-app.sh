@@ -56,6 +56,10 @@ step "System configuration"
 request "/system/info" "/system/info"
 assert_json "/system/info" "data.get('asr', {}).get('backend') in {'local', 'remote'} and data.get('llm', {}).get('modell')"
 
+step "System status"
+request "/system/status" "/system/status"
+assert_json "/system/status" "data.get('api', {}).get('status') == 'ok' and data.get('transcription', {}).get('status') and data.get('llm', {}).get('status')"
+
 step "Referat scenarios"
 request "/llm/referat-scenarier" "/llm/referat-scenarier"
 assert_json "/llm/referat-scenarier" "len(data.get('scenarier', [])) >= 3 and any(s.get('id') == 'veiledermote' for s in data.get('scenarier', []))"

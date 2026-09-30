@@ -129,9 +129,6 @@ async def hent_status() -> LlmStatus:
             if isinstance(model_id, str) and model_id:
                 modeller.append(LlmModell(id=model_id))
 
-        if LLM_MODELL and all(modell.id != LLM_MODELL for modell in modeller):
-            modeller.insert(0, LlmModell(id=LLM_MODELL))
-
         return LlmStatus(
             tilgjengelig=True,
             standard_modell=LLM_MODELL,

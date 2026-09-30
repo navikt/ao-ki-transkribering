@@ -2,11 +2,24 @@
 const samtykkeHake = document.getElementById("samtykke-hake");
 let _aktivTranskripsjonskilde = null;
 let _referatScenarier = [];
+let _lydInngangBekreftet = false;
+let _transkripsjonTilgjengelig = true;
 
 function settLydInngangAktivert(aktivert) {
+  _lydInngangBekreftet = aktivert;
+  const kanBrukeLyd = aktivert && _transkripsjonTilgjengelig;
   ["fil-input", "knapp-start", "sanntid-start-knapp"].forEach(id => {
     const el = document.getElementById(id);
-    if (el) el.disabled = !aktivert;
+    if (el) el.disabled = !kanBrukeLyd;
+  });
+}
+
+function _settTranskripsjonTilgjengelig(tilgjengelig, melding) {
+  _transkripsjonTilgjengelig = tilgjengelig;
+  settLydInngangAktivert(_lydInngangBekreftet);
+  ["fil-input", "knapp-start", "sanntid-start-knapp"].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.title = tilgjengelig ? "" : (melding || "Transkripsjon er ikke tilgjengelig nå");
   });
 }
 
@@ -614,6 +627,7 @@ function _settLlmHandlingerTilgjengelig(tilgjengelig, melding) {
   document.querySelectorAll(
     "button[onclick^='hentReferat'], button[onclick='hentSammendrag()'], button[onclick='oppdaterLiveReferatNaa()']"
   ).forEach(knapp => {
+    knapp.disabled = !tilgjengelig;
     knapp.title = tilgjengelig ? "" : (melding || "AI-modellen er ikke tilgjengelig nå");
     knapp.classList.toggle("knapp-utilgjengelig", !tilgjengelig);
   });
@@ -1182,75 +1196,100 @@ function _statusChip(label, tekst, status) {
   return `<span class="status-chip status-chip--${status}"><b>${label}</b> ${tekst}</span>`;
 }
 
-function _modelStatus(modeller, modelId) {
-  return modeller.some(m => m.id === modelId) ? "klar" : "venter";
+function _statusKlasse(status) {
+  if (status === "ok") return "ok";
+  if (status === "starting" || status === "degraded") return "venter";
+  if (status === "missing_model" || status === "unauthorized" || status === "unavailable") return "feil";
+  return "ukjent";
 }
 
-async function lastSystemstatus(llmData = null, llmError = null) {
-  const el = document.getElementById("systeminfo-footer");
-  if (!el) return;
-  let apiStatus = "ukjent";
-  let apiTekst = "sjekker";
-  let info = null;
+function _statusTekst(status) {
+  return {
+    ok: "klar",
+    starting: "starter",
+    degraded: "begrenset",
+    missing_model: "modell mangler",
+    unauthorized: "auth-feil",
+    unavailable: "nede",
+    unknown: "ukjent",
+  }[status] || "ukjent";
+}
 
-  try {
-    const [readyRes, infoRes] = await Promise.all([
-      fetch("/isReady"),
-      fetch("/system/info"),
-    ]);
-    apiStatus = readyRes.ok ? "ok" : "venter";
-    apiTekst = readyRes.ok ? "klar" : "starter";
-    info = await infoRes.json();
-  } catch {
-    apiStatus = "feil";
-    apiTekst = "nede";
+function _oppdaterKapabilitetVarsel(status) {
+  const el = document.getElementById("kapabilitet-varsel");
+  if (!el) return;
+
+  const meldinger = [];
+  if (status.transcription?.status && !["ok", "starting"].includes(status.transcription.status)) {
+    meldinger.push(status.transcription.message || "Transkripsjon er ikke tilgjengelig nå.");
+  }
+  if (status.llm?.status && status.llm.status !== "ok") {
+    meldinger.push(status.llm.message || "Referat og sammendrag er ikke tilgjengelig nå.");
+  }
+  if (status.diarization?.status === "degraded") {
+    meldinger.push(status.diarization.message || "Talerskille kan være begrenset.");
   }
 
-  const modeller = llmData?.modeller || [];
-  const llmModell = info?.llm?.modell || llmData?.standard_modell || "borealis-12b";
-  const llmBackend = info?.llm?.backend ? ` · ${info.llm.backend}` : "";
-  const whisperStatus = llmError ? "feil" : _modelStatus(modeller, "nb-whisper-large");
-  const llmStatus = llmError ? "feil" : _modelStatus(modeller, llmModell);
-  const backend = info?.asr?.backend ? ` · ${info.asr.backend}` : "";
-
-  el.innerHTML = [
-    _statusChip("API", apiTekst, apiStatus),
-    _statusChip("Whisper", whisperStatus, whisperStatus === "klar" ? "ok" : whisperStatus),
-    _statusChip("LLM", `${llmStatus}${llmBackend}`, llmStatus === "klar" ? "ok" : llmStatus),
-    `<span class="sif-par"><b>Backend</b> ${backend.replace(" · ", "") || "ukjent"}</span>`,
-  ].join("");
-}
-
-async function lastTekniskInfoLegacy() {
-  const el = document.getElementById("systeminfo-footer");
-  if (!el) return;
-  try {
-    const d = await fetch("/system/info").then(r => r.json());
-    const par = (label, val) => `<span class="sif-par"><b>${label}</b> ${val}</span>`;
-    el.innerHTML = [
-      par("ASR sanntid", kortNavn(d.asr.sanntid_modell)),
-      par("ASR batch", kortNavn(d.asr.batch_modell)),
-      par("Backend", d.asr.backend),
-      par("Taler-ID", "ECAPA-TDNN"),
-      par("Vindu", d.diarisering.vindu_s + "s"),
-      par("Stillhet", d.vad.stillhet_s + "s"),
-      par("LLM", d.llm.modell),
-    ].join(" · ");
-  } catch {
-    /* silent – footer is optional */
+  if (!meldinger.length) {
+    el.style.display = "none";
+    el.textContent = "";
+    return;
   }
+
+  el.textContent = meldinger.join(" ");
+  el.classList.toggle(
+    "kapabilitet-varsel--feil",
+    status.transcription?.status === "unavailable"
+      || status.llm?.status === "unavailable"
+      || status.llm?.status === "unauthorized"
+  );
+  el.style.display = "block";
 }
 
-async function lastLlmStatus() {
+async function lastSystemstatus() {
+  const el = document.getElementById("systeminfo-footer");
   try {
-    const res = await fetch("/llm/status");
+    const res = await fetch("/system/status");
     if (!res.ok) throw new Error("HTTP " + res.status);
-    const data = await res.json();
-    _settLlmHandlingerTilgjengelig(true);
-    await lastSystemstatus(data);
+    const status = await res.json();
+
+    _settTranskripsjonTilgjengelig(
+      ["ok", "starting"].includes(status.transcription?.status),
+      status.transcription?.message,
+    );
+    _settLlmHandlingerTilgjengelig(status.llm?.status === "ok", status.llm?.message);
+    _oppdaterKapabilitetVarsel(status);
+
+    if (el) {
+      el.innerHTML = [
+        _statusChip("API", _statusTekst(status.api?.status), _statusKlasse(status.api?.status)),
+        _statusChip(
+          "Transkripsjon",
+          `${_statusTekst(status.transcription?.status)} · ${status.transcription?.backend || "ukjent"}`,
+          _statusKlasse(status.transcription?.status),
+        ),
+        _statusChip(
+          "LLM",
+          `${_statusTekst(status.llm?.status)} · ${status.llm?.backend || "ukjent"}`,
+          _statusKlasse(status.llm?.status),
+        ),
+        _statusChip("Talerskille", _statusTekst(status.diarization?.status), _statusKlasse(status.diarization?.status)),
+      ].join("");
+    }
   } catch {
-    _settLlmHandlingerTilgjengelig(false, "AI-proxyen er ikke tilgjengelig nå");
-    await lastSystemstatus(null, true);
+    _settTranskripsjonTilgjengelig(false, "App-status kunne ikke sjekkes");
+    _settLlmHandlingerTilgjengelig(false, "App-status kunne ikke sjekkes");
+    _oppdaterKapabilitetVarsel({
+      transcription: { status: "unavailable", message: "App-status kunne ikke sjekkes." },
+      llm: { status: "unavailable", message: "Referatstatus kunne ikke sjekkes." },
+    });
+    if (el) {
+      el.innerHTML = [
+        _statusChip("API", "ukjent", "ukjent"),
+        _statusChip("Transkripsjon", "ukjent", "ukjent"),
+        _statusChip("LLM", "ukjent", "ukjent"),
+      ].join("");
+    }
   }
 }
 
@@ -1259,5 +1298,5 @@ function kortNavn(sti) {
 }
 
 lastReferatScenarier();
-lastLlmStatus();
-setInterval(lastLlmStatus, 30000);
+lastSystemstatus();
+setInterval(lastSystemstatus, 30000);

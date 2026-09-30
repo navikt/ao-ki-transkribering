@@ -17,6 +17,8 @@ OLLAMA_URL = os.getenv("OLLAMA_URL", "http://localhost:11434")
 TRANSKRIPSJON_SERVICE_URL = os.getenv("TRANSKRIPSJON_SERVICE_URL", AI_PROXY_URL)
 TRANSKRIPSJON_API_KEY = os.getenv("TRANSKRIPSJON_API_KEY", AI_PROXY_API_KEY)
 TRANSKRIPSJON_API_PATH = os.getenv("TRANSKRIPSJON_API_PATH", "/transkriber")
+_standard_transkripsjon_modell = "nb-whisper-large" if TRANSKRIPSJON_BACKEND == "remote" else MODELL_ID
+TRANSKRIPSJON_MODELL = os.getenv("TRANSKRIPSJON_MODELL", _standard_transkripsjon_modell)
 _start_lokal_worker_default = "true" if TRANSKRIPSJON_BACKEND == "local" else "false"
 START_LOKAL_WORKER = os.getenv("START_LOKAL_WORKER", _start_lokal_worker_default).lower() in {
     "1",

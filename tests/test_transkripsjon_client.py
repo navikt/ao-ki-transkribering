@@ -51,7 +51,7 @@ def test_pcm_to_wav_bytes_creates_nonempty_payload():
 @pytest.mark.asyncio
 async def test_openai_audio_path_uses_file_multipart_field(monkeypatch):
     monkeypatch.setattr(transkripsjon_client, "TRANSKRIPSJON_API_PATH", "/v1/audio/transcriptions")
-    monkeypatch.setattr(transkripsjon_client, "MODELL_ID", "nb-whisper-large")
+    monkeypatch.setattr(transkripsjon_client, "TRANSKRIPSJON_MODELL", "nb-whisper-large")
 
     mock_resp = MagicMock()
     mock_resp.raise_for_status = MagicMock()
