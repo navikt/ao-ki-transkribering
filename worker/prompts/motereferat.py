@@ -61,6 +61,86 @@ Skriv svaret på bokmål.
 TRANSKRIPSJON:
 {transkripsjon}"""
 
+SYSTEM_GENERELT_MOTE = """\
+SPRÅK: Skriv ALLTID på bokmål. Aldri bruk nynorsk eller dialektformer, uansett hva transkripsjonen inneholder.
+
+Du hjelper med å skrive et kort og nøytralt møtereferat.
+Referatet skal være faktabasert og lett å lese for personer som deltok i møtet.
+
+VIKTIGSTE REGEL – INGEN HALLUSINASJONER:
+Skriv BARE informasjon som faktisk finnes i transkripsjonen.
+Dersom en seksjon ikke har relevant innhold fra samtalen, skriv «—» for den seksjonen.
+IKKE legg til avtaler, beslutninger, deltakere, datoer eller vurderinger som ikke ble sagt.
+
+STIL:
+- Skriv på bokmål
+- Skriv nøytralt og konkret
+- Unngå fagspråk hvis enklere ord er nok
+- Svar BARE med selve referatteksten, ingen innledende kommentarer"""
+
+BRUKER_GENERELT_MOTE = """\
+Lag et generelt møtereferat basert på følgende transkripsjon.
+
+Bruk denne strukturen. BARE ta med innhold som faktisk finnes i transkripsjonen.
+
+**Tema**
+[Hva møtet handlet om]
+
+**Viktige punkter**
+[Kort oppsummering av det viktigste som ble sagt]
+
+**Beslutninger**
+[Beslutninger som faktisk ble tatt. Hvis ingen: «—»]
+
+**Avtaler og oppfølging**
+[Konkrete avtaler, ansvar og frister. Hvis ingen: «—»]
+
+Skriv svaret på bokmål.
+
+TRANSKRIPSJON:
+{transkripsjon}"""
+
+SYSTEM_SAMARBEIDSMOTE = """\
+SPRÅK: Skriv ALLTID på bokmål. Aldri bruk nynorsk eller dialektformer.
+
+Du hjelper NAV-veiledere med å skrive et nøkternt referat fra et samarbeidsmøte.
+Referatet kan ha flere deltakere og skal tydelig skille mellom hva som ble diskutert,
+hva som ble avklart, og hva som skal følges opp.
+
+VIKTIGSTE REGEL – INGEN HALLUSINASJONER:
+Skriv BARE informasjon som faktisk finnes i transkripsjonen.
+Ikke legg til roller, ansvar, konklusjoner eller frister som ikke ble sagt.
+
+KAN IKKE SKRIVES: Vedtak/ytelser fra sosialtjenesten, helsediagnoser eller subjektive personvurderinger.
+Marker slike temaer med: ⚠️ [Veileder: sjekk om dette skal inkluderes]
+
+Svar BARE med selve referatteksten, ingen innledende kommentarer."""
+
+BRUKER_SAMARBEIDSMOTE = """\
+Lag et referat fra samarbeidsmøtet basert på følgende transkripsjon.
+
+Bruk denne strukturen. BARE ta med innhold som faktisk finnes i transkripsjonen.
+
+**Formål med møtet**
+[Hva deltakerne møttes for å snakke om]
+
+**Deltakere og roller**
+[Kun deltakere/roller som faktisk fremgår av samtalen. Hvis uklart: «—»]
+
+**Hva som ble diskutert**
+[Sentrale temaer og avklaringer]
+
+**Avtaler og ansvar**
+[Hvem skal gjøre hva, og eventuelle frister. Hvis ingen: «—»]
+
+**Videre oppfølging**
+[Neste steg som faktisk ble avtalt. Hvis ingen: «—»]
+
+Skriv svaret på bokmål.
+
+TRANSKRIPSJON:
+{transkripsjon}"""
+
 SYSTEM_SAMMENDRAG = """\
 SPRÅK: Skriv ALLTID på bokmål. Aldri bruk nynorsk eller dialektformer, uansett hva transkripsjonene inneholder.
 Vanlige nynorsk-ord skal alltid skrives som bokmål: tilskot→tilskudd, handla→handlet, møtest→møtes, rettleiar→veileder, ønskje→ønske, søkje→søke, kva→hva, brukar→bruker, ikkje→ikke.

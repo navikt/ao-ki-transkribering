@@ -16,7 +16,9 @@ from shared.services.llm_proxy_client import (
 from worker.prompts import (
     beregn_llm_estimat as beregn_llm_estimat_base,
     hent_handling,
+    hent_referat_scenario,
     list_handlinger,
+    list_referat_scenarier,
     normaliser_til_bokmal,
 )
 from worker.prompts.handlinger import LlmHandling
@@ -45,6 +47,14 @@ def _bygg_prompt(handling: LlmHandling, transkripsjon: str) -> str:
     return handling.bygg_bruker_prompt(tekst)
 
 
+def _bygg_referat_prompt(foresporsel: LlmForesporsel) -> tuple[str, str, str]:
+    scenario = hent_referat_scenario(foresporsel.scenario)
+    if scenario is None:
+        raise HTTPException(status_code=400, detail=f"Ukjent referat-scenario: {foresporsel.scenario}")
+    tekst = normaliser_til_bokmal(foresporsel.transkripsjon)
+    return scenario.system_prompt, scenario.bygg_bruker_prompt(tekst), scenario.id
+
+
 def _er_modell_utilgjengelig(exc: httpx.HTTPStatusError) -> bool:
     status = exc.response.status_code
     if status in {404, 429, 503}:
@@ -70,19 +80,29 @@ async def _kjor_handling(handling_id: str, foresporsel: LlmForesporsel):
     if not foresporsel.transkripsjon.strip():
         raise HTTPException(status_code=400, detail="Transkripsjon mangler")
     handling = _hent_eller_404(handling_id)
+    scenario_id = None
     try:
-        bruker_prompt = _bygg_prompt(handling, foresporsel.transkripsjon)
-        tekst = await kall_llm(handling.system_prompt, bruker_prompt, foresporsel.modell)
+        if handling.id == "referat":
+            system_prompt, bruker_prompt, scenario_id = _bygg_referat_prompt(foresporsel)
+        else:
+            system_prompt = handling.system_prompt
+            bruker_prompt = _bygg_prompt(handling, foresporsel.transkripsjon)
+        tekst = await kall_llm(system_prompt, bruker_prompt, foresporsel.modell)
         if handling.normaliser_output:
             tekst = normaliser_til_bokmal(tekst)
     except httpx.ConnectError:
         raise HTTPException(status_code=503, detail="Kan ikke nå AI-proxyen")
     except httpx.HTTPStatusError as e:
         raise _http_error_for_llm(e)
+    except HTTPException:
+        raise
     except Exception as exc:
         log.exception("Feil ved generering av LLM-handling %s", handling.id)
         raise HTTPException(status_code=500, detail=f"Feil ved generering av {handling.tittel}") from exc
-    return {"tekst": tekst, "modell": foresporsel.modell or LLM_MODELL, "handling": handling.id}
+    svar = {"tekst": tekst, "modell": foresporsel.modell or LLM_MODELL, "handling": handling.id}
+    if scenario_id:
+        svar["scenario"] = scenario_id
+    return svar
 
 
 def _stream_handling(handling_id: str, foresporsel: LlmForesporsel):
@@ -90,9 +110,14 @@ def _stream_handling(handling_id: str, foresporsel: LlmForesporsel):
         raise HTTPException(status_code=400, detail="Transkripsjon mangler")
 
     handling = _hent_eller_404(handling_id)
+    scenario_id = None
     estimat = beregn_llm_estimat(foresporsel.modell, foresporsel.transkripsjon)
     valgt_modell = foresporsel.modell or LLM_MODELL
-    bruker_prompt = _bygg_prompt(handling, foresporsel.transkripsjon)
+    if handling.id == "referat":
+        system_prompt, bruker_prompt, scenario_id = _bygg_referat_prompt(foresporsel)
+    else:
+        system_prompt = handling.system_prompt
+        bruker_prompt = _bygg_prompt(handling, foresporsel.transkripsjon)
 
     async def generator():
         yield sse({
@@ -100,14 +125,21 @@ def _stream_handling(handling_id: str, foresporsel: LlmForesporsel):
             "estimert_sek": estimat,
             "modell": valgt_modell,
             "handling": handling.id,
+            "scenario": scenario_id,
         })
         try:
             async for token, ferdig, full_tekst in stream_llm_tokens(
-                handling.system_prompt, bruker_prompt, foresporsel.modell
+                system_prompt, bruker_prompt, foresporsel.modell
             ):
                 if ferdig:
                     tekst = normaliser_til_bokmal(full_tekst) if handling.normaliser_output else full_tekst
-                    yield sse({"type": "ferdig", "tekst": tekst, "modell": valgt_modell, "handling": handling.id})
+                    yield sse({
+                        "type": "ferdig",
+                        "tekst": tekst,
+                        "modell": valgt_modell,
+                        "handling": handling.id,
+                        "scenario": scenario_id,
+                    })
                 elif token:
                     yield sse({"type": "token", "tekst": token})
         except httpx.ConnectError:
@@ -129,6 +161,12 @@ def _stream_handling(handling_id: str, foresporsel: LlmForesporsel):
 async def hent_llm_handlinger():
     """Lister faste LLM-handlinger som kan kjøres fra frontend/API."""
     return {"handlinger": list_handlinger()}
+
+
+@router.get("/llm/referat-scenarier")
+async def hent_referat_scenarier():
+    """Lister faste referat-scenarier som velger serverdefinerte prompts."""
+    return {"scenarier": list_referat_scenarier()}
 
 
 @router.get("/llm/status", response_model=LlmStatus)

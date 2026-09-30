@@ -15,6 +15,7 @@ from worker.transkribering.konstanter import (
 )
 from worker.transkribering.hallusinasjon import er_hallusinasjon, trim_null_ord_fw
 from worker.transkribering.diarisering import diariser, tilordne_taler
+from worker.transkribering.nav_ordliste import normaliser_nav_ord
 
 _CT2_MODELL_STI = os.getenv("WHISPER_SANNTID_MODELL", "modeller/nb-whisper-medium")
 
@@ -98,6 +99,7 @@ def transkriber_pcm(
             if er_hallusinasjon(t):
                 continue
 
+            t = normaliser_nav_ord(t)
             tekst_deler.append(t)
             segmenter_liste.append(
                 {"start": round(seg.start, 1), "slutt": round(seg.end, 1), "tekst": t}

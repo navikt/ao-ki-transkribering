@@ -18,7 +18,7 @@
     <div class="app-header-skille"></div>
     <div class="app-header-tekst">
       <h1>Møtetranskribering</h1>
-      <p class="ingress">Verktøy for transkribering av §14 a-møter &mdash; kjører lokalt, ingen data forlater maskinen.</p>
+      <p class="ingress">Last opp lyd, gjennomgå transkripsjonen og lag et utkast til møtereferat.</p>
     </div>
   </div>
 </header>
@@ -27,7 +27,7 @@
   <div class="app-main-venstre">
 
   <!-- ===== JURIDISK INFORMASJON ===== -->
-  <div id="seksjon-samtykke" class="seksjon aktiv">
+  <div id="seksjon-samtykke" class="seksjon">
     <div class="info-boks">
       <strong>Behandlingsgrunnlag og begrensninger</strong>
       <ul>
@@ -39,7 +39,7 @@
       </ul>
     </div>
     <label class="checkbox-label">
-      <input type="checkbox" class="checkbox-input" id="samtykke-hake" />
+      <input type="checkbox" class="checkbox-input" id="samtykke-hake-gammel" />
       Jeg har lest og forstått begrensningene ovenfor, og bekrefter at møtet gjennomføres med hjemmel i nav-loven §14 a.
     </label>
     <button class="knapp knapp-primær" id="samtykke-knapp" onclick="bekreftSamtykke()" disabled>
@@ -48,42 +48,62 @@
   </div>
 
   <!-- ===== OPPTAK / OPPLASTING ===== -->
-  <div id="seksjon-opptak" class="seksjon">
+  <div id="seksjon-opptak" class="seksjon aktiv">
+    <ol class="arbeidsflyt" aria-label="Arbeidsflyt">
+      <li class="arbeidsflyt-steg aktiv" role="button" tabindex="0" onclick="gaaTilArbeidsflytSteg(1)">1. Lyd</li>
+      <li class="arbeidsflyt-steg" role="button" tabindex="0" onclick="gaaTilArbeidsflytSteg(2)">2. Transkripsjon</li>
+      <li class="arbeidsflyt-steg" role="button" tabindex="0" onclick="gaaTilArbeidsflytSteg(3)">3. Referat</li>
+    </ol>
+
+    <div class="juridisk-kort">
+      <label class="checkbox-label juridisk-kontroll">
+        <input type="checkbox" class="checkbox-input" id="samtykke-hake" />
+        <span>
+          Jeg bekrefter at møtet behandles etter nav-loven §14 a, og at tekst om kommunale tjenester (§15) fjernes før videre bruk.
+        </span>
+      </label>
+    </div>
+
     <!-- Faner -->
     <div class="faner">
-      <button class="fane" id="fane-batch" onclick="byttFane('batch')">Batch-opptak</button>
-      <button class="fane aktiv" id="fane-sanntid" onclick="byttFane('sanntid')">Sanntid</button>
+      <button class="fane aktiv" id="fane-batch" onclick="byttFane('batch')">Lydfil</button>
+      <button class="fane" id="fane-sanntid" onclick="byttFane('sanntid')">Sanntid</button>
     </div>
 
     <!-- Batch-panel -->
-    <div id="panel-batch" style="display:none">
-      <h2 class="seksjon-tittel">Ta opp møte</h2>
-      <div class="opptaks-rad">
-        <button class="knapp knapp-fare" id="knapp-start" onclick="startOpptak()">
-          ● Start opptak
-        </button>
-        <button class="knapp knapp-sekundær" id="knapp-stopp" onclick="stoppOpptak()" disabled>
-          ■ Stopp og transkriber
-        </button>
-        <span class="timer" id="timer" style="display:none">
-          <span class="puls"></span><span id="timer-tekst">0:00</span>
-        </span>
-      </div>
-      <hr />
-      <h2 class="seksjon-tittel">… eller last opp lydfil</h2>
+    <div id="panel-batch">
+      <h2 class="seksjon-tittel">Velg lydfil</h2>
       <div class="opplast-rad">
         <input type="file" id="fil-input" accept="audio/*,video/webm"
                class="form-filinngang" onchange="lastOppFil()" />
-        <label class="form-label">
-          Antall talere:
-          <select id="n-talere-velger" class="form-select">
-            <option value="0">Auto-detekter</option>
-            <option value="2" selected>2 (typisk Nav-møte)</option>
-            <option value="3">3</option>
-            <option value="4">4</option>
-          </select>
-        </label>
       </div>
+
+      <details class="avansert">
+        <summary>Avanserte valg</summary>
+        <div class="avansert-innhold">
+          <label class="form-label">
+            Antall talere
+            <select id="n-talere-velger" class="form-select">
+              <option value="0" selected>Auto-detekter</option>
+              <option value="2">2 (typisk Nav-møte)</option>
+              <option value="3">3</option>
+              <option value="4">4</option>
+            </select>
+          </label>
+          <div class="opptaks-rad opptaks-rad-kompakt">
+            <button class="knapp knapp-sekundær" id="knapp-start" onclick="startOpptak()">
+              Start opptak
+            </button>
+            <button class="knapp knapp-sekundær" id="knapp-stopp" onclick="stoppOpptak()" disabled>
+              Stopp og transkriber
+            </button>
+            <span class="timer" id="timer" style="display:none">
+              <span class="puls"></span><span id="timer-tekst">0:00</span>
+            </span>
+          </div>
+        </div>
+      </details>
+
       <div class="fremdrift" id="fremdrift">
         <p class="fremdrift-tekst" id="fremdrift-tekst">Transkriberer …</p>
         <div class="fremdrift-meta">
@@ -98,7 +118,7 @@
     </div>
 
     <!-- Sanntid-panel -->
-    <div id="panel-sanntid">
+    <div id="panel-sanntid" style="display:none">
       <div class="info-boks info-boks--advarsel">
         Sanntidsmodus transkriberer fortløpende i segmenter (2–5 sek forsinkelse).
         §15-advarselen gjelder fortsatt – gjennomgå teksten etter møtet.
@@ -180,8 +200,11 @@
 
   <div class="app-main-hoyre">
   <!-- ===== RESULTAT ===== -->
-  <div id="seksjon-resultat" class="seksjon">
+  <div id="seksjon-resultat" class="seksjon aktiv resultat-tom">
     <h2 class="seksjon-tittel">Transkripsjon</h2>
+    <div class="tomtilstand" id="resultat-tomtilstand">
+      Velg en lydfil til venstre. Transkripsjonen vises her når den er klar.
+    </div>
     <div class="info-boks info-boks--advarsel" id="paragraf15-advarsel">
       <strong>Gjennomgå før bruk:</strong> Transkripsjonen kan inneholde informasjon om kommunale tjenester (jf. nav-loven §15) som <strong>ikke kan lagres i NAV-statlige systemer</strong>. Fjern slik informasjon før eventuell videre bruk.
     </div>
@@ -208,6 +231,14 @@
 
     <div class="knapper-rad">
       <button class="knapp knapp-primær" onclick="kopierDialog()">Kopier transkripsjon</button>
+      <label class="scenario-velger">
+        <span>Referatmal</span>
+        <select id="referat-scenario">
+          <option value="veiledermote" selected>Veiledermøte</option>
+          <option value="generelt_mote">Generelt møte</option>
+          <option value="samarbeidsmote">Samarbeidsmøte</option>
+        </select>
+      </label>
       <button class="knapp knapp-sekundær" onclick="hentReferat('batch')">Skriv møtereferat</button>
       <button class="knapp knapp-sekundær" onclick="nyttOpptak()">Nytt opptak</button>
     </div>
@@ -248,7 +279,11 @@
 
 <!-- Teknisk info – footer -->
 <footer class="app-footer">
-  <div id="systeminfo-footer" class="systeminfo-footer" style="display:none"></div>
+  <div id="systeminfo-footer" class="systeminfo-footer" aria-live="polite">
+    <span class="status-chip status-chip--ukjent"><b>API</b> sjekker</span>
+    <span class="status-chip status-chip--ukjent"><b>Whisper</b> sjekker</span>
+    <span class="status-chip status-chip--ukjent"><b>Borealis</b> sjekker</span>
+  </div>
 </footer>
 
 <script src="/static/app.js"></script>

@@ -8,7 +8,16 @@ from worker.prompts.motereferat import (
 )
 from worker.prompts.normalisering import normaliser_til_bokmal
 from worker.prompts.estimat import beregn_llm_estimat
-from worker.prompts.handlinger import LLM_HANDLINGER, LlmHandling, hent_handling, list_handlinger
+from worker.prompts.handlinger import (
+    LLM_HANDLINGER,
+    REFERAT_SCENARIER,
+    LlmHandling,
+    ReferatScenario,
+    hent_handling,
+    hent_referat_scenario,
+    list_handlinger,
+    list_referat_scenarier,
+)
 
 __all__ = [
     "SYSTEM_REFERAT",
@@ -20,7 +29,11 @@ __all__ = [
     "normaliser_til_bokmal",
     "beregn_llm_estimat",
     "LLM_HANDLINGER",
+    "REFERAT_SCENARIER",
     "LlmHandling",
+    "ReferatScenario",
     "hent_handling",
+    "hent_referat_scenario",
     "list_handlinger",
+    "list_referat_scenarier",
 ]

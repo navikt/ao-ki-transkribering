@@ -163,10 +163,33 @@ Modellen er ~23 GB. Nedlasting tar tid avhengig av internettforbindelsen.
 
 ```bash
 source .venv/bin/activate   # hvis ikke allerede aktivert
-python -m uvicorn apps.api.app:app --host 127.0.0.1 --port 8765
+python -m uvicorn frontend.app:app --host 127.0.0.1 --port 8765
 ```
 
 Åpne nettleser på [http://127.0.0.1:8765](http://127.0.0.1:8765).
+
+### Velg LLM ved oppstart
+
+Som standard bruker API-et en OpenAI-kompatibel modellproxy for referat og sammendrag:
+
+```bash
+LLM_BACKEND=openai \
+AI_PROXY_URL=https://... \
+AI_PROXY_API_KEY=... \
+LLM_MODELL=borealis-12b \
+python -m uvicorn frontend.app:app --host 127.0.0.1 --port 8765
+```
+
+For lokal LLM kan samme API startes mot Ollama:
+
+```bash
+LLM_BACKEND=ollama \
+OLLAMA_URL=http://localhost:11434 \
+LLM_MODELL=qwen3:8b \
+python -m uvicorn frontend.app:app --host 127.0.0.1 --port 8765
+```
+
+`LLM_MODELL` er foretrukket modellvariabel. `OLLAMA_MODELL` støttes fortsatt som bakoverkompatibelt alias i Ollama-modus.
 
 ### Valgfrie miljøvariabler
 
@@ -174,8 +197,12 @@ python -m uvicorn apps.api.app:app --host 127.0.0.1 --port 8765
 |----------|------------------------------|-------------|
 | `WHISPER_MODELL` | `NbAiLab/nb-whisper-medium`  | Modell for batch-transkripsjon |
 | `WHISPER_SANNTID_MODELL` | `modeller/nb-whisper-medium` | Modell for sanntidsmodus |
+| `LLM_BACKEND` | `openai` | `openai` for OpenAI-kompatibel proxy, eller `ollama` for lokal Ollama |
+| `LLM_MODELL` | `borealis-12b` (`qwen3:8b` ved `LLM_BACKEND=ollama`) | LLM for møtereferat og sammendrag |
+| `AI_PROXY_URL` | `http://127.0.0.1:9000` | OpenAI-kompatibelt LLM-endepunkt ved `LLM_BACKEND=openai` |
+| `AI_PROXY_API_KEY` | tom | API-nøkkel for OpenAI-kompatibelt LLM-endepunkt |
 | `OLLAMA_URL` | `http://localhost:11434`     | Ollama-endepunkt |
-| `OLLAMA_MODELL` | `qwen3:8b`                   | LLM for møtereferat |
+| `OLLAMA_MODELL` | `qwen3:8b`                   | Eldre alias for `LLM_MODELL` i Ollama-modus |
 | `OLLAMA_NUM_CTX` | `32768`                      | Kontekstvindauge for LLM (tokens) |
 | `ARBEIDSMAPPE` | midlertidig mappe | Mappe for lyd- og jobbstatusfiler |
 | `START_LOKAL_WORKER` | `true` | Starter lokal transkripsjonsarbeider sammen med API-et |
@@ -246,7 +273,7 @@ Løsningen eies av [ao-ki-taskforce](https://github.com/orgs/navikt/teams/ao-ki-
 
 ```bash
 # Kjør med auto-reload under utvikling
-python -m uvicorn apps.api.app:app --host 127.0.0.1 --port 8765 --reload
+python -m uvicorn frontend.app:app --host 127.0.0.1 --port 8765 --reload
 ```
 
 Kodestruktur:
@@ -306,13 +333,13 @@ Som standard starter API-et fortsatt en lokal transkripsjonsarbeider i egen pros
 Dette holder lokal utvikling enkel:
 
 ```bash
-python -m uvicorn apps.api.app:app --host 127.0.0.1 --port 8765 --reload
+python -m uvicorn frontend.app:app --host 127.0.0.1 --port 8765 --reload
 ```
 
 For å kjøre API og transkripsjonsarbeider som separate prosesser:
 
 ```bash
-START_LOKAL_WORKER=false python -m uvicorn apps.api.app:app --host 127.0.0.1 --port 8765
+START_LOKAL_WORKER=false python -m uvicorn frontend.app:app --host 127.0.0.1 --port 8765
 python -m worker_transkripsjon
 ```
 
@@ -323,7 +350,7 @@ Alternativt kan API-et bruke en HTTP-basert modellarbeider uten delt filsystem:
 ```bash
 python -m uvicorn apps.model_worker.app:app --host 127.0.0.1 --port 9000
 TRANSKRIPSJON_BACKEND=remote TRANSKRIPSJON_SERVICE_URL=http://127.0.0.1:9000 \
-  python -m uvicorn apps.api.app:app --host 127.0.0.1 --port 8765
+  python -m uvicorn frontend.app:app --host 127.0.0.1 --port 8765
 ```
 
 I denne modusen laster API-et opp lydfilen til modellarbeideren over HTTP og lagrer

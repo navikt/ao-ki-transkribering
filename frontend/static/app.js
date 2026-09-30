@@ -1,11 +1,83 @@
-// ---- Samtykke ----
-document.getElementById("samtykke-hake").addEventListener("change", function () {
-  document.getElementById("samtykke-knapp").disabled = !this.checked;
-});
+// ---- Juridisk bekreftelse ----
+const samtykkeHake = document.getElementById("samtykke-hake");
+let _aktivTranskripsjonskilde = null;
+let _referatScenarier = [];
+
+function settLydInngangAktivert(aktivert) {
+  ["fil-input", "knapp-start", "sanntid-start-knapp"].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.disabled = !aktivert;
+  });
+}
+
+if (samtykkeHake) {
+  settLydInngangAktivert(samtykkeHake.checked);
+  samtykkeHake.addEventListener("change", function () {
+    settLydInngangAktivert(this.checked);
+    const gammelKnapp = document.getElementById("samtykke-knapp");
+    if (gammelKnapp) gammelKnapp.disabled = !this.checked;
+  });
+}
 
 function bekreftSamtykke() {
   visSeksjon("opptak");
 }
+
+function settArbeidsflytSteg(steg) {
+  document.querySelectorAll(".arbeidsflyt-steg").forEach((el, index) => {
+    const nummer = index + 1;
+    el.classList.toggle("aktiv", nummer === steg);
+    el.classList.toggle("ferdig", nummer < steg);
+  });
+}
+
+function _harBatchTranskripsjon() {
+  return !!document.querySelector("#dialog-container .dialog-linje")
+    || !!document.getElementById("resultat-tekst")?.textContent?.trim();
+}
+
+function _harSanntidTranskripsjon() {
+  return !!document.querySelector("#sanntid-tekst .dialog-linje");
+}
+
+function _harTranskripsjon() {
+  return _harBatchTranskripsjon() || _harSanntidTranskripsjon();
+}
+
+function gaaTilArbeidsflytSteg(steg) {
+  if (steg === 1) {
+    settArbeidsflytSteg(1);
+    document.getElementById("seksjon-opptak")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    return;
+  }
+  if (steg === 2) {
+    if (!_harTranskripsjon()) {
+      alert("Transkripsjonen vises her når lydfilen er ferdig behandlet.");
+      return;
+    }
+    settArbeidsflytSteg(2);
+    const mål = _harBatchTranskripsjon() ? "seksjon-resultat" : "modul-transkripsjon";
+    document.getElementById(mål)?.scrollIntoView({ behavior: "smooth", block: "start" });
+    return;
+  }
+  if (steg === 3) {
+    const kilde = _aktivTranskripsjonskilde || (_harBatchTranskripsjon() ? "batch" : "sanntid");
+    if (!_harTranskripsjon()) {
+      alert("Du må ha en transkripsjon før du kan lage referat.");
+      return;
+    }
+    hentReferat(kilde);
+  }
+}
+
+document.querySelectorAll(".arbeidsflyt-steg").forEach(el => {
+  el.addEventListener("keydown", e => {
+    if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      el.click();
+    }
+  });
+});
 
 // ---- Seksjonsnavigasjon ----
 function visSeksjon(navn) {
@@ -69,6 +141,7 @@ async function sendTilServer(blob, filnavn) {
   document.getElementById("feil-boks").style.display = "none";
   const fremdrift = document.getElementById("fremdrift");
   fremdrift.classList.add("synlig");
+  settArbeidsflytSteg(2);
   settFremdriftTekst("Laster opp …");
 
   const skjema = new FormData();
@@ -252,6 +325,11 @@ function _byggTalerRad(unike, radElId, radId) {
 
 function visResultat(data) {
   _sistResultat = data;
+  _aktivTranskripsjonskilde = "batch";
+  settArbeidsflytSteg(2);
+  const resultatSeksjon = document.getElementById("seksjon-resultat");
+  resultatSeksjon.classList.add("aktiv");
+  resultatSeksjon.classList.remove("resultat-tom");
 
   const advarsel = document.getElementById("resultat-advarsel");
   if (data.advarsler?.length) {
@@ -297,8 +375,6 @@ function visResultat(data) {
 
   // Oppdater rå tekst (for kopiering)
   document.getElementById("resultat-tekst").textContent = data.tekst;
-
-  visSeksjon("resultat");
 }
 
 function visResultatMeta(data) {
@@ -420,7 +496,18 @@ function toggleSegmenter() {
 
 function nyttOpptak() {
   document.getElementById("fil-input").value = "";
+  _aktivTranskripsjonskilde = null;
+  settArbeidsflytSteg(1);
+  const resultatSeksjon = document.getElementById("seksjon-resultat");
+  resultatSeksjon.classList.add("aktiv", "resultat-tom");
+  document.getElementById("dialog-container").innerHTML = "";
+  document.getElementById("taler-navn-rad").innerHTML = "";
+  document.getElementById("resultat-meta").innerHTML = "";
+  document.getElementById("resultat-tekst").textContent = "";
+  document.querySelector("#segment-tabell tbody").innerHTML = "";
+  document.getElementById("referat-panel").style.display = "none";
   visSeksjon("opptak");
+  resultatSeksjon.classList.add("aktiv");
 }
 
 function settFremdriftTekst(tekst) {
@@ -527,10 +614,34 @@ function _settLlmHandlingerTilgjengelig(tilgjengelig, melding) {
   document.querySelectorAll(
     "button[onclick^='hentReferat'], button[onclick='hentSammendrag()'], button[onclick='oppdaterLiveReferatNaa()']"
   ).forEach(knapp => {
-    knapp.disabled = !tilgjengelig;
     knapp.title = tilgjengelig ? "" : (melding || "AI-modellen er ikke tilgjengelig nå");
+    knapp.classList.toggle("knapp-utilgjengelig", !tilgjengelig);
   });
   if (!tilgjengelig) _settLiveReferatStatus("AI utilgjengelig", false);
+}
+
+async function lastReferatScenarier() {
+  const velger = document.getElementById("referat-scenario");
+  if (!velger) return;
+  try {
+    const res = await fetch("/llm/referat-scenarier");
+    if (!res.ok) throw new Error("HTTP " + res.status);
+    const data = await res.json();
+    _referatScenarier = data.scenarier || [];
+    if (!_referatScenarier.length) return;
+    const valgt = velger.value;
+    velger.innerHTML = "";
+    for (const scenario of _referatScenarier) {
+      const option = document.createElement("option");
+      option.value = scenario.id;
+      option.textContent = scenario.tittel;
+      option.title = scenario.beskrivelse || "";
+      option.selected = scenario.id === valgt || (!valgt && scenario.standard);
+      velger.appendChild(option);
+    }
+  } catch {
+    /* Bruk statiske fallback-valg i HTML. */
+  }
 }
 
 async function _triggerLiveReferat(transkripsjon) {
@@ -681,6 +792,8 @@ async function startSanntid() {
       return;
     }
     if (data.type === "segment" && data.tekst) {
+      _aktivTranskripsjonskilde = "sanntid";
+      settArbeidsflytSteg(2);
       // Legg til segmenter fra dette chunk-et i dialogvisningen
       const boks = document.getElementById("sanntid-tekst");
       for (const seg of (data.segmenter || [{ tekst: data.tekst, taler: "SPEAKER_00" }])) {
@@ -795,6 +908,7 @@ function stoppSanntid() {
   document.getElementById("sanntid-timer").style.display  = "none";
   const opptakHake = document.getElementById("sanntid-lagre-opptak");
   if (opptakHake) opptakHake.disabled = false;
+  if (_harSanntidTranskripsjon()) settArbeidsflytSteg(2);
   settSanntidStatus("Avslutter …");
 }
 
@@ -847,6 +961,8 @@ function kopierSanntidTekst() {
 }
 
 function nullstillSanntid() {
+  _aktivTranskripsjonskilde = null;
+  settArbeidsflytSteg(1);
   document.getElementById("sanntid-tekst").innerHTML = "";
   document.getElementById("sanntid-taler-rad").innerHTML = "";
   // Skjul referat-panelet hvis det vises fra sanntid
@@ -889,6 +1005,7 @@ function _hentTranskripsjonTekst(kilde) {
 
 function _visReferatPanel(tittel) {
   const panel = document.getElementById("referat-panel");
+  settArbeidsflytSteg(3);
   panel.style.display = "block";
   document.getElementById("referat-panel-tittel").textContent = tittel;
   document.getElementById("referat-laster").style.display = "flex";
@@ -971,11 +1088,19 @@ function _visLlmUtilgjengelig(melding) {
   boks.style.display = "block";
 }
 
-async function _streamReferat(endepunkt, tekst, tittel) {
+function _valgtReferatScenario() {
+  return document.getElementById("referat-scenario")?.value || "veiledermote";
+}
+
+function _referatScenarioTittel(scenarioId) {
+  return _referatScenarier.find(scenario => scenario.id === scenarioId)?.tittel || "Møtereferat";
+}
+
+async function _streamReferat(endepunkt, tekst, tittel, ekstra = {}) {
   const res = await fetch(endepunkt, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ transkripsjon: tekst }),
+    body: JSON.stringify({ transkripsjon: tekst, ...ekstra }),
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({ detail: res.statusText }));
@@ -1035,10 +1160,12 @@ async function hentSammendrag() {
 async function hentReferat(kilde) {
   const tekst = _hentTranskripsjonTekst(kilde);
   if (!tekst.trim()) { alert("Ingen transkripsjon å generere referat fra."); return; }
-  _visReferatPanel("📝 Møtereferat");
+  const scenario = _valgtReferatScenario();
+  const tittel = "📝 " + _referatScenarioTittel(scenario);
+  _visReferatPanel(tittel);
   document.getElementById("referat-panel").scrollIntoView({ behavior: "smooth", block: "start" });
   try {
-    await _streamReferat("/referat/stream", tekst, "📝 Møtereferat");
+    await _streamReferat("/referat/stream", tekst, tittel, { scenario });
   } catch (err) {
     _visReferatFeil("Nettverksfeil: " + err.message);
   }
@@ -1051,13 +1178,55 @@ function kopierReferat() {
 }
 
 // ── Systemstatus (lastes ved sideoppstart) ───────────────────────────────────
-async function lastSystemstatus() {
+function _statusChip(label, tekst, status) {
+  return `<span class="status-chip status-chip--${status}"><b>${label}</b> ${tekst}</span>`;
+}
+
+function _modelStatus(modeller, modelId) {
+  return modeller.some(m => m.id === modelId) ? "klar" : "venter";
+}
+
+async function lastSystemstatus(llmData = null, llmError = null) {
+  const el = document.getElementById("systeminfo-footer");
+  if (!el) return;
+  let apiStatus = "ukjent";
+  let apiTekst = "sjekker";
+  let info = null;
+
+  try {
+    const [readyRes, infoRes] = await Promise.all([
+      fetch("/isReady"),
+      fetch("/system/info"),
+    ]);
+    apiStatus = readyRes.ok ? "ok" : "venter";
+    apiTekst = readyRes.ok ? "klar" : "starter";
+    info = await infoRes.json();
+  } catch {
+    apiStatus = "feil";
+    apiTekst = "nede";
+  }
+
+  const modeller = llmData?.modeller || [];
+  const llmModell = info?.llm?.modell || llmData?.standard_modell || "borealis-12b";
+  const llmBackend = info?.llm?.backend ? ` · ${info.llm.backend}` : "";
+  const whisperStatus = llmError ? "feil" : _modelStatus(modeller, "nb-whisper-large");
+  const llmStatus = llmError ? "feil" : _modelStatus(modeller, llmModell);
+  const backend = info?.asr?.backend ? ` · ${info.asr.backend}` : "";
+
+  el.innerHTML = [
+    _statusChip("API", apiTekst, apiStatus),
+    _statusChip("Whisper", whisperStatus, whisperStatus === "klar" ? "ok" : whisperStatus),
+    _statusChip("LLM", `${llmStatus}${llmBackend}`, llmStatus === "klar" ? "ok" : llmStatus),
+    `<span class="sif-par"><b>Backend</b> ${backend.replace(" · ", "") || "ukjent"}</span>`,
+  ].join("");
+}
+
+async function lastTekniskInfoLegacy() {
   const el = document.getElementById("systeminfo-footer");
   if (!el) return;
   try {
     const d = await fetch("/system/info").then(r => r.json());
-    const par = (label, val) =>
-      `<span class="sif-par"><b>${label}</b> ${val}</span>`;
+    const par = (label, val) => `<span class="sif-par"><b>${label}</b> ${val}</span>`;
     el.innerHTML = [
       par("ASR sanntid", kortNavn(d.asr.sanntid_modell)),
       par("ASR batch", kortNavn(d.asr.batch_modell)),
@@ -1067,7 +1236,6 @@ async function lastSystemstatus() {
       par("Stillhet", d.vad.stillhet_s + "s"),
       par("LLM", d.llm.modell),
     ].join(" · ");
-    el.style.display = "flex";
   } catch {
     /* silent – footer is optional */
   }
@@ -1077,10 +1245,12 @@ async function lastLlmStatus() {
   try {
     const res = await fetch("/llm/status");
     if (!res.ok) throw new Error("HTTP " + res.status);
-    await res.json();
+    const data = await res.json();
     _settLlmHandlingerTilgjengelig(true);
+    await lastSystemstatus(data);
   } catch {
     _settLlmHandlingerTilgjengelig(false, "AI-proxyen er ikke tilgjengelig nå");
+    await lastSystemstatus(null, true);
   }
 }
 
@@ -1088,5 +1258,6 @@ function kortNavn(sti) {
   return sti.split("/").pop();
 }
 
-lastSystemstatus();
+lastReferatScenarier();
 lastLlmStatus();
+setInterval(lastLlmStatus, 30000);

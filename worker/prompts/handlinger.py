@@ -1,12 +1,16 @@
 from dataclasses import dataclass
 
 from worker.prompts.motereferat import (
+    BRUKER_GENERELT_MOTE,
     BRUKER_REFERAT,
     BRUKER_RULLERENDE,
     BRUKER_SAMMENDRAG,
+    BRUKER_SAMARBEIDSMOTE,
+    SYSTEM_GENERELT_MOTE,
     SYSTEM_REFERAT,
     SYSTEM_RULLERENDE,
     SYSTEM_SAMMENDRAG,
+    SYSTEM_SAMARBEIDSMOTE,
 )
 
 
@@ -22,6 +26,45 @@ class LlmHandling:
 
     def bygg_bruker_prompt(self, transkripsjon: str) -> str:
         return self.bruker_prompt_template.format(transkripsjon=transkripsjon)
+
+
+@dataclass(frozen=True)
+class ReferatScenario:
+    id: str
+    tittel: str
+    beskrivelse: str
+    system_prompt: str
+    bruker_prompt_template: str
+
+    def bygg_bruker_prompt(self, transkripsjon: str) -> str:
+        return self.bruker_prompt_template.format(transkripsjon=transkripsjon)
+
+
+STANDARD_REFERAT_SCENARIO = "veiledermote"
+
+REFERAT_SCENARIER: dict[str, ReferatScenario] = {
+    "veiledermote": ReferatScenario(
+        id="veiledermote",
+        tittel="Veiledermøte",
+        beskrivelse="NAV §14a-referat til Modia med tydelig §15-grense.",
+        system_prompt=SYSTEM_REFERAT,
+        bruker_prompt_template=BRUKER_REFERAT,
+    ),
+    "generelt_mote": ReferatScenario(
+        id="generelt_mote",
+        tittel="Generelt møte",
+        beskrivelse="Nøytralt møtereferat med tema, punkter, beslutninger og oppfølging.",
+        system_prompt=SYSTEM_GENERELT_MOTE,
+        bruker_prompt_template=BRUKER_GENERELT_MOTE,
+    ),
+    "samarbeidsmote": ReferatScenario(
+        id="samarbeidsmote",
+        tittel="Samarbeidsmøte",
+        beskrivelse="Referat for møter med flere deltakere, roller, ansvar og oppfølging.",
+        system_prompt=SYSTEM_SAMARBEIDSMOTE,
+        bruker_prompt_template=BRUKER_SAMARBEIDSMOTE,
+    ),
+}
 
 
 SYSTEM_AVTALER = """\
@@ -122,4 +165,20 @@ def list_handlinger() -> list[dict[str, str]]:
     return [
         {"id": handling.id, "tittel": handling.tittel, "beskrivelse": handling.beskrivelse}
         for handling in LLM_HANDLINGER.values()
+    ]
+
+
+def hent_referat_scenario(scenario_id: str | None) -> ReferatScenario | None:
+    return REFERAT_SCENARIER.get(scenario_id or STANDARD_REFERAT_SCENARIO)
+
+
+def list_referat_scenarier() -> list[dict[str, str | bool]]:
+    return [
+        {
+            "id": scenario.id,
+            "tittel": scenario.tittel,
+            "beskrivelse": scenario.beskrivelse,
+            "standard": scenario.id == STANDARD_REFERAT_SCENARIO,
+        }
+        for scenario in REFERAT_SCENARIER.values()
     ]

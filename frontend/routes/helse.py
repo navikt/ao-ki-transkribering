@@ -1,7 +1,15 @@
 from fastapi import APIRouter, Response
 
 from shared.core.runtime import arbeider_klar, job_store, lokal_arbeider_aktiv
-from shared.core.settings import AI_PROXY_URL, LLM_MODELL, MODELL_ID, TRANSKRIPSJON_BACKEND, TRANSKRIPSJON_SERVICE_URL
+from shared.core.settings import (
+    AI_PROXY_URL,
+    LLM_BACKEND,
+    LLM_MODELL,
+    MODELL_ID,
+    OLLAMA_URL,
+    TRANSKRIPSJON_BACKEND,
+    TRANSKRIPSJON_SERVICE_URL,
+)
 from worker.transkribering.konstanter import STILLHET_TERSKEL_S, MAKS_BUFFER_S, ENERGI_TERSKEL
 from worker.transkribering.diarisering import _ECAPA_KILDE, _VINDU_S, _RATE
 from worker.transkribering.sanntid import _CT2_MODELL_STI
@@ -73,7 +81,8 @@ def system_info():
             "energi_terskel": ENERGI_TERSKEL,
         },
         "llm": {
+            "backend": LLM_BACKEND,
             "modell": LLM_MODELL,
-            "url": AI_PROXY_URL,
+            "url": OLLAMA_URL if LLM_BACKEND == "ollama" else AI_PROXY_URL,
         },
     }

@@ -4,7 +4,7 @@ import os
 import httpx
 from pydantic import BaseModel, Field
 
-from shared.core.settings import AI_PROXY_API_KEY, AI_PROXY_URL, LLM_MODELL
+from shared.core.settings import AI_PROXY_API_KEY, AI_PROXY_URL, LLM_BACKEND, LLM_MODELL, OLLAMA_URL
 from worker.prompts.normalisering import normaliser_til_bokmal
 
 
@@ -27,6 +27,7 @@ _OPTIONS = {
 class LlmForesporsel(BaseModel):
     transkripsjon: str
     modell: str | None = None
+    scenario: str | None = None
 
 
 class LlmModell(BaseModel):
@@ -52,6 +53,10 @@ def _chat_url() -> str:
 
 def _models_url() -> str:
     return AI_PROXY_URL.rstrip("/") + "/v1/models"
+
+
+def _ollama_tags_url() -> str:
+    return OLLAMA_URL.rstrip("/") + "/api/tags"
 
 
 def sse(data: dict) -> str:
@@ -98,6 +103,11 @@ def _extract_text_from_delta(data: dict) -> str:
 
 
 async def kall(system: str, bruker: str, modell: str | None = None) -> str:
+    if LLM_BACKEND == "ollama":
+        from worker.ollama.klient import kall as kall_ollama
+
+        return await kall_ollama(system, bruker, modell or LLM_MODELL)
+
     payload = _build_payload(system, bruker, modell, stream=False)
     async with httpx.AsyncClient(timeout=httpx.Timeout(10.0, read=300.0)) as klient:
         resp = await klient.post(_chat_url(), json=payload, headers=_headers())
@@ -107,6 +117,27 @@ async def kall(system: str, bruker: str, modell: str | None = None) -> str:
 
 
 async def hent_status() -> LlmStatus:
+    if LLM_BACKEND == "ollama":
+        async with httpx.AsyncClient(timeout=httpx.Timeout(5.0, read=15.0)) as klient:
+            resp = await klient.get(_ollama_tags_url())
+            resp.raise_for_status()
+            data = resp.json()
+
+        modeller = []
+        for item in data.get("models", []):
+            model_id = item.get("name") or item.get("model")
+            if isinstance(model_id, str) and model_id:
+                modeller.append(LlmModell(id=model_id))
+
+        if LLM_MODELL and all(modell.id != LLM_MODELL for modell in modeller):
+            modeller.insert(0, LlmModell(id=LLM_MODELL))
+
+        return LlmStatus(
+            tilgjengelig=True,
+            standard_modell=LLM_MODELL,
+            modeller=modeller,
+        )
+
     async with httpx.AsyncClient(timeout=httpx.Timeout(10.0, read=45.0)) as klient:
         resp = await klient.get(_models_url(), headers=_headers())
         resp.raise_for_status()
@@ -127,6 +158,17 @@ async def hent_status() -> LlmStatus:
 
 async def stream_tokens(system: str, bruker: str, modell: str | None = None):
     """Async generator som gir (token, er_ferdig, full_normalisert_tekst)."""
+    if LLM_BACKEND == "ollama":
+        from worker.ollama.klient import stream_tokens as stream_ollama_tokens
+
+        async for token, er_ferdig, full_normalisert_tekst in stream_ollama_tokens(
+            system,
+            bruker,
+            modell or LLM_MODELL,
+        ):
+            yield token, er_ferdig, full_normalisert_tekst
+        return
+
     payload = _build_payload(system, bruker, modell, stream=True)
     svar_deler: list[str] = []
 

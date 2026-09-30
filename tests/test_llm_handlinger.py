@@ -20,6 +20,19 @@ def test_handlinger_har_stabile_ider():
     }
 
 
+def test_referat_scenarier_lister_faste_promptvalg():
+    from worker.prompts.handlinger import list_referat_scenarier
+
+    scenarier = list_referat_scenarier()
+
+    assert [scenario["id"] for scenario in scenarier] == [
+        "veiledermote",
+        "generelt_mote",
+        "samarbeidsmote",
+    ]
+    assert scenarier[0]["standard"] is True
+
+
 def test_handling_bygger_prompt_fra_transkripsjon():
     handling = hent_handling("avtaler")
 
@@ -72,6 +85,36 @@ def test_llm_status_lister_modeller(monkeypatch):
         "standard_modell": "borealis-12b",
         "modeller": [{"id": "borealis-12b"}],
     }
+
+
+def test_referat_bruker_valgt_scenario(monkeypatch):
+    app = FastAPI()
+    app.include_router(router)
+    klient = TestClient(app)
+    kall = AsyncMock(return_value="Referat")
+    monkeypatch.setattr(referat_routes, "kall_llm", kall)
+
+    res = klient.post(
+        "/referat",
+        json={"transkripsjon": "Vi tok en beslutning.", "scenario": "generelt_mote"},
+    )
+
+    assert res.status_code == 200
+    assert res.json()["scenario"] == "generelt_mote"
+    system_prompt, bruker_prompt, _modell = kall.await_args.args
+    assert "generelt møtereferat" in bruker_prompt
+    assert "nøytralt møtereferat" in system_prompt
+
+
+def test_ukjent_referat_scenario_gir_400():
+    app = FastAPI()
+    app.include_router(router)
+    klient = TestClient(app)
+
+    res = klient.post("/referat", json={"transkripsjon": "Hei", "scenario": "ukjent"})
+
+    assert res.status_code == 400
+    assert "Ukjent referat-scenario" in res.json()["detail"]
 
 
 def test_utilgjengelig_llm_modell_gir_503(monkeypatch):
