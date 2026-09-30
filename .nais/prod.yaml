@@ -43,20 +43,27 @@ spec:
       enabled: true
       autoLogin: true
 
-  # accessPolicy.outbound.external:
-  # - host: <litellm-cloud-run-hostname>
+  accessPolicy:
+    outbound:
+      external:
+        - host: litellm-ohuqkjyjvq-ez.a.run.app
 
   env:
     - name: TRANSKRIPSJON_BACKEND
       value: remote
     - name: START_LOKAL_WORKER
       value: "false"
+    - name: LLM_BACKEND
+      value: openai
     - name: AI_PROXY_URL
-      value: "https://TODO-litellm-xxxxxxxx-ew.a.run.app"
+      value: "https://litellm-ohuqkjyjvq-ez.a.run.app"
     - name: AI_PROXY_API_KEY
-      value: "TODO-set-from-nais-secret"
+      valueFrom:
+        secretKeyRef:
+          name: ao-ki-transkribering-secrets
+          key: LITELLM_API_KEY
     - name: TRANSKRIPSJON_SERVICE_URL
-      value: "https://TODO-litellm-xxxxxxxx-ew.a.run.app"
+      value: "https://litellm-ohuqkjyjvq-ez.a.run.app"
     - name: TRANSKRIPSJON_API_PATH
       value: "/v1/audio/transcriptions"
     - name: LLM_MODELL

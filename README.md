@@ -372,6 +372,23 @@ python -m benchmarks.optimalisering
 python -m benchmarks.optimalisering --modeller qwen3:8b qwen3.5:9b
 ```
 
+### Smoke-test uten GPU
+
+Sjekker appens helse, aktiv konfigurasjon og referat-scenarier uten å kjøre transkripsjon
+eller LLM-generering:
+
+```bash
+APP_URL=http://127.0.0.1:8765 ./scripts/smoke-test-app.sh
+```
+
+Mot deployet miljø:
+
+```bash
+APP_URL=https://ao-ki-transkribering.intern.nav.no ./scripts/smoke-test-app.sh
+```
+
+Sett `RUN_LLM_STATUS=true` hvis modellgatewayen også skal sjekkes.
+
 ### Testing
 
 Unit-tester (krever ikke Ollama eller server):
