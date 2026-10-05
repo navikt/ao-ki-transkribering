@@ -48,6 +48,9 @@ spec:
       external:
         - host: litellm-ohuqkjyjvq-ez.a.run.app
 
+  envFrom:
+    - secret: ao-ki-transkribering-secrets
+
   env:
     - name: TRANSKRIPSJON_BACKEND
       value: remote
@@ -57,11 +60,6 @@ spec:
       value: openai
     - name: AI_PROXY_URL
       value: "https://litellm-ohuqkjyjvq-ez.a.run.app"
-    - name: AI_PROXY_API_KEY
-      valueFrom:
-        secretKeyRef:
-          name: ao-ki-transkribering-secrets
-          key: LITELLM_API_KEY
     - name: TRANSKRIPSJON_SERVICE_URL
       value: "https://litellm-ohuqkjyjvq-ez.a.run.app"
     - name: TRANSKRIPSJON_API_PATH
