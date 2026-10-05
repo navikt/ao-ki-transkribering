@@ -79,9 +79,9 @@ gsutil -m cp -r ~/.cache/huggingface/hub/models--NbAiLab--borealis-12b \
 
 GPU nodes autoscale to 0 when no GPU pods are scheduled. The vLLM deployments
 start with `replicas: 0`; `k8s/working-hours-scaler.yaml` installs Kubernetes
-CronJobs that scale Whisper up and both deployments down on weekdays:
+CronJobs that scale both deployments up and down on weekdays:
 
-- `06:45 Europe/Oslo`: `vllm-whisper=1`, `vllm-borealis=1`
+- `04:00 Europe/Oslo`: `vllm-whisper=1`, `vllm-borealis=1`
 - `17:00 Europe/Oslo`: `vllm-whisper=0`, `vllm-borealis=0`
 
 Manual start/stop:
@@ -97,8 +97,9 @@ custom vLLM images are stored in Artifact Registry, and model artifacts are
 stored in the GCS model bucket; new nodes still need to fetch or stream those
 remote artifacts because their local container cache disappears with the node.
 GPU node pools enable GKE Image Streaming (`gcfs_config`) to reduce container
-image pull latency for Artifact Registry images. The weekday 06:45 warm-up is
-kept so Whisper and Borealis are normally ready before office hours.
+image pull latency for Artifact Registry images. The weekday 04:00 start gives
+Whisper and Borealis more time to obtain GPU capacity before office hours;
+availability is not guaranteed.
 
 The default regional `gpu-l4` pool is still used for normal GPU workloads.
 Additional zero-min fallback pools (`gpu-l4-a`, `gpu-l4-b`, `gpu-l4-c`) allow

@@ -134,8 +134,8 @@ metadata:
   name: vllm-scale-up
   namespace: vllm
 spec:
-  # Weekdays at 06:45 Oslo time so both model pods are warm before office hours.
-  schedule: "45 6 * * 1-5"
+  # Weekdays at 04:00 Oslo time to allow more GPU capacity retries before office hours.
+  schedule: "0 4 * * 1-5"
   timeZone: Europe/Oslo
   concurrencyPolicy: Forbid
   successfulJobsHistoryLimit: 1
