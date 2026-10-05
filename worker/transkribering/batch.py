@@ -15,6 +15,10 @@ _MODELL_FAKTOR = {"tiny": 0.08, "base": 0.12, "small": 0.20, "medium": 0.33, "la
 # Multiplikator per hardware relativt til MPS-baseline.
 _ENHET_MULTIPLIKATOR = {"cuda": 0.25, "mps": 1.0, "cpu": 3.5}
 _DIARISER_OVERHEAD_S = 8
+_CHUNK_LENGDE_S = 30
+_STRIDE_LENGDE_S = (5, 2)
+_NUM_BEAMS = 5
+_STILLE_TRIM_MARGIN_S = 1.5
 
 
 def estimert_total_s(modell_id: str, lyd_s: float, enhet: str = "mps") -> float:
@@ -77,13 +81,19 @@ class LokalBatchTranskriberer:
 
             resultat = self._asr(
                 str(wav_sti),
-                chunk_length_s=28,
+                chunk_length_s=_CHUNK_LENGDE_S,
+                stride_length_s=_STRIDE_LENGDE_S,
                 return_timestamps="word",
-                generate_kwargs={"num_beams": 1, "task": "transcribe", "language": "no"},
+                generate_kwargs={
+                    "num_beams": _NUM_BEAMS,
+                    "task": "transcribe",
+                    "language": "no",
+                },
             )
 
-            tekst = resultat["text"].strip()
+            rå_tekst = resultat["text"].strip()
             ord_liste = resultat.get("chunks", [])
+            antall_ord_rå = len(ord_liste)
 
             # Fiks None-tidsstempler
             siste_slutt = next(
@@ -96,9 +106,13 @@ class LokalBatchTranskriberer:
                 c["timestamp"] = (ts0, ts1)
 
             ord_liste = trim_null_ord(ord_liste)
-            ord_liste = trim_etter_stille(ord_liste, pcm)
+            ord_liste = trim_etter_stille(ord_liste, pcm, margin_s=_STILLE_TRIM_MARGIN_S)
+            if len(ord_liste) != antall_ord_rå:
+                print(f"[trim] Beholdt {len(ord_liste)}/{antall_ord_rå} ord etter etterbehandling", flush=True)
             if not ord_liste:
                 tekst = ""
+            else:
+                tekst = "".join(c["text"] for c in ord_liste).strip() or rå_tekst
 
             if status_callback is not None:
                 status_callback({"fase": "diariserer"})
@@ -203,7 +217,7 @@ class LokalBatchTranskriberer:
                         grp_start = c["timestamp"][0]
                     gjeldende_ord_grp.append(c["text"])
                 if gjeldende_ord_grp:
-                    t = fjern_hallusinasjon(" ".join(gjeldende_ord_grp).strip())
+                    t = fjern_hallusinasjon("".join(gjeldende_ord_grp).strip())
                     if t:
                         segmenter.append({
                             "start": round(grp_start, 1),

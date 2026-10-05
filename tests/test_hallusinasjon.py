@@ -101,3 +101,19 @@ def test_trim_etter_stille_fjernar_ord_etter_stille():
     resultat = trim_etter_stille(ord_liste, pcm, sample_rate)
     assert len(resultat) == 1
     assert resultat[0]["text"] == "Hei"
+
+
+def test_trim_etter_stille_kan_bevare_ord_med_storre_margin():
+    sample_rate = 16000
+    tale = np.ones(sample_rate, dtype="float32") * 0.5
+    stille = np.zeros(sample_rate, dtype="float32")
+    pcm = np.concatenate([tale, stille])
+
+    ord_liste = [
+        {"timestamp": (0.2, 0.8), "text": "Hei"},
+        {"timestamp": (1.5, 1.9), "text": "etterheng"},
+    ]
+
+    resultat = trim_etter_stille(ord_liste, pcm, sample_rate, margin_s=1.5)
+
+    assert len(resultat) == 2
