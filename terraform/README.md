@@ -81,7 +81,9 @@ GPU nodes autoscale to 0 when no GPU pods are scheduled. The vLLM deployments
 start with `replicas: 0`; `k8s/working-hours-scaler.yaml` installs Kubernetes
 CronJobs that scale both deployments up and down on weekdays:
 
-- `04:00 Europe/Oslo`: `vllm-whisper=1`, `vllm-borealis=1`
+- `02:00 Europe/Oslo`: `vllm-whisper=1`, `vllm-borealis=1`
+- Hourly through `16:00`: retry the L4 zones for unscheduled models; leave models
+  already assigned to a node alone, including those still loading.
 - `17:00 Europe/Oslo`: `vllm-whisper=0`, `vllm-borealis=0`
 
 Manual start/stop:
@@ -97,9 +99,23 @@ custom vLLM images are stored in Artifact Registry, and model artifacts are
 stored in the GCS model bucket; new nodes still need to fetch or stream those
 remote artifacts because their local container cache disappears with the node.
 GPU node pools enable GKE Image Streaming (`gcfs_config`) to reduce container
-image pull latency for Artifact Registry images. The weekday 04:00 start gives
+image pull latency for Artifact Registry images. The weekday 02:00 start gives
 Whisper and Borealis more time to obtain GPU capacity before office hours;
 availability is not guaranteed.
+
+The scaler logs UTC timestamps, deployment, pool, scheduling outcome, and elapsed
+seconds. Later hourly checks also report readiness for preserved pods. Scheduling
+success means a node was assigned, not that the model API is ready. Timeout logs
+include pod events explaining capacity failures. The last 75 successful scaler
+Jobs (five weekdays) are retained for comparison:
+
+```bash
+kubectl -n vllm get jobs --sort-by=.metadata.creationTimestamp
+kubectl -n vllm logs job/<vllm-scale-up-job-name>
+```
+
+Autoscaler retries between hourly zone rotations remain visible in GKE events
+and cluster autoscaler logs. No provisioning probes run outside the window.
 
 The default regional `gpu-l4` pool is still used for normal GPU workloads.
 Additional zero-min fallback pools (`gpu-l4-a`, `gpu-l4-b`, `gpu-l4-c`) allow
@@ -115,8 +131,9 @@ when L4 capacity stays unavailable and the higher cost is acceptable:
 ./scripts/start-gpu-deployment-on-a100.sh --yes vllm-borealis
 ```
 
-Estimated cost with autoscaling: **~$150–200/month** for a pilot
-(GPU nodes active ~40 h/week, system pool always on).
+The expanded window permits up to 75 GPU-node hours per model each week.
+Actual cost depends on provisioning success, GPU/node type, and scale-down delay;
+the system pool remains active outside this window.
 
 The cluster is regional and may place default GPU nodes in `europe-west4-a`,
 `europe-west4-b`, or `europe-west4-c`. The per-zone fallback pools make the

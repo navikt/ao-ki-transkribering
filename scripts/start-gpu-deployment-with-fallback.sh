@@ -16,6 +16,23 @@ POLL_SECONDS="${POLL_SECONDS:-10}"
 WAIT_ROLLOUT="${WAIT_ROLLOUT:-true}"
 KEEP_PENDING="${KEEP_PENDING:-false}"
 
+log() {
+  printf '%s deployment=%s %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$DEPLOYMENT" "$*"
+}
+
+preserve_scheduled_pod() {
+  local existing_pod existing_node existing_pool ready
+  existing_pod=$(pod_name)
+  [[ -n "$existing_pod" ]] || return 1
+  existing_node=$(pod_node "$existing_pod")
+  [[ -n "$existing_node" ]] || return 1
+  existing_pool=$(kubectl -n "$NAMESPACE" get pod "$existing_pod" \
+    -o jsonpath='{.spec.nodeSelector.cloud\.google\.com/gke-nodepool}')
+  ready=$(kubectl -n "$NAMESPACE" get pod "$existing_pod" \
+    -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}')
+  log "result=preserved pool=$existing_pool pod=$existing_pod node=$existing_node ready=$ready"
+}
+
 usage() {
   cat <<EOF
 Usage: $0 <deployment> [--keep-pending]
@@ -92,7 +109,8 @@ scale_down_and_wait() {
 try_pool() {
   local pool="$1"
   echo ""
-  echo "▶ Trying $DEPLOYMENT on GPU pool: $pool"
+  local attempt_started=$SECONDS
+  log "result=attempt pool=$pool"
 
   scale_down_and_wait
 
@@ -111,7 +129,7 @@ try_pool() {
       local phase
       phase=$(pod_phase "$pod")
       if [[ -n "$node" ]]; then
-        echo "✓ Pod $pod scheduled on $node (phase: $phase)"
+        log "result=scheduled pool=$pool pod=$pod node=$node phase=$phase elapsed_s=$((SECONDS - attempt_started))"
         if [[ "$WAIT_ROLLOUT" == "true" ]]; then
           echo "▶ Waiting for $DEPLOYMENT rollout..."
           kubectl -n "$NAMESPACE" rollout status "deployment/$DEPLOYMENT" --timeout="${ROLLOUT_TIMEOUT_SECONDS}s"
@@ -122,7 +140,7 @@ try_pool() {
     sleep "$POLL_SECONDS"
   done
 
-  echo "✗ No schedulable GPU from pool $pool within ${SCHEDULE_TIMEOUT_SECONDS}s"
+  log "result=timeout pool=$pool elapsed_s=$((SECONDS - attempt_started))"
   if [[ -n "$pod" ]]; then
     kubectl -n "$NAMESPACE" describe pod "$pod" | tail -60 || true
   fi
@@ -130,9 +148,11 @@ try_pool() {
 }
 
 for pool in $POOLS; do
+  if preserve_scheduled_pod; then
+    exit 0
+  fi
   if try_pool "$pool"; then
     echo ""
-    echo "$DEPLOYMENT is running via pool $pool."
     exit 0
   fi
 done
@@ -143,6 +163,6 @@ if ! $KEEP_PENDING; then
   echo "Scaling $DEPLOYMENT back to 0. Re-run with --keep-pending to leave the last request open."
   scale_down_and_wait
 else
-  echo "Leaving the last $DEPLOYMENT pod pending."
+  log "result=pending pool=$pool"
 fi
 exit 1
