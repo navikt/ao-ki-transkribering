@@ -85,10 +85,14 @@ def trim_etter_stille(
         return ord_liste
 
     VINDU_N = int(0.05 * sample_rate)
+    vinduer = [pcm[i:i + VINDU_N] for i in range(0, len(pcm), VINDU_N)]
+    energier = [float(np.sqrt(np.mean(vindu ** 2))) for vindu in vinduer]
+    # A fixed threshold can mistake a quiet speaker's entire turn for silence.
+    energi_terskel = max(min(energi_terskel, max(energier) * 0.05), 1e-6)
     siste_tale = 0.0
-    for i in range(0, len(pcm) - VINDU_N, VINDU_N):
-        if np.sqrt(np.mean(pcm[i:i + VINDU_N] ** 2)) >= energi_terskel:
-            siste_tale = (i + VINDU_N) / sample_rate
+    for i, energi in enumerate(energier):
+        if energi >= energi_terskel:
+            siste_tale = min((i + 1) * VINDU_N, len(pcm)) / sample_rate
 
     tale_grense = siste_tale + margin_s
     print(f"[trim] Siste tale: {siste_tale:.1f}s  grense: {tale_grense:.1f}s  "

@@ -117,3 +117,29 @@ def test_trim_etter_stille_kan_bevare_ord_med_storre_margin():
     resultat = trim_etter_stille(ord_liste, pcm, sample_rate, margin_s=1.5)
 
     assert len(resultat) == 2
+
+
+def test_trim_etter_stille_bevarer_stille_taler_etter_hoyere_taler():
+    pcm = np.concatenate([
+        np.full(16000, 0.02, dtype="float32"),
+        np.full(32000, 0.002, dtype="float32"),
+        np.zeros(16000, dtype="float32"),
+    ])
+    words = [
+        {"timestamp": (0.2, 0.8), "text": "Hei"},
+        {"timestamp": (2.5, 2.9), "text": "lav tale"},
+        {"timestamp": (3.6, 3.9), "text": "hallusinasjon"},
+    ]
+    assert trim_etter_stille(words, pcm) == words[:2]
+
+
+def test_trim_etter_stille_behandler_siste_delvise_vindu():
+    pcm = np.concatenate([np.zeros(16000, dtype="float32"), np.full(100, 0.005, dtype="float32")])
+    words = [{"timestamp": (1.0, 1.006), "text": "slutt"}]
+    assert trim_etter_stille(words, pcm) == words
+
+
+def test_trim_etter_stille_fjerner_sen_tekst_fra_helt_stille_lyd():
+    pcm = np.zeros(32000, dtype="float32")
+    words = [{"timestamp": (1.0, 1.5), "text": "hallusinasjon"}]
+    assert trim_etter_stille(words, pcm) == []
