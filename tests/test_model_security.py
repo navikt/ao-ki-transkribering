@@ -122,13 +122,15 @@ def test_tls_renderer_keeps_credentials_out_of_manifests():
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     for name in ("whisper", "borealis"):
-        deployment, service = module.render(ROOT / f"k8s/vllm-{name}.yaml", "10.164.15.200", secure=True, gateway_cidr="10.250.0.0/26")
+        deployment, service = module.render(ROOT / f"k8s/vllm-{name}.yaml", "10.164.15.200", secure=True, gateway_cidr="10.120.0.0/26", node_pool="gpu-l4-b")
         pod = deployment["spec"]["template"]["spec"]
+        assert deployment["spec"]["strategy"] == {"type": "Recreate", "rollingUpdate": None}
+        assert pod["nodeSelector"] == {"cloud.google.com/gke-nodepool": "gpu-l4-b"}
         container = pod["containers"][0]
         assert "--ssl-certfile" in container["args"]
         assert "--middleware" in container["args"]
         assert container["startupProbe"]["httpGet"]["scheme"] == "HTTPS"
-        assert service["spec"]["loadBalancerSourceRanges"] == ["10.250.0.0/26"]
+        assert service["spec"]["loadBalancerSourceRanges"] == ["10.120.0.0/26"]
         assert service["spec"]["externalTrafficPolicy"] == "Local"
         assert container["env"][0]["valueFrom"]["secretKeyRef"]["name"] == "model-api-auth"
         assert "BEGIN PRIVATE KEY" not in json.dumps(deployment)

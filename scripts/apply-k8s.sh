@@ -30,6 +30,14 @@ echo "  LiteLLM URL:       $LITELLM_URL"
 echo ""
 echo "▶ Kobler til GKE-cluster..."
 eval "$(tofu -chdir="$TF_DIR" output -raw kubeconfig_command)"
+WHISPER_RENDER_ARGS=("${RENDER_ARGS[@]}")
+BOREALIS_RENDER_ARGS=("${RENDER_ARGS[@]}")
+if [[ "$SECURE" == true ]]; then
+  WHISPER_POOL=$(kubectl -n vllm get deployment vllm-whisper -o jsonpath='{.spec.template.spec.nodeSelector.cloud\.google\.com/gke-nodepool}' 2>/dev/null || true)
+  BOREALIS_POOL=$(kubectl -n vllm get deployment vllm-borealis -o jsonpath='{.spec.template.spec.nodeSelector.cloud\.google\.com/gke-nodepool}' 2>/dev/null || true)
+  [[ -z "$WHISPER_POOL" ]] || WHISPER_RENDER_ARGS+=(--node-pool "$WHISPER_POOL")
+  [[ -z "$BOREALIS_POOL" ]] || BOREALIS_RENDER_ARGS+=(--node-pool "$BOREALIS_POOL")
+fi
 
 KUBECTL_CMD="kubectl apply"
 $DRY_RUN && KUBECTL_CMD="kubectl apply --dry-run=client"
@@ -51,15 +59,15 @@ $KUBECTL_CMD -f k8s/working-hours-scaler.yaml
 
 echo ""
 echo "▶ vLLM-whisper (Deployment + Internal LB: $WHISPER_IP)..."
-"$PYTHON" scripts/render-model-manifest.py k8s/vllm-whisper.yaml "$WHISPER_IP" "${RENDER_ARGS[@]}" \
+"$PYTHON" scripts/render-model-manifest.py k8s/vllm-whisper.yaml "$WHISPER_IP" "${WHISPER_RENDER_ARGS[@]}" \
   | $KUBECTL_CMD -f -
 
 echo ""
 echo "▶ vLLM-borealis (Deployment + Internal LB: $BOREALIS_IP)..."
-"$PYTHON" scripts/render-model-manifest.py k8s/vllm-borealis.yaml "$BOREALIS_IP" "${RENDER_ARGS[@]}" \
+"$PYTHON" scripts/render-model-manifest.py k8s/vllm-borealis.yaml "$BOREALIS_IP" "${BOREALIS_RENDER_ARGS[@]}" \
   | $KUBECTL_CMD -f -
 
-if ! $DRY_RUN; then
+if ! $DRY_RUN && [[ "${START_GPU_FALLBACK:-true}" == true ]]; then
   echo ""
   echo "▶ Starter vLLM-modeller med GPU-sonefallback nå..."
   KEEP_PENDING=true WAIT_ROLLOUT=false ./scripts/start-gpu-deployment-with-fallback.sh vllm-whisper || true

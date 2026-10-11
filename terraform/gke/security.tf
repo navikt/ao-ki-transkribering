@@ -22,7 +22,7 @@ variable "nais_invoker_service_accounts" {
 variable "model_gateway_subnet_cidr" {
   description = "Dedicated /26 for Cloud Run model traffic; verify it does not overlap existing VPC subnets."
   type        = string
-  default     = "10.250.0.0/26"
+  default     = "10.120.0.0/26"
 }
 
 locals {

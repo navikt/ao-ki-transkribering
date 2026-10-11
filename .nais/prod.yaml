@@ -50,6 +50,7 @@ spec:
 
   envFrom:
     - secret: ao-ki-transkribering-secrets
+    - secret: ao-ki-model-api
 
   env:
     - name: MODEL_API_IAM_AUTH

@@ -48,8 +48,9 @@ Use a maintenance window: moving a running GPU deployment to TLS restarts it and
 interrupts inference. Node tag changes may also trigger node updates; inspect the
 OpenTofu plan before applying. No second GPU is assumed available.
 
-1. Check that `10.250.0.0/26` is free in the default VPC (or set
+1. Check that `10.120.0.0/26` is free in the default VPC (or set
    `model_gateway_subnet_cidr`). Review `tofu -chdir=terraform/gke plan`, then apply
+   (auto-mode VPCs reserve `10.128.0.0/9`, so custom subnets must be outside it)
    with both security switches false. This creates empty Secret Manager resources,
    the gateway subnet, and NAIS invoker permissions. It does not lock out clients.
 2. Run `./scripts/bootstrap-model-security.sh`. It creates credentials and an IP-SAN
@@ -60,16 +61,21 @@ OpenTofu plan before applying. No second GPU is assumed available.
 3. Deploy the new API code with identity-token authentication, **before removing
    public invocation**. Smoke-test from both NAIS environments. The existing
    application key still works at this stage; confirm token acquisition succeeds.
-4. Run `MODEL_SECURITY_PREPARE=true ./scripts/apply-k8s.sh` to deploy TLS-enabled
+4. Run `MODEL_SECURITY_PREPARE=true START_GPU_FALLBACK=false ./scripts/apply-k8s.sh` to deploy TLS-enabled
    GPU pods. This renderer requires Python with PyYAML (`.venv/bin/python` by
-   default). Verify the GPU health and HTTPS certificate before proceeding.
+   default), preserves the current node pool, and uses `Recreate` to avoid requiring
+   an additional GPU for a rolling surge. Normal hourly GPU retries remain enabled.
+   Verify the GPU health and HTTPS certificate before proceeding.
    The old HTTP gateway cannot infer during this maintenance interval.
 5. Persist `model_security_enabled=true` in your OpenTofu variable file, review the
    plan, and apply. The gateway loads the scoped authentication handler, separate
-   keys, CA trust, and backend credential. Run `./scripts/sync-nais-model-key.sh dev`
-   and `./scripts/sync-nais-model-key.sh prod`, then restart/redeploy both NAIS apps
-   to read their new environment credentials. These scripts merge only two keys
-   into the existing secret; other entries are preserved.
+   keys, CA trust, and backend credential. Create `ao-ki-model-api` once in each
+   NAIS environment with `nais secret create ao-ki-model-api --team ao-ki-taskforce
+   --environment dev-gcp` (and `prod-gcp`). Run `./scripts/sync-nais-model-key.sh dev`
+   and `./scripts/sync-nais-model-key.sh prod`. They use `nais secret set` with stdin
+   (run `nais login --nais` first); NAIS restarts referencing workloads. Only two
+   keys are updated. The old unmanaged `ao-ki-transkribering-secrets` remains intact;
+   the new managed secret is loaded after it, overriding only model credentials.
 6. Test model listing, synthetic audio upload, and synthetic summary generation
    from both applications. Test the **actual deployed LiteLLM image**, not just the
    custom-auth unit tests. Check that application keys cannot reach `/key/generate`
@@ -117,7 +123,8 @@ a normal troubleshooting step.
   Kubernetes node disks, and already-written logs are outside this cleanup.
   This is retention minimization, not guaranteed secure erasure.
 - Gateway verbose/message logging and spend/error persistence are disabled in
-  config. GPU request-body logging is disabled in secure manifests. These switches
+  config. GPU request logging is restricted to ERROR and prompt log length is zero
+  in secure manifests, without relying on version-specific request-log flags. These switches
   are not proof that every third-party exception is payload-free: verify synthetic
   canary content does not appear in Cloud Logging or Loki before sensitive use.
 - Existing Cloud Logging/Loki retention and access must be checked with the
