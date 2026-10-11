@@ -1,0 +1,6 @@
+subjectAltName = IP:$ENV::WHISPER_IP,IP:$ENV::BOREALIS_IP
+extendedKeyUsage = serverAuth
+basicConstraints = critical,CA:FALSE
+keyUsage = critical,digitalSignature,keyEncipherment
+subjectKeyIdentifier = hash
+authorityKeyIdentifier = keyid:always

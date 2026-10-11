@@ -4,9 +4,16 @@
 
 The repository now supports Cloud Run IAM authentication, separate restricted
 NAIS application keys, and authenticated TLS from LiteLLM to the GPU servers.
-These controls are **not active in the cloud until the cutover below is completed**.
-The OpenTofu switches default to false to avoid breaking the currently deployed
-API while credentials and GPU TLS are being prepared. Local operation is unchanged.
+The deployed environment enables these controls through the checked-in
+`terraform/gke/security.auto.tfvars`. Variable defaults remain false for staged
+bootstrap; a fresh environment must temporarily override both switches to false
+until credentials and GPU TLS are prepared. Local operation is unchanged.
+
+The cutover smoke tests cover NAIS dev/prod model listing, synthetic Whisper
+transcription, and denial of admin routes, alternate models, and provider overrides.
+Borealis inference still needs verification when its second GPU becomes available.
+The checklist below also includes follow-up network-isolation and log-content
+checks; deployment alone does not prove every security property.
 
 NAIS client deployments enable `MODEL_API_IAM_AUTH=true`. The client obtains
 short-lived, audience-bound Google ID tokens from its workload identity and sends
@@ -99,7 +106,10 @@ before expiry (schedule at least monthly in an authorized operator environment).
 It keeps the CA and application keys, signs a new leaf certificate, updates Secret
 Manager and Kubernetes, and vLLM's SSL-refresh option reloads the mounted files.
 Verify certificate reload on the deployed vLLM version; restart the model pods if
-needed. The script refuses certificates with less than seven days remaining unless
+needed. The certificate extensions in `scripts/model-tls.cnf` include authority and
+subject key identifiers, and the script verifies server purpose, IP SANs, and
+strict X.509 compliance. Gateway trust verification must remain enabled.
+The script refuses certificates with less than seven days remaining unless
 renewing. No automatic renewal job has been provisioned yet.
 
 For application-key rotation, add a new Secret Manager version, update the matching

@@ -34,15 +34,14 @@ fi
 if [[ "$count" == 0 ]]; then
   WHISPER_IP=$(tofu -chdir="$TF_DIR" output -raw vllm_whisper_ilb_ip)
   BOREALIS_IP=$(tofu -chdir="$TF_DIR" output -raw vllm_borealis_ilb_ip)
+  export WHISPER_IP BOREALIS_IP
   openssl req -x509 -newkey rsa:3072 -nodes -sha256 -days 3650 \
     -addext 'basicConstraints=critical,CA:TRUE' -addext 'keyUsage=critical,keyCertSign,cRLSign' \
     -subj '/CN=ao-ki-model-ca' -keyout "$TMP/ca.key" -out "$TMP/ca.crt"
   openssl req -newkey rsa:3072 -nodes -subj '/CN=ao-ki-model-server' \
     -keyout "$TMP/tls.key" -out "$TMP/server.csr"
-  printf 'subjectAltName=IP:%s,IP:%s\nextendedKeyUsage=serverAuth\nbasicConstraints=CA:FALSE\n' \
-    "$WHISPER_IP" "$BOREALIS_IP" > "$TMP/extensions"
   openssl x509 -req -in "$TMP/server.csr" -CA "$TMP/ca.crt" -CAkey "$TMP/ca.key" \
-    -CAcreateserial -days 90 -sha256 -extfile "$TMP/extensions" -out "$TMP/tls.crt"
+    -CAcreateserial -days 90 -sha256 -extfile scripts/model-tls.cnf -out "$TMP/tls.crt"
   jq -n --rawfile cert "$TMP/tls.crt" --rawfile key "$TMP/tls.key" --rawfile ca "$TMP/ca.crt" --rawfile ca_key "$TMP/ca.key" \
     '{cert: $cert, key: $key, ca: $ca, ca_key: $ca_key}' > "$TMP/bundle"
   for secret in nais-dev-model-key nais-prod-model-key vllm-api-key; do
@@ -62,20 +61,19 @@ fi
 if $RENEW; then
   WHISPER_IP=$(tofu -chdir="$TF_DIR" output -raw vllm_whisper_ilb_ip)
   BOREALIS_IP=$(tofu -chdir="$TF_DIR" output -raw vllm_borealis_ilb_ip)
+  export WHISPER_IP BOREALIS_IP
   openssl req -newkey rsa:3072 -nodes -subj '/CN=ao-ki-model-server' \
     -keyout "$TMP/tls.key" -out "$TMP/server.csr"
-  printf 'subjectAltName=IP:%s,IP:%s\nextendedKeyUsage=serverAuth\nbasicConstraints=CA:FALSE\n' \
-    "$WHISPER_IP" "$BOREALIS_IP" > "$TMP/extensions"
   openssl x509 -req -in "$TMP/server.csr" -CA "$TMP/ca.crt" -CAkey "$TMP/ca.key" \
-    -CAcreateserial -days 90 -sha256 -extfile "$TMP/extensions" -out "$TMP/tls.crt"
+    -CAcreateserial -days 90 -sha256 -extfile scripts/model-tls.cnf -out "$TMP/tls.crt"
   jq -n --rawfile cert "$TMP/tls.crt" --rawfile key "$TMP/tls.key" --rawfile ca "$TMP/ca.crt" --rawfile ca_key "$TMP/ca.key" \
     '{cert: $cert, key: $key, ca: $ca, ca_key: $ca_key}' > "$TMP/bundle"
   gcloud secrets versions add vllm-tls-bundle --project="$PROJECT" --data-file="$TMP/bundle" >/dev/null
 fi
-openssl verify -CAfile "$TMP/ca.crt" "$TMP/tls.crt"
+openssl verify -x509_strict -purpose sslserver -CAfile "$TMP/ca.crt" "$TMP/tls.crt"
 for output in vllm_whisper_ilb_ip vllm_borealis_ilb_ip; do
   address=$(tofu -chdir="$TF_DIR" output -raw "$output")
-  openssl verify -CAfile "$TMP/ca.crt" -verify_ip "$address" "$TMP/tls.crt"
+  openssl verify -x509_strict -purpose sslserver -CAfile "$TMP/ca.crt" -verify_ip "$address" "$TMP/tls.crt"
 done
 openssl x509 -checkend 604800 -noout -in "$TMP/tls.crt" || {
   echo "Certificate expires within 7 days; renew before proceeding." >&2; exit 1;

@@ -253,7 +253,7 @@ resource "google_cloud_run_v2_service" "litellm" {
         secret {
           secret = volumes.value.secret
           items {
-            version = "latest"
+            version = volumes.key == "scoped-auth" ? google_secret_manager_secret_version.gateway_auth_code.version : "latest"
             path    = volumes.value.path
             mode    = 0444
           }

@@ -1,5 +1,8 @@
 import importlib.util
 import json
+import os
+import shutil
+import subprocess
 from pathlib import Path
 
 import httpx
@@ -12,6 +15,22 @@ from k8s.model_security import ModelAccessMiddleware
 from shared.services import model_auth
 
 ROOT = Path(__file__).resolve().parents[1]
+
+
+def test_model_certificate_passes_strict_server_verification(tmp_path):
+    if not shutil.which("openssl"):
+        pytest.skip("openssl is required for certificate verification")
+    def run(*args, env=None):
+        return subprocess.run(["openssl", *args], cwd=tmp_path, env=env, check=True, capture_output=True)
+    run("req", "-x509", "-newkey", "rsa:2048", "-nodes", "-days", "1", "-subj", "/CN=test-ca",
+        "-addext", "basicConstraints=critical,CA:TRUE", "-addext", "keyUsage=critical,keyCertSign,cRLSign",
+        "-keyout", "ca.key", "-out", "ca.crt")
+    run("req", "-newkey", "rsa:2048", "-nodes", "-subj", "/CN=test-server", "-keyout", "tls.key", "-out", "server.csr")
+    env = {**os.environ, "WHISPER_IP": "10.164.15.200", "BOREALIS_IP": "10.164.15.201"}
+    run("x509", "-req", "-in", "server.csr", "-CA", "ca.crt", "-CAkey", "ca.key", "-CAcreateserial",
+        "-days", "1", "-extfile", str(ROOT / "scripts/model-tls.cnf"), "-out", "tls.crt", env=env)
+    for address in (env["WHISPER_IP"], env["BOREALIS_IP"]):
+        run("verify", "-x509_strict", "-purpose", "sslserver", "-verify_ip", address, "-CAfile", "ca.crt", "tls.crt")
 
 
 @pytest.mark.asyncio
@@ -92,12 +111,27 @@ async def test_scoped_auth_preserves_uploaded_body_for_downstream(monkeypatch):
     @app.post("/v1/audio/transcriptions")
     async def endpoint(request: Request):
         await authorize(request, "dev-key")
-        body = await request.body()
         form = await request.form()
-        return {"raw_body_preserved": b"synthetic-audio" in body, "file": (await form["file"].read()).decode()}
+        return {"file": (await form["file"].read()).decode()}
     async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="https://gateway") as client:
         response = await client.post("/v1/audio/transcriptions", files={"file": ("audio.wav", b"synthetic-audio")}, data={"model": "nb-whisper-large"})
-        assert response.json() == {"raw_body_preserved": True, "file": "synthetic-audio"}
+        assert response.json() == {"file": "synthetic-audio"}
+
+
+@pytest.mark.asyncio
+async def test_audio_auth_reuses_form_already_parsed_by_gateway(monkeypatch):
+    monkeypatch.setenv("NAIS_DEV_API_KEY", "dev-key")
+    app = FastAPI()
+    @app.post("/v1/audio/transcriptions")
+    async def endpoint(request: Request):
+        await request.form()
+        await authorize(request, "dev-key")
+        form = await request.form()
+        return {"file": (await form["file"].read()).decode()}
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="https://gateway") as client:
+        response = await client.post("/v1/audio/transcriptions", files={"file": ("audio.wav", b"synthetic-audio")}, data={"model": "nb-whisper-large"})
+        assert response.status_code == 200
+        assert response.json() == {"file": "synthetic-audio"}
 
 
 @pytest.mark.asyncio

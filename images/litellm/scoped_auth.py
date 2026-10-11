@@ -31,8 +31,7 @@ async def authorize(request: Request, api_key: str) -> str:
     if model:
         try:
             if request.url.path == "/v1/audio/transcriptions":
-                # Cache the raw body too: downstream LiteLLM may read it again.
-                await request.body()
+                # LiteLLM/FastAPI may already have parsed the upload. Reuse its form cache.
                 payload = await request.form()
             else:
                 payload = await request.json()

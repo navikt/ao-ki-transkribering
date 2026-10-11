@@ -64,6 +64,9 @@ resource "google_secret_manager_secret" "gateway_auth_code" {
 resource "google_secret_manager_secret_version" "gateway_auth_code" {
   secret      = google_secret_manager_secret.gateway_auth_code.id
   secret_data = file("${path.module}/../../images/litellm/scoped_auth.py")
+  lifecycle {
+    create_before_destroy = true
+  }
 }
 
 resource "google_secret_manager_secret_iam_member" "gateway_reads_auth_code" {
