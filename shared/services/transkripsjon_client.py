@@ -6,6 +6,7 @@ import httpx
 import numpy as np
 
 from shared.contracts.transcription import TranskripsjonSvar
+from shared.services.model_auth import authenticated_headers
 from shared.core.settings import TRANSKRIPSJON_API_KEY, TRANSKRIPSJON_API_PATH, TRANSKRIPSJON_MODELL, TRANSKRIPSJON_SERVICE_URL
 
 _OPENAI_AUDIO_PATH = "/v1/audio/transcriptions"
@@ -94,7 +95,7 @@ async def _call_transkripsjon_service(
         data = {"n_talere": str(n_talere)}
 
     async with httpx.AsyncClient(timeout=timeout) as klient:
-        resp = await klient.post(url, data=data, files=files, headers=_headers())
+        resp = await klient.post(url, data=data, files=files, headers=await authenticated_headers(url, _headers()))
         resp.raise_for_status()
         return _normalize_transkripsjon_payload(resp.json())
 

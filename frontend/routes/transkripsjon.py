@@ -27,6 +27,7 @@ async def start_transkribering(
     paths = job_store.create_paths(suffix)
 
     with paths.audio_path.open("wb") as f:
+        paths.audio_path.chmod(0o600)
         shutil.copyfileobj(lydfil.file, f)
 
     job_store.write_queued(paths.result_path)

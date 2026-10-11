@@ -6,6 +6,7 @@ from pydantic import BaseModel, Field
 
 from shared.core.settings import AI_PROXY_API_KEY, AI_PROXY_URL, LLM_BACKEND, LLM_MODELL, OLLAMA_URL
 from worker.prompts.normalisering import normaliser_til_bokmal
+from shared.services.model_auth import authenticated_headers
 
 
 def _int_env(name: str, default: int) -> int:
@@ -111,7 +112,7 @@ async def kall(system: str, bruker: str, modell: str | None = None) -> str:
 
     payload = _build_payload(system, bruker, modell, stream=False)
     async with httpx.AsyncClient(timeout=httpx.Timeout(10.0, read=300.0)) as klient:
-        resp = await klient.post(_chat_url(), json=payload, headers=_headers())
+        resp = await klient.post(_chat_url(), json=payload, headers=await authenticated_headers(_chat_url(), _headers()))
         resp.raise_for_status()
         data = resp.json()
         return normaliser_til_bokmal(_extract_text_from_response(data))
@@ -137,7 +138,7 @@ async def hent_status() -> LlmStatus:
         )
 
     async with httpx.AsyncClient(timeout=httpx.Timeout(10.0, read=45.0)) as klient:
-        resp = await klient.get(_models_url(), headers=_headers())
+        resp = await klient.get(_models_url(), headers=await authenticated_headers(_models_url(), _headers()))
         resp.raise_for_status()
         data = resp.json()
 
@@ -179,7 +180,7 @@ async def stream_tokens(system: str, bruker: str, modell: str | None = None):
             "POST",
             _chat_url(),
             json=payload,
-            headers=_headers(),
+            headers=await authenticated_headers(_chat_url(), _headers()),
         ) as resp:
             resp.raise_for_status()
             async for linje in resp.aiter_lines():

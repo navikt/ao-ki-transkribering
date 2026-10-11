@@ -61,6 +61,14 @@ Deploy the Kubernetes vLLM resources and GPU retry scaler:
 
 Day-to-day operation commands live in [`../docs/operations.md`](../docs/operations.md).
 
+## Model API security
+
+Follow [the ordered security cutover](../docs/model-api-security.md) before
+using sensitive meeting data. It adds scoped dev/prod application credentials,
+Cloud Run IAM invocation, and verified TLS to the GPU servers. The security
+switches default to false until credentials, certificates, and the new API
+clients are ready. Do not put the gateway master key in NAIS secrets.
+
 ## Upload model weights
 
 ```bash
@@ -152,18 +160,18 @@ Request from NAIS team in `#nais` on Slack:
 > Vi trenger VPC peering fra `ao-ki-taskforce-prod-2472` til dev-gcp og prod-gcp.
 > Team project VPC: `default` i `europe-west4`.
 
-NAIS will add a peering rule to `nais-terraform-modules`. Once done, the NAIS app
-can reach the vLLM services via internal IP.
+Peering is not required for the current HTTPS gateway path. Direct model access
+would need a separate security review and is not the configured NAIS route.
 
 ## Architecture
 
 ```
 NAIS prod-gcp (nais-prod-020f)
   └── ao-ki-transkribering pod
-        └── VPC peering → ao-ki-taskforce-prod-2472
+        └── HTTPS → LiteLLM gateway (Cloud Run, public URL)
+                      └── Direct VPC egress → model internal load balancers
                             └── GKE ao-ki-gpu (europe-west4, zones a/b/c)
                                   ├── vLLM: nb-whisper-large  (gpu-l4 nodepool)
                                   └── vLLM: Borealis-12b      (gpu-l4-* fallback nodepools)
-                            └── LiteLLM gateway (Cloud Run, internal only)
                             └── GCS: ao-ki-taskforce-prod-2472-modeller
 ```

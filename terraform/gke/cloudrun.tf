@@ -68,15 +68,23 @@ resource "google_secret_manager_secret_version" "litellm_config" {
       - model_name: nb-whisper-large
         litellm_params:
           model: openai//models/nb-whisper-large
-          api_base: "http://${google_compute_address.vllm_whisper_ilb.address}:8000/v1"
-          api_key: none
+          api_base: "${var.model_security_enabled ? "https" : "http"}://${google_compute_address.vllm_whisper_ilb.address}:8000/v1"
+          api_key: ${var.model_security_enabled ? "os.environ/VLLM_API_KEY" : "none"}
       - model_name: borealis-12b
         litellm_params:
           model: openai//models/borealis-12b
-          api_base: "http://${google_compute_address.vllm_borealis_ilb.address}:8000/v1"
-          api_key: none
+          api_base: "${var.model_security_enabled ? "https" : "http"}://${google_compute_address.vllm_borealis_ilb.address}:8000/v1"
+          api_key: ${var.model_security_enabled ? "os.environ/VLLM_API_KEY" : "none"}
+    litellm_settings:
+      ssl_verify: ${var.model_security_enabled ? "/app/model-ca/ca.crt" : "true"}
+      set_verbose: false
+      turn_off_message_logging: true
     general_settings:
       max_parallel_requests: 10
+      disable_spend_logs: true
+      disable_error_logs: true
+      store_prompts_in_spend_logs: false
+      ${var.model_security_enabled ? "custom_auth: scoped_auth.user_api_key_auth" : "# Application credentials enabled during security cutover"}
   YAML
 }
 
@@ -144,7 +152,7 @@ resource "google_cloud_run_v2_service" "litellm" {
     vpc_access {
       network_interfaces {
         network    = "default"
-        subnetwork = "default"
+        subnetwork = google_compute_subnetwork.model_gateway.name
       }
       egress = "PRIVATE_RANGES_ONLY"
     }
@@ -179,6 +187,44 @@ resource "google_cloud_run_v2_service" "litellm" {
           }
         }
       }
+      env {
+        name  = "LITELLM_LOG"
+        value = "ERROR"
+      }
+      env {
+        name  = "LITELLM_MODE"
+        value = "PRODUCTION"
+      }
+      dynamic "env" {
+        for_each = var.model_security_enabled ? {
+          NAIS_DEV_API_KEY  = "nais-dev-model-key"
+          NAIS_PROD_API_KEY = "nais-prod-model-key"
+          VLLM_API_KEY      = "vllm-api-key"
+        } : {}
+        content {
+          name = env.key
+          value_source {
+            secret_key_ref {
+              secret  = google_secret_manager_secret.model_security[env.value].secret_id
+              version = "latest"
+            }
+          }
+        }
+      }
+      dynamic "volume_mounts" {
+        for_each = var.model_security_enabled ? { "model-ca" = "/app/model-ca", "scoped-auth" = "/app/auth" } : {}
+        content {
+          name       = volume_mounts.key
+          mount_path = volume_mounts.value
+        }
+      }
+      dynamic "env" {
+        for_each = var.model_security_enabled ? [1] : []
+        content {
+          name  = "PYTHONPATH"
+          value = "/app/auth"
+        }
+      }
 
       volume_mounts {
         name       = "litellm-config"
@@ -197,6 +243,30 @@ resource "google_cloud_run_v2_service" "litellm" {
         }
       }
     }
+    dynamic "volumes" {
+      for_each = var.model_security_enabled ? {
+        "model-ca"    = { secret = google_secret_manager_secret.model_security["vllm-ca"].secret_id, path = "ca.crt" }
+        "scoped-auth" = { secret = google_secret_manager_secret.gateway_auth_code.secret_id, path = "scoped_auth.py" }
+      } : {}
+      content {
+        name = volumes.key
+        secret {
+          secret = volumes.value.secret
+          items {
+            version = "latest"
+            path    = volumes.value.path
+            mode    = 0444
+          }
+        }
+      }
+    }
+  }
+
+  lifecycle {
+    precondition {
+      condition     = !var.cloud_run_require_iam || (var.model_security_enabled && length(var.nais_invoker_service_accounts) > 0)
+      error_message = "IAM-only invocation requires model security and a nonempty NAIS identity allowlist."
+    }
   }
 
   depends_on = [
@@ -204,14 +274,23 @@ resource "google_cloud_run_v2_service" "litellm" {
     google_secret_manager_secret_iam_member.litellm_reads_api_key,
     google_secret_manager_secret_iam_member.litellm_reads_config,
     google_secret_manager_secret_iam_member.litellm_reads_salt_key,
+    google_secret_manager_secret_iam_member.gateway_model_security,
+    google_secret_manager_secret_iam_member.gateway_reads_auth_code,
+    google_secret_manager_secret_version.gateway_auth_code,
   ]
 }
 
-# Public access — LiteLLM enforces the API key, so no Cloud Run IAM auth needed.
+# Removed only after both NAIS applications have passed identity-token smoke tests.
 resource "google_cloud_run_v2_service_iam_member" "litellm_public" {
+  count    = var.cloud_run_require_iam ? 0 : 1
   project  = var.project_id
   location = var.region
   name     = google_cloud_run_v2_service.litellm.name
   role     = "roles/run.invoker"
   member   = "allUsers"
+}
+
+moved {
+  from = google_cloud_run_v2_service_iam_member.litellm_public
+  to   = google_cloud_run_v2_service_iam_member.litellm_public[0]
 }

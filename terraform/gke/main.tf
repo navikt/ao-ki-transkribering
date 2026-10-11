@@ -102,6 +102,7 @@ resource "google_container_node_pool" "gpu" {
 
   node_config {
     machine_type = "g2-standard-12"
+    tags         = ["ao-ki-model-server"]
     disk_size_gb = 200
     disk_type    = "pd-ssd"
     image_type   = "COS_CONTAINERD"
@@ -164,6 +165,7 @@ resource "google_container_node_pool" "gpu_l4_fallback" {
 
   node_config {
     machine_type = "g2-standard-12"
+    tags         = ["ao-ki-model-server"]
     disk_size_gb = 200
     disk_type    = "pd-ssd"
     image_type   = "COS_CONTAINERD"
@@ -228,6 +230,7 @@ resource "google_container_node_pool" "gpu_a100_manual" {
 
   node_config {
     machine_type = "a2-highgpu-1g"
+    tags         = ["ao-ki-model-server"]
     disk_size_gb = 200
     disk_type    = "pd-ssd"
     image_type   = "COS_CONTAINERD"

@@ -109,4 +109,24 @@ class JobStore:
         result_path.parent.mkdir(parents=True, exist_ok=True)
         tmp_path = result_path.with_name(f"{result_path.name}.{uuid.uuid4().hex}.tmp")
         tmp_path.write_text(json.dumps(data, ensure_ascii=False))
+        tmp_path.chmod(0o600)
         tmp_path.replace(result_path)
+
+    def cleanup_completed(self, retention_seconds: int, *, now: float | None = None) -> int:
+        """Expire terminal results without deleting jobs still being processed."""
+        if retention_seconds <= 0:
+            raise ValueError("retention_seconds must be positive")
+        cutoff = (time.time() if now is None else now) - retention_seconds
+        removed = 0
+        for path in self.work_dir.glob("*.json"):
+            try:
+                self._validate_job_id(path.stem)
+                if path.is_symlink() or path.stat().st_mtime >= cutoff:
+                    continue
+                if self.read_path(path).get("status") not in {"ferdig", "feil"}:
+                    continue
+                path.unlink(missing_ok=True)
+                removed += 1
+            except (ValueError, OSError):
+                continue
+        return removed

@@ -7,7 +7,9 @@ høyttalerdiarisering (identifiserer hvem som sier hva), og
 [Ollama](https://ollama.com) med [qwen3:32b](https://ollama.com/library/qwen3.6) for automatisk
 møtereferat og sammendrag etter NAVs §14a-mal.
 
-**Ingen data forlater maskinen.** Alt kjøres lokalt.
+I lokal modus kjøres modellene på maskinen. NAIS/remote-modus sender lyd og tekst
+til modell-API-et i GCloud. Se [sikkerhetsoppsett og overgang](docs/model-api-security.md)
+før behandling av sensitivt møteinnhold.
 
 ---
 

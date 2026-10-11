@@ -105,11 +105,11 @@ async def chat_once(client: httpx.AsyncClient, url: str, model: str, prompt: str
         )
         seconds = time.perf_counter() - start
         if response.status_code >= 400:
-            return Result(False, response.status_code, seconds, response.text)
+            return Result(False, response.status_code, seconds, f"HTTP {response.status_code}")
         response.json()
         return Result(True, response.status_code, seconds)
     except Exception as exc:  # noqa: BLE001 - benchmark should capture all failures
-        return Result(False, None, time.perf_counter() - start, repr(exc))
+        return Result(False, None, time.perf_counter() - start, type(exc).__name__)
 
 
 async def audio_once(client: httpx.AsyncClient, url: str, model: str, audio_path: Path) -> Result:
@@ -121,11 +121,11 @@ async def audio_once(client: httpx.AsyncClient, url: str, model: str, audio_path
         response = await client.post(f"{url}/v1/audio/transcriptions", data=data, files=files)
         seconds = time.perf_counter() - start
         if response.status_code >= 400:
-            return Result(False, response.status_code, seconds, response.text)
+            return Result(False, response.status_code, seconds, f"HTTP {response.status_code}")
         response.json()
         return Result(True, response.status_code, seconds)
     except Exception as exc:  # noqa: BLE001
-        return Result(False, None, time.perf_counter() - start, repr(exc))
+        return Result(False, None, time.perf_counter() - start, type(exc).__name__)
 
 
 async def run_level(label: str, concurrency: int, requests: int, call) -> dict[str, Any]:
@@ -166,17 +166,22 @@ async def main() -> int:
     args = parser.parse_args()
 
     url = (args.url or tofu_output("litellm_url", args.tf_dir)).rstrip("/")
-    key = args.key or tofu_output("litellm_api_key", args.tf_dir)
+    key = args.key
+    if not key:
+        parser.error("Set LITELLM_KEY to a restricted application key; master-key fallback is disabled")
     levels = [int(item.strip()) for item in args.concurrency_levels.split(",") if item.strip()]
     selected_models = {item.strip().lower() for item in args.models.split(",") if item.strip()}
     headers = {"Authorization": f"Bearer {key}"}
+    identity_token = os.getenv("LITELLM_ID_TOKEN")
+    if identity_token:
+        headers["X-Serverless-Authorization"] = f"Bearer {identity_token}"
     timeout = httpx.Timeout(10.0, read=args.timeout, write=args.timeout, pool=args.timeout)
     limits = httpx.Limits(max_connections=max(levels) + 4, max_keepalive_connections=max(levels) + 4)
     rows: list[dict[str, Any]] = []
 
     async with httpx.AsyncClient(headers=headers, timeout=timeout, limits=limits) as client:
         models_response = await client.get(f"{url}/v1/models")
-        print(f"models HTTP {models_response.status_code}: {models_response.text[:500]}")
+        print(f"models HTTP {models_response.status_code}")
         models_response.raise_for_status()
 
         if "whisper" in selected_models:

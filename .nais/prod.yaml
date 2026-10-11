@@ -52,6 +52,10 @@ spec:
     - secret: ao-ki-transkribering-secrets
 
   env:
+    - name: MODEL_API_IAM_AUTH
+      value: "true"
+    - name: JOB_RETENTION_SECONDS
+      value: "21600"
     - name: TRANSKRIPSJON_BACKEND
       value: remote
     - name: START_LOKAL_WORKER

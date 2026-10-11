@@ -20,6 +20,11 @@ AI_PROXY_API_KEY = os.getenv("AI_PROXY_API_KEY", "")
 OLLAMA_URL = os.getenv("OLLAMA_URL", "http://localhost:11434")
 TRANSKRIPSJON_SERVICE_URL = os.getenv("TRANSKRIPSJON_SERVICE_URL", AI_PROXY_URL)
 TRANSKRIPSJON_API_KEY = os.getenv("TRANSKRIPSJON_API_KEY", AI_PROXY_API_KEY)
+MODEL_API_IAM_AUTH = os.getenv("MODEL_API_IAM_AUTH", "false").lower() == "true"
+MODEL_API_AUDIENCE = os.getenv("MODEL_API_AUDIENCE", AI_PROXY_URL).rstrip("/")
+JOB_RETENTION_SECONDS = int(os.getenv("JOB_RETENTION_SECONDS", "21600"))
+if JOB_RETENTION_SECONDS <= 0:
+    raise ValueError("JOB_RETENTION_SECONDS must be positive")
 TRANSKRIPSJON_API_PATH = os.getenv("TRANSKRIPSJON_API_PATH", "/transkriber")
 _standard_transkripsjon_modell = "nb-whisper-large" if TRANSKRIPSJON_BACKEND == "remote" else MODELL_ID
 TRANSKRIPSJON_MODELL = os.getenv("TRANSKRIPSJON_MODELL", _standard_transkripsjon_modell)

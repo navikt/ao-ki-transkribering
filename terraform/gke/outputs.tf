@@ -30,9 +30,21 @@ output "litellm_url" {
 }
 
 output "litellm_api_key" {
-  description = "LiteLLM master API key — store in NAIS secret LITELLM_API_KEY"
+  description = "Administrative master key; do not distribute to NAIS after the security cutover"
   value       = "sk-${random_password.litellm_api_key.result}"
   sensitive   = true
+}
+
+output "model_security_enabled" {
+  value = var.model_security_enabled
+}
+
+output "model_gateway_subnet_cidr" {
+  value = var.model_gateway_subnet_cidr
+}
+
+output "model_security_secret_ids" {
+  value = { for name, secret in google_secret_manager_secret.model_security : name => secret.secret_id }
 }
 
 output "vllm_whisper_ilb_ip" {
