@@ -27,70 +27,22 @@ if (samtykkeHake) {
   settLydInngangAktivert(samtykkeHake.checked);
   samtykkeHake.addEventListener("change", function () {
     settLydInngangAktivert(this.checked);
-    const gammelKnapp = document.getElementById("samtykke-knapp");
-    if (gammelKnapp) gammelKnapp.disabled = !this.checked;
   });
 }
 
-function bekreftSamtykke() {
-  visSeksjon("opptak");
+function oppdaterMoteBekreftelse(nullstill = false) {
+  const veiledermote = document.getElementById("paragraf14-hake").checked;
+  const gjennomgang = veiledermote
+    ? "Gjennomgå transkripsjonen før bruk og fjern informasjon om kommunale tjenester (§15) før eventuell lagring i NAV-statlige systemer."
+    : "Gjennomgå transkripsjonen og fjern opplysninger som ikke skal brukes eller lagres videre.";
+  document.getElementById("paragraf15-advarsel").textContent = gjennomgang;
+  document.getElementById("sanntid-gjennomgang").textContent = gjennomgang;
+  document.getElementById("sanntid-gjennomgang").hidden = !veiledermote;
+  if (nullstill) samtykkeHake.checked = false;
+  settLydInngangAktivert(samtykkeHake.checked);
 }
 
-function settArbeidsflytSteg(steg) {
-  document.querySelectorAll(".arbeidsflyt-steg").forEach((el, index) => {
-    const nummer = index + 1;
-    el.classList.toggle("aktiv", nummer === steg);
-    el.classList.toggle("ferdig", nummer < steg);
-  });
-}
-
-function _harBatchTranskripsjon() {
-  return !!document.querySelector("#dialog-container .dialog-linje")
-    || !!document.getElementById("resultat-tekst")?.textContent?.trim();
-}
-
-function _harSanntidTranskripsjon() {
-  return !!document.querySelector("#sanntid-tekst .dialog-linje");
-}
-
-function _harTranskripsjon() {
-  return _harBatchTranskripsjon() || _harSanntidTranskripsjon();
-}
-
-function gaaTilArbeidsflytSteg(steg) {
-  if (steg === 1) {
-    settArbeidsflytSteg(1);
-    document.getElementById("seksjon-opptak")?.scrollIntoView({ behavior: "smooth", block: "start" });
-    return;
-  }
-  if (steg === 2) {
-    if (!_harTranskripsjon()) {
-      alert("Transkripsjonen vises her når lydfilen er ferdig behandlet.");
-      return;
-    }
-    settArbeidsflytSteg(2);
-    const mål = _harBatchTranskripsjon() ? "seksjon-resultat" : "modul-transkripsjon";
-    document.getElementById(mål)?.scrollIntoView({ behavior: "smooth", block: "start" });
-    return;
-  }
-  if (steg === 3) {
-    const kilde = _aktivTranskripsjonskilde || (_harBatchTranskripsjon() ? "batch" : "sanntid");
-    if (!_harTranskripsjon()) {
-      alert("Du må ha en transkripsjon før du kan lage referat.");
-      return;
-    }
-    hentReferat(kilde);
-  }
-}
-
-document.querySelectorAll(".arbeidsflyt-steg").forEach(el => {
-  el.addEventListener("keydown", e => {
-    if (e.key === "Enter" || e.key === " ") {
-      e.preventDefault();
-      el.click();
-    }
-  });
-});
+oppdaterMoteBekreftelse();
 
 // ---- Seksjonsnavigasjon ----
 function visSeksjon(navn) {
@@ -116,6 +68,8 @@ async function startOpptak() {
       sendTilServer(blob, "opptak.webm");
     };
     mediaRecorder.start(1000);
+    document.getElementById("paragraf14-hake").disabled = true;
+  document.getElementById("lydkilde").disabled = true;
 
     document.getElementById("knapp-start").disabled = true;
     document.getElementById("knapp-stopp").disabled = false;
@@ -129,6 +83,8 @@ async function startOpptak() {
 }
 
 function stoppOpptak() {
+  document.getElementById("paragraf14-hake").disabled = false;
+  document.getElementById("lydkilde").disabled = false;
   clearInterval(timerIntervall);
   document.getElementById("knapp-start").disabled = false;
   document.getElementById("knapp-stopp").disabled = true;
@@ -154,7 +110,6 @@ async function sendTilServer(blob, filnavn) {
   document.getElementById("feil-boks").style.display = "none";
   const fremdrift = document.getElementById("fremdrift");
   fremdrift.classList.add("synlig");
-  settArbeidsflytSteg(2);
   settFremdriftTekst("Laster opp …");
 
   const skjema = new FormData();
@@ -339,7 +294,6 @@ function _byggTalerRad(unike, radElId, radId) {
 function visResultat(data) {
   _sistResultat = data;
   _aktivTranskripsjonskilde = "batch";
-  settArbeidsflytSteg(2);
   const resultatSeksjon = document.getElementById("seksjon-resultat");
   resultatSeksjon.classList.add("aktiv");
   resultatSeksjon.classList.remove("resultat-tom");
@@ -510,7 +464,6 @@ function toggleSegmenter() {
 function nyttOpptak() {
   document.getElementById("fil-input").value = "";
   _aktivTranskripsjonskilde = null;
-  settArbeidsflytSteg(1);
   const resultatSeksjon = document.getElementById("seksjon-resultat");
   resultatSeksjon.classList.add("aktiv", "resultat-tom");
   document.getElementById("dialog-container").innerHTML = "";
@@ -535,12 +488,19 @@ function viseFeil(melding) {
   boks.style.display = "block";
 }
 
-// ---- Fanebytte ----
-function byttFane(fane) {
+// ---- Lydkilde ----
+function byttLydkilde(fane) {
+  if (sanntidAktivt || (mediaRecorder && mediaRecorder.state !== "inactive")) {
+    document.getElementById("lydkilde").value = document.querySelector(".app-main-grid").dataset.lydkilde;
+    return;
+  }
+  document.getElementById("lydkilde").value = fane;
   document.getElementById("panel-batch").style.display   = fane === "batch"   ? "block" : "none";
   document.getElementById("panel-sanntid").style.display = fane === "sanntid" ? "block" : "none";
-  document.getElementById("fane-batch").classList.toggle("aktiv",   fane === "batch");
-  document.getElementById("fane-sanntid").classList.toggle("aktiv", fane === "sanntid");
+  document.querySelector(".app-main-grid").dataset.lydkilde = fane;
+  document.getElementById("sanntid-resultat").hidden = fane !== "sanntid";
+  document.getElementById("seksjon-resultat").hidden = fane !== "batch";
+  document.getElementById("live-referat-wrap").hidden = fane !== "sanntid";
 }
 
 // ============================================================
@@ -645,14 +605,15 @@ async function lastReferatScenarier() {
     if (!_referatScenarier.length) return;
     const valgt = velger.value;
     velger.innerHTML = "";
-    for (const scenario of _referatScenarier) {
+    for (const scenario of [{ id: "sammendrag", tittel: "Sammendrag" }, ..._referatScenarier]) {
       const option = document.createElement("option");
       option.value = scenario.id;
-      option.textContent = scenario.tittel;
+      option.textContent = _referatScenarioTittel(scenario.id);
       option.title = scenario.beskrivelse || "";
       option.selected = scenario.id === valgt || (!valgt && scenario.standard);
       velger.appendChild(option);
     }
+    oppdaterReferatMal();
   } catch {
     /* Bruk statiske fallback-valg i HTML. */
   }
@@ -660,6 +621,8 @@ async function lastReferatScenarier() {
 
 async function _triggerLiveReferat(transkripsjon) {
   if (!_llmGatewayTilgjengelig) return;
+  const valg = _referatValg();
+  if (!valg) return;
   if (_liveReferatOppdaterer) return; // allerede pågår
   _liveReferatOppdaterer = true;
   _liveReferatOrdTalt = _telSanntidOrd();
@@ -677,10 +640,11 @@ async function _triggerLiveReferat(transkripsjon) {
   tekstEl.classList.remove("llm-utilgjengelig");
 
   try {
-    const res = await fetch("/referat/rullerende/stream", {
+    document.getElementById("live-utkast-tittel").textContent = "Utkast: " + _referatScenarioTittel(valg.scenario);
+    const res = await fetch(valg.scenario === "sammendrag" ? "/sammendrag/stream" : "/referat/rullerende/stream", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ transkripsjon })
+      body: JSON.stringify({ transkripsjon, ...(valg.scenario === "sammendrag" ? {} : valg) })
     });
     if (!res.ok) throw new Error("HTTP " + res.status);
     const reader = res.body.getReader();
@@ -751,6 +715,8 @@ async function startSanntid() {
   }
 
   sanntidAktivt    = true;
+  document.getElementById("paragraf14-hake").disabled = true;
+  document.getElementById("lydkilde").disabled = true;
   sanntidSegmenter = [];
   sanntidSekunder  = 0;
   pcmBuffer        = [];
@@ -765,8 +731,9 @@ async function startSanntid() {
   document.getElementById("sanntid-timer").style.display  = "inline";
   document.getElementById("sanntid-status").style.display = "flex";
   document.getElementById("modul-transkripsjon").style.display = "block";
+  document.getElementById("sanntid-tomtilstand").hidden = true;
   document.getElementById("sanntid-tekst").style.display  = "block";
-  document.getElementById("sanntid-knapper").style.display = "flex";
+  document.getElementById("sanntid-knapper").style.display = "block";
   document.getElementById("sanntid-footer").style.display  = "block";
   const opptakHake = document.getElementById("sanntid-lagre-opptak");
   if (opptakHake) opptakHake.disabled = true;
@@ -807,7 +774,6 @@ async function startSanntid() {
     }
     if (data.type === "segment" && data.tekst) {
       _aktivTranskripsjonskilde = "sanntid";
-      settArbeidsflytSteg(2);
       // Legg til segmenter fra dette chunk-et i dialogvisningen
       const boks = document.getElementById("sanntid-tekst");
       for (const seg of (data.segmenter || [{ tekst: data.tekst, taler: "SPEAKER_00" }])) {
@@ -891,6 +857,8 @@ async function startAudioWorklet() {
 
 function stoppSanntid() {
   sanntidAktivt = false;
+  document.getElementById("paragraf14-hake").disabled = false;
+  document.getElementById("lydkilde").disabled = false;
   clearInterval(sanntidTimer);
 
   // Send eventuell rest-buffer
@@ -922,7 +890,6 @@ function stoppSanntid() {
   document.getElementById("sanntid-timer").style.display  = "none";
   const opptakHake = document.getElementById("sanntid-lagre-opptak");
   if (opptakHake) opptakHake.disabled = false;
-  if (_harSanntidTranskripsjon()) settArbeidsflytSteg(2);
   settSanntidStatus("Avslutter …");
 }
 
@@ -945,18 +912,10 @@ function _tilbyNedlasting() {
   document.getElementById("sanntid-knapper").after(div);
 }
 
-function settSanntidStatus(tekst, aktiv = true) {
+function settSanntidStatus(tekst) {
   document.getElementById("sanntid-status-tekst").textContent = tekst;
-  const puls = document.getElementById("sanntid-puls");
-  if (aktiv) {
-    puls.style.animation = "";
-    puls.style.background = "#0067c5";
-    puls.style.opacity = "1";
-  } else {
-    puls.style.animation = "none";
-    puls.style.background = "#888";
-    puls.style.opacity = "0.5";
-  }
+  document.getElementById("sanntid-status").style.display = tekst === "Tar opp …" ? "none" : "flex";
+  document.getElementById("sanntid-timer").title = "Opptak pågår";
 }
 
 function kopierSanntidTekstRaw() {
@@ -975,10 +934,14 @@ function kopierSanntidTekst() {
 }
 
 function nullstillSanntid() {
+  if (sanntidAktivt) return;
   _aktivTranskripsjonskilde = null;
-  settArbeidsflytSteg(1);
   document.getElementById("sanntid-tekst").innerHTML = "";
   document.getElementById("sanntid-taler-rad").innerHTML = "";
+  document.getElementById("modul-transkripsjon").style.display = "none";
+  document.getElementById("sanntid-knapper").style.display = "none";
+  document.getElementById("sanntid-footer").style.display = "none";
+  document.getElementById("sanntid-tomtilstand").hidden = false;
   // Skjul referat-panelet hvis det vises fra sanntid
   document.getElementById("referat-panel").style.display = "none";
   // Avbryt evt. pågående live-referat og nullstill tilstand
@@ -1019,7 +982,6 @@ function _hentTranskripsjonTekst(kilde) {
 
 function _visReferatPanel(tittel) {
   const panel = document.getElementById("referat-panel");
-  settArbeidsflytSteg(3);
   panel.style.display = "block";
   document.getElementById("referat-panel-tittel").textContent = tittel;
   document.getElementById("referat-laster").style.display = "flex";
@@ -1030,6 +992,24 @@ function _visReferatPanel(tittel) {
   document.getElementById("referat-tekst").textContent = "";
   document.getElementById("referat-footer").style.display = "none";
   setTimeout(() => panel.scrollIntoView({ behavior: "smooth", block: "start" }), 50);
+}
+
+function oppdaterReferatEditor() {
+  const tekst = document.getElementById("referat-redigert").value;
+  document.getElementById("referat-redigert-kopier").disabled = !tekst.trim();
+  document.getElementById("referat-editor-status").textContent = "";
+}
+
+async function kopierRedigertReferat() {
+  const tekst = document.getElementById("referat-redigert").value;
+  if (!tekst.trim()) return;
+  const status = document.getElementById("referat-editor-status");
+  try {
+    await navigator.clipboard.writeText(tekst);
+    status.textContent = "Kopiert";
+  } catch {
+    status.textContent = "Kunne ikke kopiere. Marker teksten og kopier manuelt.";
+  }
 }
 
 let _referatProgressTimer = null;
@@ -1103,10 +1083,40 @@ function _visLlmUtilgjengelig(melding) {
 }
 
 function _valgtReferatScenario() {
-  return document.getElementById("referat-scenario")?.value || "veiledermote";
+  return document.getElementById("referat-scenario")?.value || "generelt_mote";
+}
+
+function oppdaterReferatMal() {
+  document.getElementById("referat-egne-instruksjoner").hidden = _valgtReferatScenario() !== "egendefinert";
+  document.getElementById("referat-mal-status").textContent = "";
+}
+
+function _referatValg() {
+  const scenario = _valgtReferatScenario();
+  if (scenario !== "egendefinert") return { scenario };
+  const instruksjoner = document.getElementById("referat-instruksjoner").value.trim();
+  if (!instruksjoner) {
+    document.getElementById("referat-mal-status").textContent = "Skriv egne instruksjoner før du lager referatet.";
+    return null;
+  }
+  document.getElementById("referat-mal-status").textContent = "";
+  return { scenario, instruksjoner };
+}
+
+function hentReferatFraArbeidsflate() {
+  const kilde = document.querySelector(".app-main-grid").dataset.lydkilde || "batch";
+  return _valgtReferatScenario() === "sammendrag" ? hentSammendrag(kilde) : hentReferat(kilde);
 }
 
 function _referatScenarioTittel(scenarioId) {
+  const titler = {
+    sammendrag: "Sammendrag",
+    generelt_mote: "Generelt referat",
+    veiledermote: "Veilederreferat",
+    samarbeidsmote: "Samarbeidsreferat",
+    egendefinert: "Egendefinert",
+  };
+  if (titler[scenarioId]) return titler[scenarioId];
   return _referatScenarier.find(scenario => scenario.id === scenarioId)?.tittel || "Møtereferat";
 }
 
@@ -1159,10 +1169,10 @@ async function _streamReferat(endepunkt, tekst, tittel, ekstra = {}) {
   }
 }
 
-async function hentSammendrag() {
-  const tekst = _hentTranskripsjonTekst("sanntid");
+async function hentSammendrag(kilde = "sanntid") {
+  const tekst = _hentTranskripsjonTekst(kilde);
   if (!tekst.trim()) { alert("Ingen transkripsjon å oppsummere ennå."); return; }
-  _visReferatPanel("📋 Løpende sammendrag");
+  _visReferatPanel("Sammendrag");
   document.getElementById("referat-panel").scrollIntoView({ behavior: "smooth", block: "start" });
   try {
     await _streamReferat("/sammendrag/stream", tekst, "📋 Løpende sammendrag");
@@ -1174,12 +1184,14 @@ async function hentSammendrag() {
 async function hentReferat(kilde) {
   const tekst = _hentTranskripsjonTekst(kilde);
   if (!tekst.trim()) { alert("Ingen transkripsjon å generere referat fra."); return; }
-  const scenario = _valgtReferatScenario();
+  const valg = _referatValg();
+  if (!valg) return;
+  const scenario = valg.scenario;
   const tittel = "📝 " + _referatScenarioTittel(scenario);
   _visReferatPanel(tittel);
   document.getElementById("referat-panel").scrollIntoView({ behavior: "smooth", block: "start" });
   try {
-    await _streamReferat("/referat/stream", tekst, tittel, { scenario });
+    await _streamReferat("/referat/stream", tekst, tittel, valg);
   } catch (err) {
     _visReferatFeil("Nettverksfeil: " + err.message);
   }

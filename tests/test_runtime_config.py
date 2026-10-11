@@ -60,3 +60,16 @@ def test_llm_backend_ollama_gets_local_default_model():
         check=True,
     )
     assert result.returncode == 0
+
+
+def test_nemotron_startup_selects_local_model_without_changing_remote_default():
+    env = os.environ.copy()
+    env.update(LOKAL_ASR_BACKEND="nemotron", NEMOTRON_MODELL="nvidia/test-nemotron")
+    env.pop("TRANSKRIPSJON_MODELL", None)
+    env["TRANSKRIPSJON_BACKEND"] = "local"
+    code = "from shared.core.settings import MODELL_ID, TRANSKRIPSJON_MODELL; "
+    subprocess.run([sys.executable, "-c", code + "assert MODELL_ID == TRANSKRIPSJON_MODELL == 'nvidia/test-nemotron'"],
+                   env=env, capture_output=True, check=True)
+    env["TRANSKRIPSJON_BACKEND"] = "remote"
+    subprocess.run([sys.executable, "-c", code + "assert TRANSKRIPSJON_MODELL == 'nb-whisper-large'"],
+                   env=env, capture_output=True, check=True)

@@ -5,6 +5,7 @@ from pathlib import Path
 import numpy as np
 
 from shared.contracts.transcription import Segment, TranskripsjonSvar
+from shared.core.settings import LOKAL_ASR_BACKEND
 from shared.services.transkripsjon_backend import StatusCallback
 from worker.transkribering.hallusinasjon import trim_null_ord, trim_etter_stille, fjern_hallusinasjon
 from worker.transkribering.diarisering import diariser, tilordne_taler
@@ -22,22 +23,31 @@ _STILLE_TRIM_MARGIN_S = 1.5
 
 
 def estimert_total_s(modell_id: str, lyd_s: float, enhet: str = "mps") -> float:
+    if "nemotron" in modell_id.lower():
+        return max(lyd_s * (0.08 if enhet == "cpu" else 0.03) + _DIARISER_OVERHEAD_S, 5.0)
     faktor  = next((v for k, v in _MODELL_FAKTOR.items() if k in modell_id.lower()), 0.33)
     hw_mult = _ENHET_MULTIPLIKATOR.get(enhet, 1.0)
     return max(lyd_s * faktor * hw_mult + _DIARISER_OVERHEAD_S, 5.0)
 
 
 class LokalBatchTranskriberer:
-    """Local nb-whisper batch model with speaker diarization."""
+    """Startup-selected local ASR model with speaker diarization."""
 
     def __init__(self, modell_id: str):
         import logging
 
         logging.getLogger("transformers").setLevel(logging.ERROR)
 
+        self.modell_id = modell_id
+        self.asr_backend = LOKAL_ASR_BACKEND
+        if self.asr_backend == "nemotron":
+            from worker.transkribering.nemotron import NemotronTranskriberer
+
+            self._asr = NemotronTranskriberer(modell_id)
+            self.enhet = self._asr.enhet
+            return
         from transformers import pipeline
 
-        self.modell_id = modell_id
         self.enhet = velg_enhet()
         print(f"[arbeider] Laster modell: {modell_id}  (enhet: {self.enhet}) …", flush=True)
         self._asr = pipeline(
@@ -79,17 +89,23 @@ class LokalBatchTranskriberer:
             if status_callback is not None:
                 status_callback({"fase": "transkriberer", "lyd_varighet_s": lyd_varighet_s})
 
-            resultat = self._asr(
-                str(wav_sti),
-                chunk_length_s=_CHUNK_LENGDE_S,
-                stride_length_s=_STRIDE_LENGDE_S,
-                return_timestamps="word",
-                generate_kwargs={
-                    "num_beams": _NUM_BEAMS,
-                    "task": "transcribe",
-                    "language": "no",
-                },
-            )
+            if getattr(self, "asr_backend", "whisper") == "nemotron":
+                from worker.transkribering.nemotron import TIMESTAMP_WARNING
+
+                resultat = self._asr.transkriber(pcm)
+                advarsler.append(TIMESTAMP_WARNING)
+            else:
+                resultat = self._asr(
+                    str(wav_sti),
+                    chunk_length_s=_CHUNK_LENGDE_S,
+                    stride_length_s=_STRIDE_LENGDE_S,
+                    return_timestamps="word",
+                    generate_kwargs={
+                        "num_beams": _NUM_BEAMS,
+                        "task": "transcribe",
+                        "language": "no",
+                    },
+                )
 
             rå_tekst = resultat["text"].strip()
             ord_liste = resultat.get("chunks", [])
@@ -105,8 +121,11 @@ class LokalBatchTranskriberer:
                 ts1 = c["timestamp"][1] if c["timestamp"][1] is not None else siste_slutt
                 c["timestamp"] = (ts0, ts1)
 
-            ord_liste = trim_null_ord(ord_liste)
-            ord_liste = trim_etter_stille(ord_liste, pcm, margin_s=_STILLE_TRIM_MARGIN_S)
+            er_nemotron = getattr(self, "asr_backend", "whisper") == "nemotron"
+            if not er_nemotron:
+                ord_liste = trim_null_ord(ord_liste)
+                ord_liste = trim_etter_stille(ord_liste, pcm, margin_s=_STILLE_TRIM_MARGIN_S)
+            rens_tekst = (lambda text: text) if er_nemotron else fjern_hallusinasjon
             if len(ord_liste) != antall_ord_rå:
                 print(f"[trim] Beholdt {len(ord_liste)}/{antall_ord_rå} ord etter etterbehandling", flush=True)
             if not ord_liste:
@@ -136,7 +155,7 @@ class LokalBatchTranskriberer:
                     taler = tilordne_taler(ts0, ts1, diari_segs, gjeldende_taler)
 
                     if taler != gjeldende_taler and gjeldende_ord:
-                        t = fjern_hallusinasjon("".join(gjeldende_ord).strip())
+                        t = rens_tekst("".join(gjeldende_ord).strip())
                         if t:
                             segmenter.append({
                                 "start": round(gjeldende_start, 1),
@@ -154,7 +173,7 @@ class LokalBatchTranskriberer:
                     gjeldende_slutt = ts1
 
                 if gjeldende_ord:
-                    t = fjern_hallusinasjon("".join(gjeldende_ord).strip())
+                    t = rens_tekst("".join(gjeldende_ord).strip())
                     if t:
                         segmenter.append({
                             "start": round(gjeldende_start, 1),
@@ -166,7 +185,7 @@ class LokalBatchTranskriberer:
                 # Slå sammen svært korte stubb-segmenter (< 3 ord) med naboer
                 MIN_ORD = 3
                 i = 0
-                while i < len(segmenter):
+                while not er_nemotron and i < len(segmenter):
                     antall_ord = len(segmenter[i]["tekst"].split())
                     if antall_ord < MIN_ORD:
                         gjeldende = segmenter[i]
@@ -217,7 +236,7 @@ class LokalBatchTranskriberer:
                         grp_start = c["timestamp"][0]
                     gjeldende_ord_grp.append(c["text"])
                 if gjeldende_ord_grp:
-                    t = fjern_hallusinasjon("".join(gjeldende_ord_grp).strip())
+                    t = rens_tekst("".join(gjeldende_ord_grp).strip())
                     if t:
                         segmenter.append({
                             "start": round(grp_start, 1),

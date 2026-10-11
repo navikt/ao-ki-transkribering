@@ -27,7 +27,7 @@ async def lifespan(app: FastAPI):
 
 
 def create_app() -> FastAPI:
-    app = FastAPI(title="NB-Whisper transkribering", lifespan=lifespan)
+    app = FastAPI(title="Transkribering", lifespan=lifespan)
 
     _STATIC = Path(__file__).parent / "static"
     app.mount("/static", StaticFiles(directory=str(_STATIC), html=True), name="static")

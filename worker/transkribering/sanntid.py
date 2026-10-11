@@ -1,9 +1,13 @@
 import os
 import tempfile
 import threading
+import re
+from dataclasses import dataclass
 from pathlib import Path
 
 import numpy as np
+
+from shared.core.settings import LOKAL_ASR_BACKEND
 
 from worker.transkribering.konstanter import (
     SAMPLE_RATE,
@@ -11,6 +15,7 @@ from worker.transkribering.konstanter import (
     ENERGI_TERSKEL,
     STILLHET_TERSKEL_S,
     MAKS_BUFFER_S,
+    OVERLAPP_S,
     MIN_TALE_S,
 )
 from worker.transkribering.hallusinasjon import er_hallusinasjon, trim_null_ord_fw
@@ -43,6 +48,39 @@ def hent_fw_modell():
     return _fw_modell
 
 
+def hent_sanntidsmodell():
+    if LOKAL_ASR_BACKEND == "nemotron":
+        from worker.transkribering.nemotron import hent_nemotron_modell
+
+        return hent_nemotron_modell()
+    return hent_fw_modell()
+
+
+def _transkriber_nemotron(pcm, prototyper):
+    resultat = hent_sanntidsmodell().transkriber(pcm)
+    if not resultat["chunks"]:
+        return None, prototyper
+    try:
+        diari_segs, ny_prototyper = diariser(pcm, prototyper=prototyper)
+    except Exception:
+        diari_segs, ny_prototyper = [], prototyper
+    segmenter = []
+    for word in resultat["chunks"]:
+        start, end = word["timestamp"]
+        previous = segmenter[-1]["taler"] if segmenter else "SPEAKER_00"
+        speaker = tilordne_taler(start, end, diari_segs, previous)
+        if segmenter and segmenter[-1]["taler"] == speaker:
+            segmenter[-1]["tekst"] += word["text"]
+            segmenter[-1]["slutt"] = end
+        else:
+            segmenter.append({"start": start, "slutt": end, "tekst": word["text"], "taler": speaker})
+    for segment in segmenter:
+        segment["tekst"] = normaliser_nav_ord(segment["tekst"].strip())
+        segment["start"] = round(segment["start"], 2)
+        segment["slutt"] = round(segment["slutt"], 2)
+    return {"tekst": " ".join(s["tekst"] for s in segmenter), "segmenter": segmenter}, ny_prototyper
+
+
 def transkriber_pcm(
     pcm: np.ndarray,
     prototyper: "np.ndarray | None" = None,
@@ -54,6 +92,9 @@ def transkriber_pcm(
     """
     if len(pcm) < SAMPLE_RATE * MIN_TALE_S:
         return None, prototyper
+
+    if LOKAL_ASR_BACKEND == "nemotron":
+        return _transkriber_nemotron(pcm, prototyper)
 
     modell = hent_fw_modell()
     with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as _tmp:
@@ -130,6 +171,61 @@ def transkriber_pcm(
         wav_sti.unlink(missing_ok=True)
 
 
+@dataclass
+class LydChunk:
+    pcm: np.ndarray
+    start_s: float
+    overlapp_s: float = 0.0
+
+
+class SegmentSamler:
+    """Remove matching boundary words only when adjacent chunks share audio."""
+
+    def __init__(self):
+        self._siste_ord: list[str] = []
+        self._siste_slutt_s = 0.0
+
+    def legg_til(self, resultat: dict | None, chunk: LydChunk) -> dict | None:
+        forrige_slutt = self._siste_slutt_s
+        self._siste_slutt_s = chunk.start_s + len(chunk.pcm) / SAMPLE_RATE
+        if not resultat or not resultat.get("tekst", "").strip():
+            self._siste_ord = []
+            return None
+        segmenter = [dict(seg) for seg in resultat.get("segmenter", [])]
+        if not segmenter:
+            segmenter = [{"start": 0.0, "slutt": len(chunk.pcm) / SAMPLE_RATE,
+                          "tekst": resultat["tekst"], "taler": "SPEAKER_00"}]
+        tekst = " ".join(seg["tekst"] for seg in segmenter)
+        ord_liste = [word.casefold().strip('.,:;!?()"') for word in tekst.split()]
+        fjern = 0
+        if (chunk.overlapp_s and segmenter[0].get("start", 0.0) < chunk.overlapp_s
+                and abs(forrige_slutt - chunk.start_s - chunk.overlapp_s) < 0.02):
+            maks_ord = min(len(self._siste_ord), len(ord_liste), int(chunk.overlapp_s * 8))
+            for antall in range(maks_ord, 1, -1):
+                if self._siste_ord[-antall:] == ord_liste[:antall]:
+                    fjern = antall
+                    break
+        nye_segmenter = []
+        for seg in segmenter:
+            ord_spenn = list(re.finditer(r"\S+", seg["tekst"]))
+            kutt = min(fjern, len(ord_spenn))
+            fjern -= kutt
+            if kutt:
+                seg["tekst"] = seg["tekst"][ord_spenn[kutt - 1].end():].lstrip()
+                seg["start"] = max(seg.get("start", 0.0), chunk.overlapp_s)
+            if not seg["tekst"].strip():
+                continue
+            seg["start"] = round(chunk.start_s + seg.get("start", 0.0), 2)
+            seg["slutt"] = round(chunk.start_s + seg.get("slutt", len(chunk.pcm) / SAMPLE_RATE), 2)
+            nye_segmenter.append(seg)
+        tekst = " ".join(seg["tekst"] for seg in nye_segmenter).strip()
+        if tekst:
+            self._siste_ord = (self._siste_ord + [
+                word.casefold().strip('.,:;!?()"') for word in tekst.split()
+            ])[-int(OVERLAPP_S * 8):]
+        return {"tekst": tekst, "segmenter": nye_segmenter} if tekst else None
+
+
 class VadBuffer:
     """
     Energibasert VAD-buffer. Samler PCM-frames og avgjør når det er trygt
@@ -141,9 +237,13 @@ class VadBuffer:
         self._tale_samples: int = 0
         self._stille_samples: int = 0
         self._harTale: bool = False
+        self._mottatt_samples = 0
+        self._start_sample = 0
+        self._overlapp_samples = 0
 
-    def legg_til(self, samples: np.ndarray) -> "np.ndarray | None":
-        """Legg til samples. Returner buffer for transkribering ved VAD-flush, ellers None."""
+    def legg_til(self, samples: np.ndarray) -> list[LydChunk]:
+        """Consume the entire packet, returning every completed chunk."""
+        chunks = []
         for start in range(0, len(samples), FRAME_SAMPLES):
             frame = samples[start:start + FRAME_SAMPLES]
             if len(frame) == 0:
@@ -154,6 +254,7 @@ class VadBuffer:
 
             self._frames.append(frame)
             self._total_samples += len(frame)
+            self._mottatt_samples += len(frame)
 
             if er_tale:
                 self._harTale = True
@@ -168,21 +269,29 @@ class VadBuffer:
             if self._harTale and (
                 stille_s >= STILLHET_TERSKEL_S or total_s >= MAKS_BUFFER_S
             ):
-                return self._flush()
+                chunks.append(self._flush(behold_overlapp=stille_s < STILLHET_TERSKEL_S))
+            elif not self._harTale and total_s >= MAKS_BUFFER_S:
+                self._reset()
 
-        return None
+        return chunks
 
-    def flush_alt(self) -> "np.ndarray | None":
+    def flush_alt(self) -> LydChunk | None:
         """Tøm buffer ved stopp-kommando."""
         if self._harTale and self._tale_samples > 0:
             return self._flush()
         self._reset()
         return None
 
-    def _flush(self) -> np.ndarray:
+    def _flush(self, behold_overlapp: bool = False) -> LydChunk:
         data = np.concatenate(self._frames)
+        chunk = LydChunk(data, self._start_sample / SAMPLE_RATE, self._overlapp_samples / SAMPLE_RATE)
         self._reset()
-        return data
+        if behold_overlapp and OVERLAPP_S > 0:
+            self._overlapp_samples = min(int(OVERLAPP_S * SAMPLE_RATE), len(data))
+            self._frames = [data[-self._overlapp_samples:].copy()]
+            self._total_samples = self._overlapp_samples
+            self._start_sample = self._mottatt_samples - self._overlapp_samples
+        return chunk
 
     def _reset(self):
         self._frames = []
@@ -190,3 +299,5 @@ class VadBuffer:
         self._tale_samples = 0
         self._stille_samples = 0
         self._harTale = False
+        self._overlapp_samples = 0
+        self._start_sample = self._mottatt_samples

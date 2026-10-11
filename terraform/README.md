@@ -53,7 +53,7 @@ Verify GPU nodes scale up:
 kubectl get nodes -l cloud.google.com/gke-accelerator=nvidia-l4 -w
 ```
 
-Deploy the Kubernetes vLLM resources and working-hours scaler:
+Deploy the Kubernetes vLLM resources and GPU retry scaler:
 
 ```bash
 ./scripts/apply-k8s.sh
@@ -77,20 +77,26 @@ gsutil -m cp -r ~/.cache/huggingface/hub/models--NbAiLab--borealis-12b \
 
 ## Cost control
 
-GPU nodes autoscale to 0 when no GPU pods are scheduled. The vLLM deployments
-start with `replicas: 0`; `k8s/working-hours-scaler.yaml` installs Kubernetes
-CronJobs that scale both deployments up and down on weekdays:
+Both vLLM deployments start with `replicas: 1`, requesting one GPU per model.
+`k8s/working-hours-scaler.yaml` retries L4 zones hourly, 24 hours a day, including
+weekends. Pending pods remain active between retries so the cluster autoscaler
+can keep trying. Pods already assigned to a node are preserved, including those
+still loading. The `vllm-scale-down` CronJob is suspended: there is no scheduled
+17:00 shutdown.
 
-- `02:00 Europe/Oslo`: `vllm-whisper=1`, `vllm-borealis=1`
-- Hourly through `16:00`: retry the L4 zones for unscheduled models; leave models
-  already assigned to a node alone, including those still loading.
-- `17:00 Europe/Oslo`: `vllm-whisper=0`, `vllm-borealis=0`
+Once both GPUs are assigned, hourly checks preserve them rather than requesting
+additional GPUs. Allocation is not guaranteed, and a scheduled pod does not
+necessarily mean its model API is ready. GPU nodes can still disappear due to
+maintenance or failures.
 
 Manual start/stop:
 
 ```bash
 ./scripts/start-gpu-deployment-with-fallback.sh vllm-whisper
 ./scripts/start-gpu-deployment-with-fallback.sh vllm-borealis
+kubectl -n vllm patch cronjob vllm-scale-up --type=merge -p '{"spec":{"suspend":true}}'
+# Wait for any active scaler Job to finish before stopping the deployments.
+kubectl -n vllm get jobs
 kubectl -n vllm scale deployment/vllm-whisper deployment/vllm-borealis --replicas=0
 ```
 
@@ -99,15 +105,14 @@ custom vLLM images are stored in Artifact Registry, and model artifacts are
 stored in the GCS model bucket; new nodes still need to fetch or stream those
 remote artifacts because their local container cache disappears with the node.
 GPU node pools enable GKE Image Streaming (`gcfs_config`) to reduce container
-image pull latency for Artifact Registry images. The weekday 02:00 start gives
-Whisper and Borealis more time to obtain GPU capacity before office hours;
-availability is not guaranteed.
+image pull latency for Artifact Registry images. Continuous retries give
+Whisper and Borealis more opportunities to obtain GPU capacity.
 
 The scaler logs UTC timestamps, deployment, pool, scheduling outcome, and elapsed
 seconds. Later hourly checks also report readiness for preserved pods. Scheduling
 success means a node was assigned, not that the model API is ready. Timeout logs
 include pod events explaining capacity failures. The last 75 successful scaler
-Jobs (five weekdays) are retained for comparison:
+Jobs are retained for comparison:
 
 ```bash
 kubectl -n vllm get jobs --sort-by=.metadata.creationTimestamp
@@ -115,7 +120,7 @@ kubectl -n vllm logs job/<vllm-scale-up-job-name>
 ```
 
 Autoscaler retries between hourly zone rotations remain visible in GKE events
-and cluster autoscaler logs. No provisioning probes run outside the window.
+and cluster autoscaler logs. Zone retries now run outside office hours as well.
 
 The default regional `gpu-l4` pool is still used for normal GPU workloads.
 Additional zero-min fallback pools (`gpu-l4-a`, `gpu-l4-b`, `gpu-l4-c`) allow
@@ -131,9 +136,11 @@ when L4 capacity stays unavailable and the higher cost is acceptable:
 ./scripts/start-gpu-deployment-on-a100.sh --yes vllm-borealis
 ```
 
-The expanded window permits up to 75 GPU-node hours per model each week.
-Actual cost depends on provisioning success, GPU/node type, and scale-down delay;
-the system pool remains active outside this window.
+Continuous operation permits up to 168 GPU-node hours per model each week.
+Allocated GPUs are billed outside office hours as well. Actual cost depends on
+provisioning success, GPU/node type, and scale-down delay; the system pool remains
+active even without GPUs. Suspending the retry CronJob alone does not stop model
+pods or deallocate GPUs. Reapplying the manifests restores continuous retries.
 
 The cluster is regional and may place default GPU nodes in `europe-west4-a`,
 `europe-west4-b`, or `europe-west4-c`. The per-zone fallback pools make the

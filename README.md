@@ -196,6 +196,10 @@ python -m uvicorn frontend.app:app --host 127.0.0.1 --port 8765
 | Variabel | Standard                     | Beskrivelse |
 |----------|------------------------------|-------------|
 | `WHISPER_MODELL` | `NbAiLab/nb-whisper-medium`  | Modell for batch-transkripsjon |
+| `LOKAL_ASR_BACKEND` | `whisper` | Lokal ASR: `whisper` eller eksperimentell `nemotron` |
+| `NEMOTRON_MODELL` | `nvidia/nemotron-3.5-asr-streaming-0.6b` | Lokal Nemotron-modell |
+| `NEMOTRON_ENHET` | CUDA hvis tilgjengelig, ellers CPU | `cpu` eller `cuda`; MPS er ikke validert |
+| `NEMOTRON_CPU_THREADS` | `4` | CPU-traader for Nemotron |
 | `WHISPER_SANNTID_MODELL` | `modeller/nb-whisper-medium` | Modell for sanntidsmodus |
 | `LLM_BACKEND` | `openai` | `openai` for OpenAI-kompatibel proxy, eller `ollama` for lokal Ollama |
 | `LLM_MODELL` | `borealis-12b` (`qwen3:8b` ved `LLM_BACKEND=ollama`) | LLM for møtereferat og sammendrag |
@@ -244,6 +248,18 @@ Last opp en lydfil (wav, mp3, m4a, webm). Applikasjonen transkriberer og identif
 
 ### Sanntidsmodus
 Klikk **Start opptak** for å transkribere direkte fra mikrofon. Referatutkastet oppdateres automatisk underveis (~hvert 150. nye ord) slik at det er ferdig når møtet avsluttes.
+
+Velg **Lydkilde** for lydfil eller mikrofon (sanntid). Bekreftelsen gjelder opptak og databehandling;
+§14 a/§15-bekreftelsen vises som en separat avkryssing og brukes når den er relevant.
+Velg **Tekstmal** og **Generer** i utkastkolonnen for sammendrag eller ulike referater fra samme transkripsjon.
+**Egendefinert** tar egne instruksjoner om struktur og vektlegging (maks 4000 tegn);
+systemreglene om faktabasert innhold beholdes. Valgt tekstmal gjelder også live-utkast.
+**Bearbeidet referat** er et separat tekstfelt og overskrives ikke ved ny generering.
+
+Lyden sendes til transkripsjon etter 1,5 sekunder stillhet eller senest etter
+10 sekunder. Ved tvungne kutt beholdes 1 sekund overlapp som kontekst;
+matchende ord ved grensene fjernes fra visningen. Modellens prosesseringstid
+kommer i tillegg til buffertiden.
 
 ### Rollemerking
 Etter transkripsjon kan du klikke **Veileder / Bruker / Tolk**-knappene for å merke hvem som er hvem. LLM-en bruker dette for mer presise referater.
@@ -408,3 +424,127 @@ python tests/integration/test_referat.py --debug                         # vis r
 python tests/integration/test_sanntid.py                                 # sanntidsmodus
 python tests/integration/test_sanntid.py --fil testdata/king.mp3
 ```
+
+## Speech-model comparison (experimental)
+
+The standalone benchmark does not change the app or Kubernetes deployments:
+
+```bash
+.venv/bin/python -m pip install -r requirements/benchmark-speech.txt
+ECAPA_CACHE="$PWD/.cache/speechbrain" .venv/bin/python -m benchmarks.speech \
+  --device cpu --seconds 60 --output .cache/benchmarks/speech-cpu.json
+```
+
+It compares raw NB-Whisper Large and NVIDIA Nemotron 3.5 ASR on identical clips
+from `testdata/audio`, and ECAPA with Nemotron 3 Diarization on
+`testdata/tre_stemmer_test.wav`. FFmpeg and the worker dependencies are required.
+The initial model downloads are cached by Hugging Face. Optional benchmark
+dependencies are not installed in production images.
+
+Nemotron diarization currently needs an unreleased Transformers implementation.
+The tested development revision can be installed separately, without replacing
+the app's packages:
+
+```bash
+.venv/bin/python -m pip install --no-deps --target .cache/speech-runtime \
+  -r requirements/benchmark-speech-runtime.txt
+PYTHONPATH="$PWD/.cache/speech-runtime" .venv/bin/python -m benchmarks.speech \
+  --device cpu --seconds 60 --output .cache/benchmarks/speech-cpu-validated.json
+```
+
+The JSON report contains generated transcripts, speaker timelines, inference/load
+times, devices, and model revisions. Existing reference transcripts are not read
+or used, including for clip boundaries. Transcription accuracy and diarization
+error rate are deliberately unscored for these existing files. Quality must be checked against the audio,
+not by treating either model's output as ground truth. Timings are offline
+measurements, not live-streaming latency, and should only be compared on the same
+hardware.
+
+Use `--seconds 0` for complete recordings, `--samples test002` for one ASR sample,
+or `--backends nemotron nemotron-diar` to run only the NVIDIA candidates.
+`--device cuda` supports a separate CUDA benchmark environment; do not run a
+second GPU workload against the active serving node without planning memory and
+request contention. ECAPA remains CPU-only to match the app.
+
+The public ASR model explicitly receives `nb-NO`. Its Nynorsk support requires
+adaptation. NbAiLab's Norwegian Nemotron beta needs separate access and rights
+review; it is not selected automatically. Model/runtime integration and streaming
+benchmarks remain separate from this evaluation.
+
+The earlier reference-based WER and deletion rates have been withdrawn because
+the supplied transcripts are not trusted. They do not establish which ASR model
+is more accurate. On the full 90-second three-speaker recording, ECAPA and
+Nemotron diarization both found three speakers, in 3.08s and 0.48s respectively
+(excluding loading). Speaker-boundary correctness has not been scored.
+
+Sources: [Nemotron ASR model card](https://huggingface.co/nvidia/nemotron-3.5-asr-streaming-0.6b),
+[Nemotron diarization model card](https://huggingface.co/nvidia/Nemotron-3-Diarization).
+
+### Reviewed Norwegian podcast test data
+
+Prepare 30 non-overlapping podcast clips from the official NB Samtale test split
+(24 Bokmal, 6 Nynorsk). Downloads total about 230 MB, are checksum-verified, and
+stay under the ignored `.cache/` directory. Only selected audio is extracted;
+subsequent preparation reuses the archives.
+
+```bash
+.venv/bin/python -m benchmarks.nb_samtale
+PYTHONPATH="$PWD/.cache/speech-runtime" .venv/bin/python -m benchmarks.speech \
+  --manifest .cache/nb-samtale/podcast-test.json --backends whisper nemotron \
+  --seconds 0 --device cpu --threads 4 \
+  --output .cache/benchmarks/nb-samtale-cpu.json
+```
+
+This explicitly selected corpus has human-corrected, second-person-reviewed
+references. It does not use `testdata/transcriptions`. The manifest records the
+dataset revision, source metadata, transcript variant and audio checksums.
+The report scores orthographic references with pooled word-error and deletion
+rates, separately for Bokmal and Nynorsk. Normalization ignores case and
+punctuation, but does not equate numbers with spoken number words or dialect
+forms with standardized words. References have not been independently checked
+against the audio here, and training-data overlap is unverified: treat this as
+a diagnostic comparison, not a definitive model ranking. Nynorsk is a written-norm
+challenge set: Whisper keeps `language=no` and NVIDIA uses `nb-NO`, not Nynorsk-targeted
+decoding. Those scores are not a supported-language accuracy claim for NVIDIA.
+Short isolated clips do not test streaming latency or continuous diarisation.
+
+See [dataset research and limitations](docs/norwegian-speech-testdata.md) and the
+[official NB Samtale dataset card](https://huggingface.co/datasets/Sprakbanken/nb_samtale).
+
+### Local Nemotron
+
+Experimental Nemotron ASR can replace local Whisper for both file uploads and
+recording. ECAPA speaker diarisation and the selected LLM are unchanged.
+The normal app command still defaults to Whisper; cloud manifests are unchanged.
+
+Use the isolated optional runtime described above. On first setup, cache the ASR
+weights before starting the offline app:
+
+```bash
+.venv/bin/python -m pip install --no-deps --target .cache/speech-runtime \
+  -r requirements/benchmark-speech-runtime.txt
+PYTHONPATH="$PWD/.cache/speech-runtime" .venv/bin/python -c \
+  'from huggingface_hub import snapshot_download; snapshot_download("nvidia/nemotron-3.5-asr-streaming-0.6b", allow_patterns=["*.json", "*.safetensors", "*.model", "*.txt"])'
+```
+
+After setup, one command starts the local app with Nemotron and local Ollama
+(`borealis:12b`, which must be installed in Ollama):
+
+```bash
+./scripts/run-local-nemotron.sh
+# Or another port when the normal app is already running:
+PORT=8766 ./scripts/run-local-nemotron.sh
+```
+
+Set `LLM_BACKEND`, `LLM_MODELL` and the corresponding endpoint variables before
+the command to retain another LLM setup. The launcher does not read `.env`.
+For rollback, stop this instance and use the normal app command with
+`LOKAL_ASR_BACKEND=whisper`.
+
+This is buffered recording transcription, not continuous cache-aware streaming.
+Long uploads use bounded windows with audio context; short speaker turns are
+preserved. RNNT emission timestamps and the resulting speaker alignment are
+approximate and have not been independently validated. The app returns a warning
+with upload results. This stock model performed substantially worse than
+NB-Whisper on our podcast subset, so review its output before using it for minutes
+or summaries. Its development Transformers runtime is not a production rollout.

@@ -22,7 +22,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 import pytest
 
 from worker.transkribering.konstanter import SAMPLE_RATE, FRAME_SAMPLES
-from worker.transkribering.sanntid import VadBuffer, transkriber_pcm
+from worker.transkribering.sanntid import VadBuffer, SegmentSamler, transkriber_pcm
 
 
 def les_pcm(lydfil: Path) -> np.ndarray:
@@ -48,6 +48,7 @@ async def simuler(lydfil: Path, hastigheit: float) -> None:
     print("─" * 60)
 
     buf = VadBuffer()
+    samler = SegmentSamler()
     prototyper = None
     segment_nr = 0
     t_start = time.perf_counter()
@@ -60,16 +61,16 @@ async def simuler(lydfil: Path, hastigheit: float) -> None:
         # Simuler sanntidshastigheit
         await asyncio.sleep(FRAME_SAMPLES / SAMPLE_RATE / hastigheit)
 
-        pcm_klar = buf.legg_til(chunk)
-        if pcm_klar is not None:
+        for pcm_klar in buf.legg_til(chunk):
             try:
                 resultat, prototyper = await asyncio.to_thread(
-                    transkriber_pcm, pcm_klar, prototyper
+                    transkriber_pcm, pcm_klar.pcm, prototyper
                 )
             except FileNotFoundError as e:
                 print(f"\n⚠️  {e}")
                 print("Kjør først: python konverter_modeller.py")
                 sys.exit(1)
+            resultat = samler.legg_til(resultat, pcm_klar)
             if resultat:
                 segment_nr += 1
                 elapsed = time.perf_counter() - t_start
@@ -81,7 +82,8 @@ async def simuler(lydfil: Path, hastigheit: float) -> None:
     # Flush gjenverande buffer
     rest = buf.flush_alt()
     if rest is not None:
-        resultat, _ = await asyncio.to_thread(transkriber_pcm, rest, prototyper)
+        resultat, _ = await asyncio.to_thread(transkriber_pcm, rest.pcm, prototyper)
+        resultat = samler.legg_til(resultat, rest)
         if resultat:
             segment_nr += 1
             elapsed = time.perf_counter() - t_start

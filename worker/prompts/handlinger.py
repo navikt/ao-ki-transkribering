@@ -40,7 +40,7 @@ class ReferatScenario:
         return self.bruker_prompt_template.format(transkripsjon=transkripsjon)
 
 
-STANDARD_REFERAT_SCENARIO = "veiledermote"
+STANDARD_REFERAT_SCENARIO = "generelt_mote"
 
 REFERAT_SCENARIER: dict[str, ReferatScenario] = {
     "veiledermote": ReferatScenario(
@@ -63,6 +63,13 @@ REFERAT_SCENARIER: dict[str, ReferatScenario] = {
         beskrivelse="Referat for møter med flere deltakere, roller, ansvar og oppfølging.",
         system_prompt=SYSTEM_SAMARBEIDSMOTE,
         bruker_prompt_template=BRUKER_SAMARBEIDSMOTE,
+    ),
+    "egendefinert": ReferatScenario(
+        id="egendefinert",
+        tittel="Egendefinert",
+        beskrivelse="Egne instruksjoner for struktur og vektlegging av referatet.",
+        system_prompt=SYSTEM_GENERELT_MOTE,
+        bruker_prompt_template=BRUKER_GENERELT_MOTE,
     ),
 }
 

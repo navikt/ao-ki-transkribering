@@ -11,6 +11,24 @@ import yaml
 ROOT = Path(__file__).resolve().parents[1]
 
 
+def test_continuous_gpu_requests_and_no_scheduled_shutdown():
+    resources = list(yaml.safe_load_all((ROOT / "k8s/working-hours-scaler.yaml").read_text()))
+    cronjobs = {resource["metadata"]["name"]: resource for resource in resources if resource["kind"] == "CronJob"}
+    assert cronjobs["vllm-scale-up"]["spec"]["schedule"] == "0 * * * *"
+    assert not cronjobs["vllm-scale-up"]["spec"].get("suspend", False)
+    assert cronjobs["vllm-scale-up"]["spec"]["concurrencyPolicy"] == "Forbid"
+    assert cronjobs["vllm-scale-down"]["spec"]["suspend"] is True
+    container = cronjobs["vllm-scale-up"]["spec"]["jobTemplate"]["spec"]["template"]["spec"]["containers"][0]
+    env = {entry["name"]: entry["value"] for entry in container["env"]}
+    assert env["KEEP_PENDING"] == "true"
+    for filename in ("vllm-whisper.yaml", "vllm-borealis.yaml"):
+        deployment = next(
+            resource for resource in yaml.safe_load_all((ROOT / "k8s" / filename).read_text())
+            if resource["kind"] == "Deployment"
+        )
+        assert deployment["spec"]["replicas"] == 1
+
+
 @pytest.fixture(params=["local", "cluster"])
 def scaler(request, tmp_path):
     if request.param == "local":

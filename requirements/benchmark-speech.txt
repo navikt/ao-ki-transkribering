@@ -1,0 +1,5 @@
+# Optional benchmark dependencies; not part of the production images.
+transformers>=5.14.1
+jiwer>=4,<5
+soundfile>=0.13
+# Install platform-appropriate torch and the worker dependencies separately.

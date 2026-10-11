@@ -23,7 +23,7 @@ variable "cluster_name" {
 }
 
 variable "gpu_min_nodes" {
-  description = "Minimum GPU nodes (0 = scale to zero outside working hours)"
+  description = "Minimum GPU nodes (0 = allow scale to zero when GPU workloads are stopped)"
   type        = number
   default     = 0
 }

@@ -30,7 +30,7 @@ echo "▶ Namespace og ServiceAccount..."
 $KUBECTL_CMD -f k8s/namespace.yaml
 
 echo ""
-echo "▶ Arbeidstid-skalering (CronJobs)..."
+echo "▶ Kontinuerlig GPU-forsøk (CronJobs, automatisk stopp suspendert)..."
 $KUBECTL_CMD -f k8s/working-hours-scaler.yaml
 
 echo ""
@@ -44,24 +44,19 @@ sed "s/loadBalancerIP: \"\"/loadBalancerIP: \"$BOREALIS_IP\"/" k8s/vllm-borealis
   | $KUBECTL_CMD -f -
 
 if ! $DRY_RUN; then
-  OSLO_DAY=$(TZ=Europe/Oslo date +%u)
-  OSLO_HOUR=$(TZ=Europe/Oslo date +%H)
-  OSLO_MINUTE=$(TZ=Europe/Oslo date +%M)
-  OSLO_MINUTES=$((10#$OSLO_HOUR * 60 + 10#$OSLO_MINUTE))
-  if (( OSLO_DAY <= 5 && OSLO_MINUTES >= 120 && OSLO_MINUTES < 1020 )); then
-    echo ""
-    echo "▶ Innenfor arbeidstid — starter vLLM-modeller med GPU-sonefallback nå..."
-    WAIT_ROLLOUT=false ./scripts/start-gpu-deployment-with-fallback.sh vllm-whisper || true
-    WAIT_ROLLOUT=false ./scripts/start-gpu-deployment-with-fallback.sh vllm-borealis || true
-  fi
+  echo ""
+  echo "▶ Starter vLLM-modeller med GPU-sonefallback nå..."
+  KEEP_PENDING=true WAIT_ROLLOUT=false ./scripts/start-gpu-deployment-with-fallback.sh vllm-whisper || true
+  KEEP_PENDING=true WAIT_ROLLOUT=false ./scripts/start-gpu-deployment-with-fallback.sh vllm-borealis || true
 fi
 
 echo ""
 echo "━━━ Ferdig ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo ""
 echo "Neste steg:"
-echo "  1. vLLM-whisper og vLLM-borealis starter automatisk på hverdager 02:00 Europe/Oslo og stoppes 17:00."
+echo "  1. vLLM-whisper og vLLM-borealis ber om én GPU hver, hele døgnet."
 echo "     Ventende modeller prøver GPU-sonene på nytt hver time; tildelte noder beholdes."
+echo "     Automatisk stopp er suspendert; tildelte GPU-er koster penger til de stoppes manuelt."
 echo "     Start manuelt ved behov:"
 echo "       ./scripts/start-gpu-deployment-with-fallback.sh vllm-whisper"
 echo "       ./scripts/start-gpu-deployment-with-fallback.sh vllm-borealis"

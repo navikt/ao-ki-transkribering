@@ -85,7 +85,7 @@ resource "google_container_node_pool" "system" {
 # ── GPU nodepool ──────────────────────────────────────────────────────────────
 # g2-standard-12: 12 vCPU, 48 GB RAM, 1× L4 (24 GB VRAM)
 # Fits Borealis-12b in BF16 (~24 GB) and nb-whisper-large (~3 GB) on separate pods.
-# Autoscales to 0 outside working hours when the CronJobs scale deployments down.
+# Can autoscale to 0 after model deployments are explicitly scaled down.
 resource "google_container_node_pool" "gpu" {
   name     = "gpu-l4"
   project  = var.project_id

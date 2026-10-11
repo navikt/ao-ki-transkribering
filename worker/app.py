@@ -8,7 +8,7 @@ from shared.contracts.transcription import HelseSvar, KlarSvar, TranskripsjonSva
 from shared.core.settings import MODELL_ID
 from worker.transkribering.batch import LokalBatchTranskriberer
 
-app = FastAPI(title="NB-Whisper model worker")
+app = FastAPI(title="Transcription model worker")
 
 _transkriberer: LokalBatchTranskriberer | None = None
 

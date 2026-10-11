@@ -23,53 +23,22 @@
   </div>
 </header>
 <main class="app-main">
-  <div class="app-main-grid">
+  <div class="app-main-grid" data-lydkilde="batch">
   <div class="app-main-venstre">
-
-  <!-- ===== JURIDISK INFORMASJON ===== -->
-  <div id="seksjon-samtykke" class="seksjon">
-    <div class="info-boks">
-      <strong>Behandlingsgrunnlag og begrensninger</strong>
-      <ul>
-        <li>Behandlingen skjer med hjemmel i <strong>nav-loven §14 a</strong> (arbeidsevnevurdering), jf. GDPR art. 6 (1) e. Samtykke er ikke behandlingsgrunnlag.</li>
-        <li>Et §14 a-møte kan også inneholde informasjon om kommunale tjenester (§15-vurdering). <strong>Slik informasjon kan ikke lagres i NAV-statlige systemer</strong> og må ikke bevares i transkripsjonen.</li>
-        <li>Lydfilen slettes automatisk etter transkribering. Transkripsjonen eksisterer kun i denne nettleserøkten og lagres ikke på server.</li>
-        <li>Transkripsjonen må gjennomgås av veileder før eventuell bruk – informasjon om kommunale tjenester skal fjernes manuelt.</li>
-        <li>Verktøyet kjører <strong>utelukkende lokalt</strong>. Ingen tale- eller tekstdata sendes til eksterne tjenester.</li>
-      </ul>
-    </div>
-    <label class="checkbox-label">
-      <input type="checkbox" class="checkbox-input" id="samtykke-hake-gammel" />
-      Jeg har lest og forstått begrensningene ovenfor, og bekrefter at møtet gjennomføres med hjemmel i nav-loven §14 a.
-    </label>
-    <button class="knapp knapp-primær" id="samtykke-knapp" onclick="bekreftSamtykke()" disabled>
-      Gå videre
-    </button>
-  </div>
 
   <!-- ===== OPPTAK / OPPLASTING ===== -->
   <div id="seksjon-opptak" class="seksjon aktiv">
-    <ol class="arbeidsflyt" aria-label="Arbeidsflyt">
-      <li class="arbeidsflyt-steg aktiv" role="button" tabindex="0" onclick="gaaTilArbeidsflytSteg(1)">1. Lyd</li>
-      <li class="arbeidsflyt-steg" role="button" tabindex="0" onclick="gaaTilArbeidsflytSteg(2)">2. Transkripsjon</li>
-      <li class="arbeidsflyt-steg" role="button" tabindex="0" onclick="gaaTilArbeidsflytSteg(3)">3. Referat</li>
-    </ol>
-
-    <div class="juridisk-kort">
-      <label class="checkbox-label juridisk-kontroll">
-        <input type="checkbox" class="checkbox-input" id="samtykke-hake" />
-        <span>
-          Jeg bekrefter at møtet behandles etter nav-loven §14 a, og at tekst om kommunale tjenester (§15) fjernes før videre bruk.
-        </span>
-      </label>
-    </div>
-
     <div class="kapabilitet-varsel" id="kapabilitet-varsel" style="display:none" aria-live="polite"></div>
 
-    <!-- Faner -->
-    <div class="faner">
-      <button class="fane aktiv" id="fane-batch" onclick="byttFane('batch')">Lydfil</button>
-      <button class="fane" id="fane-sanntid" onclick="byttFane('sanntid')">Sanntid</button>
+    <div class="mote-toolbar">
+    <div class="mote-oppsett">
+      <label class="scenario-velger">
+        <span>Lydkilde</span>
+        <select id="lydkilde" onchange="byttLydkilde(this.value)">
+          <option value="batch" selected>Lydfil</option>
+          <option value="sanntid">Mikrofon (sanntid)</option>
+        </select>
+      </label>
     </div>
 
     <!-- Batch-panel -->
@@ -116,16 +85,10 @@
           <div class="fremdrift-bar-indre ubestemt" id="fremdrift-bar"></div>
         </div>
       </div>
-      <div class="feil-boks" id="feil-boks" style="display:none"></div>
     </div>
 
     <!-- Sanntid-panel -->
     <div id="panel-sanntid" style="display:none">
-      <div class="info-boks info-boks--advarsel">
-        Sanntidsmodus transkriberer fortløpende i segmenter (2–5 sek forsinkelse).
-        §15-advarselen gjelder fortsatt – gjennomgå teksten etter møtet.
-      </div>
-
       <!-- ── Opptak ── -->
       <div class="modul-kort">
         <div class="modul-tittel">Opptak</div>
@@ -135,51 +98,51 @@
         </label>
         <div class="opptaks-rad">
           <button class="knapp knapp-fare" id="sanntid-start-knapp" onclick="startSanntid()">
-            ● Start sanntid
+            Start opptak
           </button>
           <button class="knapp knapp-sekundær" id="sanntid-stopp-knapp" onclick="stoppSanntid()" disabled>
-            ■ Stopp
+            Stopp
           </button>
           <span class="timer" id="sanntid-timer" style="display:none">
             <span class="puls"></span><span id="sanntid-timer-tekst">0:00</span>
           </span>
         </div>
-        <div class="sanntid-status" id="sanntid-status" style="display:none">
-          <span class="puls" id="sanntid-puls"></span>
+        <div class="sanntid-status" id="sanntid-status" style="display:none" role="status">
           <span id="sanntid-status-tekst">Kobler til …</span>
         </div>
       </div>
 
+    </div>
+    <div class="juridisk-kort">
+      <label class="checkbox-label juridisk-kontroll">
+        <input type="checkbox" class="checkbox-input" id="samtykke-hake" />
+        <span id="mote-bekreftelse-tekst">
+          Jeg bekrefter at opptak og transkripsjon er avklart med deltakerne, og at opplysningene kan behandles til dette formålet.
+        </span>
+      </label>
+        <label class="checkbox-label juridisk-paragraf">
+          <input type="checkbox" class="checkbox-input" id="paragraf14-hake"
+                 onchange="oppdaterMoteBekreftelse(true)" />
+          Jeg bekrefter at møtet behandles etter nav-loven §14 a, og at tekst om kommunale tjenester (§15) fjernes før videre bruk.
+        </label>
+    </div>
+    </div><!-- /mote-toolbar -->
+
+
+    <div class="feil-boks" id="feil-boks" style="display:none" role="alert"></div>
+  </div><!-- /seksjon-opptak -->
+  </div><!-- /app-main-venstre -->
+
+  <div class="app-main-hoyre">
+  <div class="transkripsjon-kolonne">
+  <div id="sanntid-resultat" hidden>
+    <h2 class="seksjon-tittel">Transkripsjon</h2>
+    <div class="info-boks info-boks--advarsel" id="sanntid-gjennomgang" hidden></div>
+    <div class="tomtilstand" id="sanntid-tomtilstand">Start opptaket for å transkribere møtet.</div>
       <!-- ── Transkripsjon ── -->
       <div class="modul-kort" id="modul-transkripsjon" style="display:none">
-        <div class="modul-tittel">Transkripsjon</div>
         <div class="taler-navn-rad" id="sanntid-taler-rad"></div>
         <div class="sanntid-dialog" id="sanntid-tekst"></div>
-      </div>
-
-      <!-- ── Utkast referat ── -->
-      <div class="live-referat-wrap" id="live-referat-wrap" style="display:none">
-        <div class="live-referat-header" onclick="toggleLiveReferat()">
-          <span class="live-referat-puls" id="live-referat-puls" style="display:none"></span>
-          <span>Utkast referat</span>
-          <span class="live-referat-status" id="live-referat-status"></span>
-          <span style="margin-left:auto" id="live-referat-chevron">▼</span>
-        </div>
-        <div id="live-referat-body" style="display:none">
-          <div class="live-referat-body" id="live-referat-tekst">
-            <span class="live-referat-tom">Utkast vises her etter ca. 2–3 minutters tale …</span>
-          </div>
-          <div class="live-referat-footer">
-            <button class="knapp knapp-sekundær knapp-xs"
-                    onclick="oppdaterLiveReferatNaa()">Oppdater nå</button>
-            <button class="knapp knapp-sekundær knapp-xs"
-                    id="live-referat-auto-knapp"
-                    onclick="toggleLiveReferatAuto()">⏸ Pause auto</button>
-            <button class="knapp knapp-sekundær knapp-xs"
-                    onclick="kopierLiveReferat()">Kopier</button>
-            <span id="live-referat-tid" class="fotnote" style="margin-left:auto"></span>
-          </div>
-        </div>
       </div>
 
       <!-- ── Etter opptak ── -->
@@ -187,8 +150,6 @@
         <div class="modul-tittel">Handlinger</div>
         <div class="knapper-rad">
           <button class="knapp knapp-primær" onclick="kopierSanntidTekst()">Kopier transkripsjon</button>
-          <button class="knapp knapp-sekundær" id="sanntid-sammendrag-knapp" onclick="hentSammendrag()">Sammendrag</button>
-          <button class="knapp knapp-sekundær" id="sanntid-referat-knapp" onclick="hentReferat('sanntid')">Skriv referat</button>
           <button class="knapp knapp-sekundær" onclick="nullstillSanntid()">Nullstill</button>
         </div>
       </div>
@@ -196,19 +157,15 @@
       <p class="fotnote" style="display:none" id="sanntid-footer">
         Transkripsjonen lagres ikke og forsvinner når du lukker siden.
       </p>
-    </div>
-  </div><!-- /seksjon-opptak -->
-  </div><!-- /app-main-venstre -->
-
-  <div class="app-main-hoyre">
+  </div>
   <!-- ===== RESULTAT ===== -->
   <div id="seksjon-resultat" class="seksjon aktiv resultat-tom">
     <h2 class="seksjon-tittel">Transkripsjon</h2>
     <div class="tomtilstand" id="resultat-tomtilstand">
-      Velg en lydfil til venstre. Transkripsjonen vises her når den er klar.
+      Last opp en lydfil eller start et opptak. Transkripsjonen vises her.
     </div>
     <div class="info-boks info-boks--advarsel" id="paragraf15-advarsel">
-      <strong>Gjennomgå før bruk:</strong> Transkripsjonen kan inneholde informasjon om kommunale tjenester (jf. nav-loven §15) som <strong>ikke kan lagres i NAV-statlige systemer</strong>. Fjern slik informasjon før eventuell videre bruk.
+      Gjennomgå transkripsjonen og fjern opplysninger som ikke skal brukes eller lagres videre.
     </div>
     <div class="feil-boks" id="resultat-advarsel" style="display:none"></div>
     <div class="resultat-meta" id="resultat-meta" aria-live="polite"></div>
@@ -233,21 +190,61 @@
 
     <div class="knapper-rad">
       <button class="knapp knapp-primær" onclick="kopierDialog()">Kopier transkripsjon</button>
-      <label class="scenario-velger">
-        <span>Referatmal</span>
-        <select id="referat-scenario">
-          <option value="veiledermote" selected>Veiledermøte</option>
-          <option value="generelt_mote">Generelt møte</option>
-          <option value="samarbeidsmote">Samarbeidsmøte</option>
-        </select>
-      </label>
-      <button class="knapp knapp-sekundær" onclick="hentReferat('batch')">Skriv møtereferat</button>
       <button class="knapp knapp-sekundær" onclick="nyttOpptak()">Nytt opptak</button>
     </div>
     <p class="fotnote">
       Transkripsjonen lagres ikke og forsvinner når du lukker eller laster siden på nytt.
     </p>
   </div><!-- /seksjon-resultat -->
+
+  </div><!-- /transkripsjon-kolonne -->
+  <div class="referat-kolonne">
+    <div class="referat-oppsett">
+      <label class="scenario-velger">
+        <span>Tekstmal</span>
+        <select id="referat-scenario" onchange="oppdaterReferatMal()">
+          <option value="sammendrag">Sammendrag</option>
+          <option value="generelt_mote" selected>Generelt referat</option>
+          <option value="veiledermote">Veilederreferat</option>
+          <option value="samarbeidsmote">Samarbeidsreferat</option>
+          <option value="egendefinert">Egendefinert</option>
+        </select>
+      </label>
+      <div id="referat-egne-instruksjoner" hidden>
+        <label for="referat-instruksjoner">Egne instruksjoner</label>
+        <textarea id="referat-instruksjoner" rows="4" maxlength="4000"></textarea>
+      </div>
+      <button class="knapp knapp-sekundær knapp-xs" onclick="hentReferatFraArbeidsflate()">Generer</button>
+      <span id="referat-mal-status" class="fotnote" role="status"></span>
+    </div>
+    <div id="referat-tomtilstand">
+      <h2 class="seksjon-tittel">Utkast</h2>
+      <div class="tomtilstand">Utkastet vises her når det er klart.</div>
+    </div>
+      <!-- ── Utkast referat ── -->
+      <div class="live-referat-wrap" id="live-referat-wrap" style="display:none">
+        <div class="live-referat-header" onclick="toggleLiveReferat()">
+          <span class="live-referat-puls" id="live-referat-puls" style="display:none"></span>
+          <span id="live-utkast-tittel">Utkast referat</span>
+          <span class="live-referat-status" id="live-referat-status"></span>
+          <span style="margin-left:auto" id="live-referat-chevron">▼</span>
+        </div>
+        <div id="live-referat-body" style="display:none">
+          <div class="live-referat-body" id="live-referat-tekst">
+            <span class="live-referat-tom">Utkast vises her etter ca. 2–3 minutters tale …</span>
+          </div>
+          <div class="live-referat-footer">
+            <button class="knapp knapp-sekundær knapp-xs"
+                    onclick="oppdaterLiveReferatNaa()">Oppdater nå</button>
+            <button class="knapp knapp-sekundær knapp-xs"
+                    id="live-referat-auto-knapp"
+                    onclick="toggleLiveReferatAuto()">⏸ Pause auto</button>
+            <button class="knapp knapp-sekundær knapp-xs"
+                    onclick="kopierLiveReferat()">Kopier</button>
+            <span id="live-referat-tid" class="fotnote" style="margin-left:auto"></span>
+          </div>
+        </div>
+      </div>
 
   <!-- Møtereferat-panel -->
   <div id="referat-panel" class="referat-panel" style="display:none">
@@ -275,6 +272,20 @@
       </span>
     </div>
   </div><!-- /referat-panel -->
+  <section class="referat-editor" aria-labelledby="referat-editor-tittel">
+    <h2 class="seksjon-tittel" id="referat-editor-tittel">
+      <label for="referat-redigert">Bearbeidet referat</label>
+    </h2>
+    <textarea id="referat-redigert" rows="10" spellcheck="true"
+              oninput="oppdaterReferatEditor()"></textarea>
+    <div class="referat-editor-handlinger">
+      <button class="knapp knapp-sekundær knapp-xs" id="referat-redigert-kopier"
+              onclick="kopierRedigertReferat()" disabled>Kopier bearbeidet referat</button>
+      <span id="referat-editor-status" class="fotnote" role="status"></span>
+    </div>
+    <p class="fotnote">Teksten lagres ikke og forsvinner når du lukker eller laster siden på nytt.</p>
+  </section>
+  </div><!-- /referat-kolonne -->
   </div><!-- /app-main-hoyre -->
   </div><!-- /app-main-grid -->
 </main>

@@ -154,8 +154,8 @@ metadata:
   name: vllm-scale-up
   namespace: vllm
 spec:
-  # Hourly zone retries in the weekday 02:00-17:00 Oslo window; preserve scheduled pods.
-  schedule: "0 2-16 * * 1-5"
+  # Retry hourly around the clock; preserve pods already assigned to a GPU.
+  schedule: "0 * * * *"
   timeZone: Europe/Oslo
   startingDeadlineSeconds: 120
   concurrencyPolicy: Forbid
@@ -205,7 +205,8 @@ metadata:
   name: vllm-scale-down
   namespace: vllm
 spec:
-  # Weekdays at 17:00 Oslo time.
+  # Retained for easy re-enabling; GPUs stay allocated until manually stopped.
+  suspend: true
   schedule: "0 17 * * 1-5"
   timeZone: Europe/Oslo
   concurrencyPolicy: Forbid

@@ -4,7 +4,11 @@ from pathlib import Path
 
 os.environ["HF_HUB_OFFLINE"] = os.getenv("HF_HUB_OFFLINE", "1")
 
-MODELL_ID = os.getenv("WHISPER_MODELL", "NbAiLab/nb-whisper-medium")
+LOKAL_ASR_BACKEND = os.getenv("LOKAL_ASR_BACKEND", "whisper").lower()
+if LOKAL_ASR_BACKEND not in {"whisper", "nemotron"}:
+    raise ValueError("LOKAL_ASR_BACKEND must be whisper or nemotron")
+NEMOTRON_MODELL = os.getenv("NEMOTRON_MODELL", "nvidia/nemotron-3.5-asr-streaming-0.6b")
+MODELL_ID = NEMOTRON_MODELL if LOKAL_ASR_BACKEND == "nemotron" else os.getenv("WHISPER_MODELL", "NbAiLab/nb-whisper-medium")
 LLM_BACKEND = os.getenv("LLM_BACKEND", "openai").lower()
 _standard_llm_modell = "qwen3:8b" if LLM_BACKEND == "ollama" else "borealis-12b"
 LLM_MODELL = os.getenv("LLM_MODELL", os.getenv("OLLAMA_MODELL", _standard_llm_modell))

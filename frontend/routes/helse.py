@@ -6,6 +6,7 @@ from shared.core.settings import (
     AI_PROXY_URL,
     LLM_BACKEND,
     LLM_MODELL,
+    LOKAL_ASR_BACKEND,
     MODELL_ID,
     OLLAMA_URL,
     TRANSKRIPSJON_BACKEND,
@@ -85,13 +86,16 @@ def worker_is_ready():
 @router.get("/system/info")
 def system_info():
     """Teknisk konfigurasjon for visning i UI."""
-    sanntid_modell = MODELL_ID if TRANSKRIPSJON_BACKEND == "remote" else _CT2_MODELL_STI
+    sanntid_modell = TRANSKRIPSJON_MODELL if TRANSKRIPSJON_BACKEND == "remote" else (
+        MODELL_ID if LOKAL_ASR_BACKEND == "nemotron" else _CT2_MODELL_STI
+    )
     return {
         "asr": {
             "batch_modell": MODELL_ID,
             "transkripsjon_modell": TRANSKRIPSJON_MODELL,
             "sanntid_modell": sanntid_modell,
             "backend": TRANSKRIPSJON_BACKEND,
+            "lokal_motor": LOKAL_ASR_BACKEND if TRANSKRIPSJON_BACKEND == "local" else None,
         },
         "diarisering": {
             "modell": _ECAPA_KILDE,

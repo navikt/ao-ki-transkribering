@@ -28,6 +28,7 @@ class LlmForesporsel(BaseModel):
     transkripsjon: str
     modell: str | None = None
     scenario: str | None = None
+    instruksjoner: str | None = Field(default=None, max_length=4000)
 
 
 class LlmModell(BaseModel):
