@@ -64,10 +64,15 @@ spec:
             - --dtype
             - bfloat16
             # Borealis-12b fills the L4 (24 GB VRAM) in BF16.
-            # Keep context conservative for the single-L4 pilot; larger contexts
-            # need quantization, a larger GPU, or more aggressive offload.
+            # Bound concurrent sequences and prefill batches to leave memory for
+            # meeting transcripts on the existing single-L4/offload setup.
             - --max-model-len
-            - "768"
+            - "8192"
+            - --max-num-seqs
+            - "2"
+            - --enable-chunked-prefill
+            - --max-num-batched-tokens
+            - "512"
             - --gpu-memory-utilization
             - "0.88"
             - --cpu-offload-gb

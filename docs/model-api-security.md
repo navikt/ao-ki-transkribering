@@ -22,6 +22,23 @@ them in `X-Serverless-Authorization`. The separate application key stays in
 
 ## Credential and network boundaries
 
+- The frontend validates inbound Entra bearer tokens through the NAIS token
+  introspection sidecar (`identity_provider=entra_id`) for HTTP and WebSocket
+  connections. This delegates signature, issuer, audience and time validation
+  to NAIS, rather than trusting autologin alone. Missing/invalid tokens are
+  rejected; sidecar failures fail closed. Only GET/HEAD `/isAlive` and `/isReady`
+  bypass validation. Tokens and introspection responses are not logged.
+- `AUTH_REQUIRED=true` is explicit in both NAIS manifests. `NAIS_CLUSTER_NAME`
+  also forces validation even if that flag is accidentally disabled; missing
+  sidecar configuration prevents startup. Local runs without either setting
+  remain unauthenticated and should bind only to localhost. WebSockets are
+  validated at connection establishment; this does not add session revocation
+  checks during an already established recording.
+- The ingress remains internal-only and `allowAllUsers` still permits all users
+  in NAV's Entra tenant. No phone, network or group permissions are broadened.
+  Per-user result ownership and narrower group authorization remain follow-ups.
+  See [NAIS employee token validation](https://docs.nais.io/auth/entra-id/how-to/login/).
+
 - `nais-dev-model-key` and `nais-prod-model-key` are independent inference-only
   credentials. They cannot access gateway administration, other models, or
   override provider URLs/credentials. Only model listing, chat completion, and

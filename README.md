@@ -205,6 +205,7 @@ python -m uvicorn frontend.app:app --host 127.0.0.1 --port 8765
 | `WHISPER_SANNTID_MODELL` | `modeller/nb-whisper-medium` | Modell for sanntidsmodus |
 | `LLM_BACKEND` | `openai` | `openai` for OpenAI-kompatibel proxy, eller `ollama` for lokal Ollama |
 | `LLM_MODELL` | `borealis-12b` (`qwen3:8b` ved `LLM_BACKEND=ollama`) | LLM for møtereferat og sammendrag |
+| `LLM_MAX_TOKENS` | `256` (`1024` i NAIS) | Maksimal svarlengde for proxy-baserte LLM-kall. Prompt og svar deler modellens kontekstvindu. |
 | `AI_PROXY_URL` | `http://127.0.0.1:9000` | OpenAI-kompatibelt LLM-endepunkt ved `LLM_BACKEND=openai` |
 | `AI_PROXY_API_KEY` | tom | API-nøkkel for OpenAI-kompatibelt LLM-endepunkt |
 | `OLLAMA_URL` | `http://localhost:11434`     | Ollama-endepunkt |

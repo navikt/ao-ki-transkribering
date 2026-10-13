@@ -7,6 +7,7 @@ from fastapi import FastAPI
 from fastapi.responses import FileResponse
 from pathlib import Path
 from fastapi.staticfiles import StaticFiles
+from frontend.auth import EntraAuthMiddleware
 
 from frontend.routes.helse import router as helse_router
 from frontend.routes.referat import router as referat_router
@@ -41,6 +42,7 @@ async def lifespan(app: FastAPI):
 
 def create_app() -> FastAPI:
     app = FastAPI(title="Transkribering", lifespan=lifespan)
+    app.add_middleware(EntraAuthMiddleware)
 
     _STATIC = Path(__file__).parent / "static"
     app.mount("/static", StaticFiles(directory=str(_STATIC), html=True), name="static")

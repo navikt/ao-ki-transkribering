@@ -47,6 +47,40 @@ for (const [protocol, expected] of [["https:", "wss:"], ["http:", "ws:"]]) {
   });
 }
 
+test("microphone meter distinguishes silence, weak input, sound and clipping", () => {
+  const { element, run } = workspace();
+  for (const [sample, expected] of [[0, "stille"], [0.005, "svak"], [0.1, "lyd"], [1, "hoy"]]) {
+    run(`oppdaterMikrofonNiva(new Float32Array(1600).fill(${sample}))`);
+    assert.equal(element("mikrofonniva").dataset.tilstand, expected);
+    const value = Number(element("mikrofonniva-meter")["aria-valuenow"]);
+    assert.ok(value >= 0 && value <= 100);
+  }
+  run("nullstillMikrofonNiva()");
+  assert.equal(element("mikrofonniva").dataset.tilstand, "av");
+  assert.equal(element("mikrofonniva-meter")["aria-valuenow"], "0");
+});
+
+test("audio worklet updates the meter without changing audio sent for transcription", async () => {
+  const { element, run } = workspace();
+  run(`
+    globalThis.AudioContext = class {
+      audioWorklet = { addModule: async () => {} };
+      createMediaStreamSource() { return { connect() {} }; }
+    };
+    globalThis.AudioWorkletNode = class { port = {}; connect() {} };
+    globalThis.WebSocket = { OPEN: 1 };
+    sanntidAktivt = true;
+    sanntidWs = { readyState: 1, send(data) { globalThis.sentAudio = new Float32Array(data); } };
+  `);
+  await run("startAudioWorklet()");
+  run("workletNode.port.onmessage({ data: new Float32Array(2560).fill(0.125) })");
+  assert.equal(element("mikrofonniva").dataset.tilstand, "lyd");
+  assert.equal(run("sentAudio.length"), 2560);
+  assert.equal(run("sentAudio.every(sample => sample === 0.125)"), true);
+  run("sanntidAktivt = false; nullstillMikrofonNiva(); workletNode.port.onmessage({data: new Float32Array(1600).fill(1)})");
+  assert.equal(element("mikrofonniva").dataset.tilstand, "av");
+});
+
 test("audio modes toggle input and output together without clearing content", () => {
   const { element, run } = workspace();
   element("sanntid-tekst").textContent = "Recorded conversation";

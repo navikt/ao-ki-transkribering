@@ -95,13 +95,30 @@ def _er_modell_utilgjengelig(exc: httpx.HTTPStatusError) -> bool:
     return "no deployments available" in tekst or "does not exist" in tekst
 
 
+def _er_tekst_for_lang(exc: httpx.HTTPStatusError) -> bool:
+    return exc.response.status_code == 400 and any(
+        markor in exc.response.text.lower()
+        for markor in ("contextwindowexceeded", "context_length_exceeded", "maximum context length")
+    )
+
+
+_TEKST_FOR_LANG = (
+    "Transkripsjonen og instruksjonene er for lange for modellens tekstgrense. "
+    "Del opp teksten og prøv igjen."
+)
+
+
 def _http_error_for_llm(exc: httpx.HTTPStatusError) -> HTTPException:
+    if _er_tekst_for_lang(exc):
+        return HTTPException(status_code=400, detail=_TEKST_FOR_LANG)
     if _er_modell_utilgjengelig(exc):
         return HTTPException(status_code=503, detail="AI-modellen er ikke tilgjengelig nå")
     return HTTPException(status_code=502, detail=f"AI-proxy svarte med feil: {exc.response.status_code}")
 
 
 def _sse_melding_for_llm(exc: httpx.HTTPStatusError) -> str:
+    if _er_tekst_for_lang(exc):
+        return _TEKST_FOR_LANG
     if _er_modell_utilgjengelig(exc):
         return "AI-modellen er ikke tilgjengelig nå"
     return f"AI-proxy svarte med feil: {exc.response.status_code}"

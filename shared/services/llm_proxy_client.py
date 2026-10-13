@@ -20,7 +20,7 @@ _OPTIONS = {
     "temperature": 0.25,
     "num_ctx": _int_env("LLM_NUM_CTX", 32768),
     "repeat_penalty": 1.3,
-    # Borealis currently runs with --max-model-len=768 on one L4 GPU.
+    # Deployments can reserve more output within their model's context budget.
     "num_predict": _int_env("LLM_MAX_TOKENS", 256),
 }
 
@@ -182,6 +182,9 @@ async def stream_tokens(system: str, bruker: str, modell: str | None = None):
             json=payload,
             headers=await authenticated_headers(_chat_url(), _headers()),
         ) as resp:
+            # Streaming responses do not load error bodies automatically.
+            if not resp.is_success:
+                await resp.aread()
             resp.raise_for_status()
             async for linje in resp.aiter_lines():
                 if not linje or not linje.startswith("data:"):

@@ -106,6 +106,15 @@
           <span class="timer" id="sanntid-timer" style="display:none">
             <span class="puls"></span><span id="sanntid-timer-tekst">0:00</span>
           </span>
+          <div class="mikrofonniva" id="mikrofonniva" data-tilstand="av">
+            <span id="mikrofonniva-label">Mikrofon</span>
+            <div class="mikrofonniva-spor" id="mikrofonniva-meter" role="meter"
+                 aria-labelledby="mikrofonniva-label" aria-valuemin="0" aria-valuemax="100"
+                 aria-valuenow="0" aria-valuetext="Av">
+              <span id="mikrofonniva-fyll"></span>
+            </div>
+            <span class="mikrofonniva-status" id="mikrofonniva-status">Av</span>
+          </div>
         </div>
         <div class="sanntid-status" id="sanntid-status" style="display:none" role="status">
           <span id="sanntid-status-tekst">Kobler til …</span>

@@ -245,6 +245,14 @@ h1 {
 .opplast-rad { display: flex; gap: 1rem; align-items: center; flex-wrap: wrap; }
 .opptaks-rad-kompakt { margin: .75rem 0 0; }
 
+.mikrofonniva { display: grid; grid-template-columns: auto 6rem; gap: .2rem .5rem; align-items: center; font-size: var(--font-sm); color: var(--color-gray-700); }
+.mikrofonniva-spor { height: .5rem; overflow: hidden; background: var(--color-gray-200); border-radius: 2px; }
+.mikrofonniva-spor span { display: block; height: 100%; width: 100%; background: #00856e; transform: scaleX(0); transform-origin: left; transition: transform .1s linear; }
+.mikrofonniva[data-tilstand="svak"] .mikrofonniva-spor span { background: #b56800; }
+.mikrofonniva[data-tilstand="hoy"] .mikrofonniva-spor span { background: var(--color-red-600); }
+.mikrofonniva-status { grid-column: 1 / -1; min-height: 1.2em; font-size: var(--font-xs); }
+@media (prefers-reduced-motion: reduce) { .mikrofonniva-spor span { transition: none; } }
+
 .timer {
   font-size: 1.3rem;
   font-variant-numeric: tabular-nums;
@@ -721,7 +729,9 @@ h1 {
   border: 1px solid var(--color-gray-200);
   border-radius: 999px;
   padding: .15rem .55rem;
-  white-space: nowrap;
+  max-width: 100%;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 .status-chip::before {
   content: "";
@@ -732,6 +742,8 @@ h1 {
   flex-shrink: 0;
 }
 .status-chip b {
+  flex-shrink: 0;
+  white-space: nowrap;
   color: var(--color-gray-700);
   font-weight: 700;
 }

@@ -515,6 +515,42 @@ let audioCtx         = null;
 let workletNode      = null;
 let pcmBuffer        = [];
 const PCM_SEND_SAMPLES = 2560;
+let mikrofonNivaEnergi = 0;
+let mikrofonNivaAntall = 0;
+let mikrofonNivaTopp = 0;
+let mikrofonNivaVist = 0;
+
+function visMikrofonNiva(niva, tilstand, tekst) {
+  const meter = document.getElementById("mikrofonniva-meter");
+  document.getElementById("mikrofonniva").dataset.tilstand = tilstand;
+  document.getElementById("mikrofonniva-fyll").style.transform = `scaleX(${niva / 100})`;
+  document.getElementById("mikrofonniva-status").textContent = tekst;
+  meter.setAttribute("aria-valuenow", String(Math.round(niva)));
+  meter.setAttribute("aria-valuetext", tekst);
+}
+
+function nullstillMikrofonNiva(aktiv = false) {
+  mikrofonNivaEnergi = mikrofonNivaAntall = mikrofonNivaTopp = mikrofonNivaVist = 0;
+  visMikrofonNiva(0, aktiv ? "venter" : "av", aktiv ? "Venter på lyd" : "Av");
+}
+
+function oppdaterMikrofonNiva(samples) {
+  for (const sample of samples) {
+    mikrofonNivaEnergi += sample * sample;
+    mikrofonNivaTopp = Math.max(mikrofonNivaTopp, Math.abs(sample));
+  }
+  mikrofonNivaAntall += samples.length;
+  if (mikrofonNivaAntall < 1600) return;
+  const rms = Math.sqrt(mikrofonNivaEnergi / mikrofonNivaAntall);
+  // Map -60..0 dBFS to the bar; decay gently so speech remains readable.
+  const niva = Math.max(0, Math.min(100, (20 * Math.log10(Math.max(rms, 0.000001)) + 60) / 60 * 100));
+  mikrofonNivaVist = niva === 0 ? 0 : Math.max(niva, mikrofonNivaVist * 0.7);
+  const hoy = mikrofonNivaTopp >= 0.98;
+  const tilstand = hoy ? "hoy" : rms < 0.001 ? "stille" : rms < 0.01 ? "svak" : "lyd";
+  const tekst = { hoy: "For høyt nivå", stille: "Ingen lyd", svak: "Svakt signal", lyd: "Lyd inn" }[tilstand];
+  visMikrofonNiva(mikrofonNivaVist, tilstand, tekst);
+  mikrofonNivaEnergi = mikrofonNivaAntall = mikrofonNivaTopp = 0;
+}
 
 // ---- Valgfritt lydopptak for nedlasting ----
 let sanntidOpptaker      = null;
@@ -715,6 +751,7 @@ async function startSanntid() {
   }
 
   sanntidAktivt    = true;
+  nullstillMikrofonNiva(true);
   document.getElementById("paragraf14-hake").disabled = true;
   document.getElementById("lydkilde").disabled = true;
   sanntidSegmenter = [];
@@ -819,12 +856,10 @@ async function startSanntid() {
 
   sanntidWs.onerror = () => settSanntidStatus("WebSocket-feil", false);
   sanntidWs.onclose = () => {
+    const avbrutt = sanntidAktivt;
     sanntidWs = null;
-    if (!sanntidAktivt) {
-      settSanntidStatus("Opptak avsluttet", false);
-    } else {
-      settSanntidStatus("Tilkobling avbrutt", false);
-    }
+    if (avbrutt) stoppSanntid();
+    settSanntidStatus(avbrutt ? "Tilkobling avbrutt" : "Opptak avsluttet", false);
   };
 }
 
@@ -841,6 +876,7 @@ async function startAudioWorklet() {
   workletNode.port.onmessage = (evt) => {
     if (!sanntidAktivt) return;
     const samples = evt.data;  // Float32Array
+    oppdaterMikrofonNiva(samples);
     for (let i = 0; i < samples.length; i++) pcmBuffer.push(samples[i]);
 
     // Send til server i batcher
@@ -858,6 +894,7 @@ async function startAudioWorklet() {
 
 function stoppSanntid() {
   sanntidAktivt = false;
+  nullstillMikrofonNiva();
   document.getElementById("paragraf14-hake").disabled = false;
   document.getElementById("lydkilde").disabled = false;
   clearInterval(sanntidTimer);

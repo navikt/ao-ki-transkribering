@@ -57,6 +57,8 @@ spec:
     - secret: ao-ki-model-api
 
   env:
+    - name: AUTH_REQUIRED
+      value: "true"
     - name: MODEL_API_IAM_AUTH
       value: "true"
     - name: JOB_RETENTION_SECONDS
@@ -77,6 +79,8 @@ spec:
       value: "nb-whisper-large"
     - name: LLM_MODELL
       value: "borealis-12b"
+    - name: LLM_MAX_TOKENS
+      value: "1024"
     - name: WHISPER_MODELL
       value: NbAiLab/nb-whisper-medium
     - name: HF_HUB_OFFLINE
