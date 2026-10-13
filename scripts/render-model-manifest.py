@@ -32,10 +32,12 @@ def render(path: Path, address: str, *, secure: bool, gateway_cidr: str, node_po
         container["args"].extend([
             "--ssl-keyfile", "/app/model-tls/tls.key",
             "--ssl-certfile", "/app/model-tls/tls.crt",
-            "--enable-ssl-refresh",
-            "--middleware", "model_security.ModelAccessMiddleware",
-            "--disable-fastapi-docs", "--max-log-len", "0",
         ])
+        if container.get("command") != ["python", "-m", "uvicorn"]:
+            container["args"].extend([
+                "--enable-ssl-refresh", "--middleware", "model_security.ModelAccessMiddleware",
+                "--disable-fastapi-docs", "--max-log-len", "0",
+            ])
         container.setdefault("env", []).extend([
             {"name": "VLLM_API_KEY", "valueFrom": {"secretKeyRef": {"name": "model-api-auth", "key": "api-key"}}},
             {"name": "PYTHONPATH", "value": "/app/model-security"},

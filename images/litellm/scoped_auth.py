@@ -8,7 +8,7 @@ from fastapi import HTTPException, Request
 _ROUTES = {
     ("GET", "/v1/models"): None,
     ("POST", "/v1/chat/completions"): "borealis-12b",
-    ("POST", "/v1/audio/transcriptions"): "nb-whisper-large",
+    ("POST", "/v1/audio/transcriptions"): "nemotron-3.5-asr-streaming-0.6b",
 }
 _FIELDS = {
     "/v1/chat/completions": {"model", "messages", "stream", "temperature", "max_tokens"},
@@ -54,7 +54,7 @@ async def user_api_key_auth(request: Request, api_key: str):
     return UserAPIKeyAuth(
         api_key=api_key,
         key_alias=f"nais-{environment}",
-        models=["nb-whisper-large", "borealis-12b"],
+        models=["nemotron-3.5-asr-streaming-0.6b", "borealis-12b"],
         max_parallel_requests=5,
         rpm_limit=120,
     )

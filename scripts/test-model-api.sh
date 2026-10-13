@@ -65,7 +65,7 @@ if [[ "$RUN_AUDIO" == "true" ]]; then
     -H "Expect:" \
     -w $'\nHTTP %{http_code}\n' \
     -F "file=@${TEST_AUDIO}" \
-    -F "model=nb-whisper-large" \
+    -F "model=${AUDIO_MODEL:-nemotron-3.5-asr-streaming-0.6b}" \
     -F "response_format=verbose_json" \
     -F "language=no" \
     "$LITELLM_URL/v1/audio/transcriptions" > "$tmp"

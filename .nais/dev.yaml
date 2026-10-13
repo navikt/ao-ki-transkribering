@@ -76,7 +76,7 @@ spec:
     - name: TRANSKRIPSJON_API_PATH
       value: "/v1/audio/transcriptions"
     - name: TRANSKRIPSJON_MODELL
-      value: "nb-whisper-large"
+      value: "nemotron-3.5-asr-streaming-0.6b"
     - name: LLM_MODELL
       value: "borealis-12b"
     - name: LLM_MAX_TOKENS

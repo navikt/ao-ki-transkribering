@@ -152,7 +152,7 @@ async def main() -> int:
     parser.add_argument("--requests", type=int, default=int(os.getenv("REQUESTS_PER_LEVEL", "4")))
     parser.add_argument("--audio", default=os.getenv("TEST_AUDIO", "testdata/tre_stemmer_test.wav"))
     parser.add_argument("--chat-model", default=os.getenv("CHAT_MODEL", "borealis-12b"))
-    parser.add_argument("--audio-model", default=os.getenv("AUDIO_MODEL", "nb-whisper-large"))
+    parser.add_argument("--audio-model", default=os.getenv("AUDIO_MODEL", "nemotron-3.5-asr-streaming-0.6b"))
     parser.add_argument("--max-tokens", type=int, default=int(os.getenv("MAX_TOKENS", "80")))
     parser.add_argument(
         "--prompt",

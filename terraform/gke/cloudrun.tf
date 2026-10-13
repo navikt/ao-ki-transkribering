@@ -65,9 +65,9 @@ resource "google_secret_manager_secret_version" "litellm_config" {
   # vLLM exposes an OpenAI-compatible API — LiteLLM calls it as an openai/ proxy.
   secret_data = <<-YAML
     model_list:
-      - model_name: nb-whisper-large
+      - model_name: nemotron-3.5-asr-streaming-0.6b
         litellm_params:
-          model: openai//models/nb-whisper-large
+          model: openai/nemotron-3.5-asr-streaming-0.6b
           api_base: "${var.model_security_enabled ? "https" : "http"}://${google_compute_address.vllm_whisper_ilb.address}:8000/v1"
           api_key: ${var.model_security_enabled ? "os.environ/VLLM_API_KEY" : "none"}
       - model_name: borealis-12b

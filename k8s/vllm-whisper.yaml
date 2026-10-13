@@ -17,13 +17,15 @@ spec:
         app: vllm-whisper
     spec:
       serviceAccountName: vllm
+      securityContext:
+        fsGroup: 10001
       nodeSelector:
         cloud.google.com/gke-nodepool: gpu-l4
       tolerations:
         - key: nvidia.com/gpu
           value: present
           effect: NoSchedule
-      # Init container downloads model weights from GCS before vLLM starts.
+      # Keep the legacy deployment/service name so GPU allocation and TLS IP stay stable.
       initContainers:
         - name: last-ned-modell
           image: google/cloud-sdk:slim
@@ -32,22 +34,16 @@ spec:
             - -c
             - |
               set -euo pipefail
-              mkdir -p /models/nb-whisper-large
-              BASE=gs://ao-ki-taskforce-prod-2472-modeller/whisper/nb-whisper-large
+              mkdir -p /models/nemotron-3.5-asr-streaming-0.6b
+              BASE=gs://ao-ki-taskforce-prod-2472-modeller/nemotron/ea30d66debe3740a08b573244286791d423d6b3e
               gcloud storage cp \
-                "$BASE/added_tokens.json" \
                 "$BASE/config.json" \
                 "$BASE/generation_config.json" \
-                "$BASE/merges.txt" \
-                "$BASE/model-00001-of-00002.safetensors" \
-                "$BASE/model-00002-of-00002.safetensors" \
-                "$BASE/model.safetensors.index.json" \
-                "$BASE/preprocessor_config.json" \
-                "$BASE/special_tokens_map.json" \
+                "$BASE/model.safetensors" \
+                "$BASE/processor_config.json" \
                 "$BASE/tokenizer.json" \
                 "$BASE/tokenizer_config.json" \
-                "$BASE/vocab.json" \
-                /models/nb-whisper-large/
+                /models/nemotron-3.5-asr-streaming-0.6b/
           volumeMounts:
             - name: modeller
               mountPath: /models
@@ -57,16 +53,16 @@ spec:
               memory: 1Gi
       containers:
         - name: vllm
-          # OpenAI-compatible vLLM server with audio extras for Whisper.
-          # See adr/0004-openai-kompatibelt-modell-api.md.
-          image: europe-west4-docker.pkg.dev/ao-ki-taskforce-prod-2472/vllm/vllm-whisper-audio:latest
+          # Transformers RNNT server, retaining the existing audio API contract.
+          image: europe-west4-docker.pkg.dev/ao-ki-taskforce-prod-2472/vllm/nemotron-asr:20261013
+          command: ["python", "-m", "uvicorn"]
           args:
-            - --model
-            - /models/nb-whisper-large
+            - worker.nemotron_api:app
+            - --host
+            - "0.0.0.0"
             - --port
             - "8000"
-            - --dtype
-            - float16
+            - --no-access-log
           ports:
             - containerPort: 8000
               name: http

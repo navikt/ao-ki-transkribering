@@ -215,7 +215,7 @@ python -m uvicorn frontend.app:app --host 127.0.0.1 --port 8765
 | `START_LOKAL_WORKER` | `true` | Starter lokal transkripsjonsarbeider sammen med API-et |
 | `TRANSKRIPSJON_BACKEND` | `local` | `local` eller `remote` modellbackend for batch-transkripsjon |
 | `TRANSKRIPSJON_SERVICE_URL` | `http://127.0.0.1:9000` | URL til ekstern modellarbeider ved `TRANSKRIPSJON_BACKEND=remote` |
-| `TRANSKRIPSJON_MODELL` | `nb-whisper-large` ved remote | Modellnavn sendt til OpenAI-kompatibel transkripsjons-API |
+| `TRANSKRIPSJON_MODELL` | `nemotron-3.5-asr-streaming-0.6b` ved remote | Modellnavn sendt til OpenAI-kompatibel transkripsjons-API |
 
 ### Container
 
@@ -518,7 +518,8 @@ See [dataset research and limitations](docs/norwegian-speech-testdata.md) and th
 
 Experimental Nemotron ASR can replace local Whisper for both file uploads and
 recording. ECAPA speaker diarisation and the selected LLM are unchanged.
-The normal app command still defaults to Whisper; cloud manifests are unchanged.
+The normal local app command still defaults to Whisper. GCP uses the same
+Nemotron RNNT implementation through a separate speech API (see below).
 
 Use the isolated optional runtime described above. On first setup, cache the ASR
 weights before starting the offline app:
@@ -550,4 +551,36 @@ preserved. RNNT emission timestamps and the resulting speaker alignment are
 approximate and have not been independently validated. The app returns a warning
 with upload results. This stock model performed substantially worse than
 NB-Whisper on our podcast subset, so review its output before using it for minutes
-or summaries. Its development Transformers runtime is not a production rollout.
+or summaries. The Transformers runtime remains experimental.
+
+### GCP Nemotron
+
+The speech GPU serves `nemotron-3.5-asr-streaming-0.6b` using Transformers,
+not vLLM. Borealis continues to use vLLM on its own GPU. The existing
+`vllm-whisper` Kubernetes deployment/service name, internal IP, GPU pool and
+scaling scripts are deliberately retained to avoid replacing allocated GPUs.
+
+```bash
+bash scripts/upload-nemotron.sh
+bash scripts/build-nemotron-image.sh
+# Prepare and review the gateway change before the cutover:
+tofu -chdir=terraform/gke plan
+# Deploy the speech server, then apply gateway routing/auth:
+START_GPU_FALLBACK=false ./scripts/apply-k8s.sh
+tofu -chdir=terraform/gke apply
+```
+
+The image runs `worker.nemotron_api` with the existing authenticated TLS audio
+contract. Model weights are loaded from a revisioned GCS prefix, with no model
+downloads during inference. Restart the speech deployment after rotating its
+TLS certificate: Uvicorn does not hot-reload certificates like vLLM.
+Uploads support Norwegian Bokmal, JSON/verbose JSON/text, up to 200 MiB and
+two hours of audio. One inference runs at a time; excess requests return 429.
+Live recording still uses the existing pause-aware chunks, not persistent
+cache-aware RNNT streaming. No cloud diarisation model has been added.
+
+Deploy the speech server and validate a synthetic request before enabling the
+new gateway model and rolling out NAIS. Changing the gateway/model name requires
+the matching NAIS `TRANSKRIPSJON_MODELL` setting; expect a brief cutover outage.
+For rollback, restore the previous speech manifest, gateway routing/auth and
+NAIS model setting together. Whisper weights and its image are retained.

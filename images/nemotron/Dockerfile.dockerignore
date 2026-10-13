@@ -1,0 +1,11 @@
+**
+!requirements/
+!requirements/benchmark-speech-runtime.txt
+!shared/
+!shared/**
+!worker/
+!worker/**
+!k8s/
+!k8s/model_security.py
+**/__pycache__/
+**/*.pyc

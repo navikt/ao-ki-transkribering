@@ -98,7 +98,7 @@ async def test_audio_auth_accepts_multipart_and_rejects_master_key(monkeypatch):
     monkeypatch.setenv("NAIS_PROD_API_KEY", "prod-key")
     async with httpx.AsyncClient(transport=httpx.ASGITransport(app=gateway_app()), base_url="https://gateway") as client:
         response = await client.post("/v1/audio/transcriptions", headers={"Authorization": "Bearer dev-key"},
-                                     files={"file": ("audio.wav", b"wav")}, data={"model": "nb-whisper-large", "language": "no"})
+                                     files={"file": ("audio.wav", b"wav")}, data={"model": "nemotron-3.5-asr-streaming-0.6b", "language": "no"})
         assert response.status_code == 200
         assert (await client.get("/v1/models", headers={"Authorization": "Bearer master-key"})).status_code == 401
         assert (await client.get("/v1/models")).status_code == 401
@@ -114,7 +114,7 @@ async def test_scoped_auth_preserves_uploaded_body_for_downstream(monkeypatch):
         form = await request.form()
         return {"file": (await form["file"].read()).decode()}
     async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="https://gateway") as client:
-        response = await client.post("/v1/audio/transcriptions", files={"file": ("audio.wav", b"synthetic-audio")}, data={"model": "nb-whisper-large"})
+        response = await client.post("/v1/audio/transcriptions", files={"file": ("audio.wav", b"synthetic-audio")}, data={"model": "nemotron-3.5-asr-streaming-0.6b"})
         assert response.json() == {"file": "synthetic-audio"}
 
 
@@ -129,7 +129,7 @@ async def test_audio_auth_reuses_form_already_parsed_by_gateway(monkeypatch):
         form = await request.form()
         return {"file": (await form["file"].read()).decode()}
     async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="https://gateway") as client:
-        response = await client.post("/v1/audio/transcriptions", files={"file": ("audio.wav", b"synthetic-audio")}, data={"model": "nb-whisper-large"})
+        response = await client.post("/v1/audio/transcriptions", files={"file": ("audio.wav", b"synthetic-audio")}, data={"model": "nemotron-3.5-asr-streaming-0.6b"})
         assert response.status_code == 200
         assert response.json() == {"file": "synthetic-audio"}
 
@@ -162,7 +162,13 @@ def test_tls_renderer_keeps_credentials_out_of_manifests():
         assert pod["nodeSelector"] == {"cloud.google.com/gke-nodepool": "gpu-l4-b"}
         container = pod["containers"][0]
         assert "--ssl-certfile" in container["args"]
-        assert "--middleware" in container["args"]
+        if name == "borealis":
+            assert "--middleware" in container["args"]
+        else:
+            assert container["command"] == ["python", "-m", "uvicorn"]
+            assert "worker.nemotron_api:app" in container["args"]
+            assert "--middleware" not in container["args"]
+            assert pod["securityContext"]["fsGroup"] == 10001
         assert container["startupProbe"]["httpGet"]["scheme"] == "HTTPS"
         assert service["spec"]["loadBalancerSourceRanges"] == ["10.120.0.0/26"]
         assert service["spec"]["externalTrafficPolicy"] == "Local"
