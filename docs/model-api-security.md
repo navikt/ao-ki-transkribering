@@ -88,7 +88,8 @@ OpenTofu plan before applying. No second GPU is assumed available.
 4. Run `MODEL_SECURITY_PREPARE=true START_GPU_FALLBACK=false ./scripts/apply-k8s.sh` to deploy TLS-enabled
    GPU pods. This renderer requires Python with PyYAML (`.venv/bin/python` by
    default), preserves the current node pool, and uses `Recreate` to avoid requiring
-   an additional GPU for a rolling surge. Normal hourly GPU retries remain enabled.
+   an additional GPU for a rolling surge. Scheduled GPU zone retries are suspended
+   now that both GPUs are allocated; manual fallback remains available.
    Verify the GPU health and HTTPS certificate before proceeding.
    The old HTTP gateway cannot infer during this maintenance interval.
 5. Persist `model_security_enabled=true` in your OpenTofu variable file, review the

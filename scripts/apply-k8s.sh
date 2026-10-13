@@ -54,7 +54,7 @@ if [[ "$SECURE" == true ]]; then
 fi
 
 echo ""
-echo "▶ Kontinuerlig GPU-forsøk (CronJobs, automatisk stopp suspendert)..."
+echo "▶ GPU-administrasjon (planlagt sonerotasjon og stopp suspendert)..."
 $KUBECTL_CMD -f k8s/working-hours-scaler.yaml
 
 echo ""
@@ -79,7 +79,7 @@ echo "━━━ Ferdig ━━━━━━━━━━━━━━━━━━━
 echo ""
 echo "Neste steg:"
 echo "  1. vLLM-whisper og vLLM-borealis ber om én GPU hver, hele døgnet."
-echo "     Ventende modeller prøver GPU-sonene på nytt hver time; tildelte noder beholdes."
+echo "     Planlagt sonerotasjon er suspendert; tildelte noder beholdes."
 echo "     Automatisk stopp er suspendert; tildelte GPU-er koster penger til de stoppes manuelt."
 echo "     Start manuelt ved behov:"
 echo "       ./scripts/start-gpu-deployment-with-fallback.sh vllm-whisper"

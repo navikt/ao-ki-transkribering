@@ -11,11 +11,11 @@ import yaml
 ROOT = Path(__file__).resolve().parents[1]
 
 
-def test_continuous_gpu_requests_and_no_scheduled_shutdown():
+def test_gpu_replicas_stay_running_with_scheduled_scaling_suspended():
     resources = list(yaml.safe_load_all((ROOT / "k8s/working-hours-scaler.yaml").read_text()))
     cronjobs = {resource["metadata"]["name"]: resource for resource in resources if resource["kind"] == "CronJob"}
     assert cronjobs["vllm-scale-up"]["spec"]["schedule"] == "0 * * * *"
-    assert not cronjobs["vllm-scale-up"]["spec"].get("suspend", False)
+    assert cronjobs["vllm-scale-up"]["spec"]["suspend"] is True
     assert cronjobs["vllm-scale-up"]["spec"]["concurrencyPolicy"] == "Forbid"
     assert cronjobs["vllm-scale-down"]["spec"]["suspend"] is True
     container = cronjobs["vllm-scale-up"]["spec"]["jobTemplate"]["spec"]["template"]["spec"]["containers"][0]

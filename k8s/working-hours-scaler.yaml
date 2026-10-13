@@ -154,7 +154,8 @@ metadata:
   name: vllm-scale-up
   namespace: vllm
 spec:
-  # Retry hourly around the clock; preserve pods already assigned to a GPU.
+  # Both GPUs are allocated; retain manual fallback without scheduled zone retries.
+  suspend: true
   schedule: "0 * * * *"
   timeZone: Europe/Oslo
   startingDeadlineSeconds: 120

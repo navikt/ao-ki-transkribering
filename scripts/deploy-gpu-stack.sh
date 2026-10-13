@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # One-step deploy for the GPU stack:
 #   1. OpenTofu creates/updates GCP resources.
-#   2. Kubernetes manifests add vLLM services and continuous GPU retries.
+#   2. Kubernetes manifests add model services and suspended GPU scheduling jobs.
 #
 # Usage:
 #   ./scripts/deploy-gpu-stack.sh
