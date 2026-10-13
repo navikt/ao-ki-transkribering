@@ -3,15 +3,14 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Møtetranskribering</title>
+  <title>Transkriberit</title>
   <link rel="stylesheet" href="/static/styles.css" />
 </head>
 <body>
 <header class="app-header">
   <div class="app-header-innhold">
     <div class="app-header-tekst">
-      <h1>Møtetranskribering</h1>
-      <p class="ingress">Last opp lyd, gjennomgå transkripsjonen og lag et utkast til møtereferat.</p>
+      <h1>Transkriberit</h1>
     </div>
   </div>
 </header>
@@ -32,6 +31,20 @@
           <option value="batch">Lydfil</option>
         </select>
       </label>
+    </div>
+
+    <div class="juridisk-kort">
+      <label class="checkbox-label juridisk-kontroll">
+        <input type="checkbox" class="checkbox-input" id="samtykke-hake" />
+        <span id="mote-bekreftelse-tekst">
+          Jeg bekrefter at opptak og transkripsjon er avklart med deltakerne, og at opplysningene kan behandles til dette formålet.
+        </span>
+      </label>
+        <label class="checkbox-label juridisk-paragraf">
+          <input type="checkbox" class="checkbox-input" id="paragraf14-hake"
+                 onchange="oppdaterMoteBekreftelse(true)" />
+          Jeg bekrefter at møtet behandles etter nav-loven §14 a, og at tekst om kommunale tjenester (§15) fjernes før videre bruk.
+        </label>
     </div>
 
     <!-- Batch-panel -->
@@ -114,19 +127,6 @@
         </div>
       </div>
 
-    </div>
-    <div class="juridisk-kort">
-      <label class="checkbox-label juridisk-kontroll">
-        <input type="checkbox" class="checkbox-input" id="samtykke-hake" />
-        <span id="mote-bekreftelse-tekst">
-          Jeg bekrefter at opptak og transkripsjon er avklart med deltakerne, og at opplysningene kan behandles til dette formålet.
-        </span>
-      </label>
-        <label class="checkbox-label juridisk-paragraf">
-          <input type="checkbox" class="checkbox-input" id="paragraf14-hake"
-                 onchange="oppdaterMoteBekreftelse(true)" />
-          Jeg bekrefter at møtet behandles etter nav-loven §14 a, og at tekst om kommunale tjenester (§15) fjernes før videre bruk.
-        </label>
     </div>
     </div><!-- /mote-toolbar -->
 

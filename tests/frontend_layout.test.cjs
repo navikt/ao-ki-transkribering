@@ -7,7 +7,14 @@ const vm = require("node:vm");
 test("header and page title do not contain NAV branding", () => {
   const html = fs.readFileSync(path.join(__dirname, "../frontend/static/index.html"), "utf8");
   assert.doesNotMatch(html.match(/<header[\s\S]*?<\/header>/)[0], /nav-logo|NAV logo/);
-  assert.equal(html.match(/<title>(.*?)<\/title>/)[1], "Møtetranskribering");
+  assert.equal(html.match(/<title>(.*?)<\/title>/)[1], "Transkriberit");
+});
+
+test("top bar places confirmation before recording controls and keeps a compact header", () => {
+  const html = fs.readFileSync(path.join(__dirname, "../frontend/static/index.html"), "utf8");
+  assert.ok(html.indexOf('id="lydkilde"') < html.indexOf('id="samtykke-hake"'));
+  assert.ok(html.indexOf('id="paragraf14-hake"') < html.indexOf('id="sanntid-start-knapp"'));
+  assert.doesNotMatch(html.match(/<header[\s\S]*?<\/header>/)[0], /class="ingress"/);
 });
 
 function workspace() {
