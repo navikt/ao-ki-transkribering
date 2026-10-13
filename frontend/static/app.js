@@ -1110,7 +1110,9 @@ function hentReferatFraArbeidsflate() {
 
 function _referatScenarioTittel(scenarioId) {
   const titler = {
-    sammendrag: "Sammendrag",
+    minimalt_sammendrag: "Minimalt sammendrag",
+    utfyllende_sammendrag: "Utfyllende sammendrag",
+    sammendrag: "Kort NAV-sammendrag",
     generelt_mote: "Generelt referat",
     veiledermote: "Veilederreferat",
     samarbeidsmote: "Samarbeidsreferat",

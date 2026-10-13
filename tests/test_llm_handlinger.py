@@ -27,6 +27,8 @@ def test_referat_scenarier_lister_faste_promptvalg():
     scenarier = list_referat_scenarier()
 
     assert [scenario["id"] for scenario in scenarier] == [
+        "minimalt_sammendrag",
+        "utfyllende_sammendrag",
         "veiledermote",
         "generelt_mote",
         "samarbeidsmote",
@@ -163,7 +165,8 @@ def test_llm_status_lister_modeller(monkeypatch):
     }
 
 
-def test_referat_bruker_valgt_scenario(monkeypatch):
+@pytest.mark.parametrize("scenario", ["generelt_mote", "minimalt_sammendrag", "utfyllende_sammendrag"])
+def test_referat_bruker_valgt_scenario(monkeypatch, scenario):
     app = FastAPI()
     app.include_router(router)
     klient = TestClient(app)
@@ -172,14 +175,15 @@ def test_referat_bruker_valgt_scenario(monkeypatch):
 
     res = klient.post(
         "/referat",
-        json={"transkripsjon": "Vi tok en beslutning.", "scenario": "generelt_mote"},
+        json={"transkripsjon": "Vi tok en beslutning.", "scenario": scenario},
     )
 
     assert res.status_code == 200
-    assert res.json()["scenario"] == "generelt_mote"
+    assert res.json()["scenario"] == scenario
     system_prompt, bruker_prompt, _modell = kall.await_args.args
-    assert "generelt møtereferat" in bruker_prompt
-    assert "nøytralt møtereferat" in system_prompt
+    from worker.prompts.handlinger import hent_referat_scenario
+    assert system_prompt == hent_referat_scenario(scenario).system_prompt
+    assert "Vi tok en beslutning." in bruker_prompt
 
 
 def test_ukjent_referat_scenario_gir_400():
@@ -204,7 +208,7 @@ def test_referat_uten_scenario_bruker_generelt_mote(monkeypatch):
     assert "generelt møtereferat" in kall.await_args.args[1]
 
 
-@pytest.mark.parametrize("scenario", [None, "generelt_mote", "veiledermote", "samarbeidsmote"])
+@pytest.mark.parametrize("scenario", [None, "generelt_mote", "veiledermote", "samarbeidsmote", "minimalt_sammendrag", "utfyllende_sammendrag"])
 def test_live_referat_bruker_motetype(monkeypatch, scenario):
     from worker.prompts.handlinger import hent_referat_scenario
 

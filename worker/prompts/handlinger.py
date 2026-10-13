@@ -2,11 +2,15 @@ from dataclasses import dataclass
 
 from worker.prompts.motereferat import (
     BRUKER_GENERELT_MOTE,
+    BRUKER_MINIMALT_SAMMENDRAG,
+    BRUKER_UTFYLLENDE_SAMMENDRAG,
     BRUKER_REFERAT,
     BRUKER_RULLERENDE,
     BRUKER_SAMMENDRAG,
     BRUKER_SAMARBEIDSMOTE,
     SYSTEM_GENERELT_MOTE,
+    SYSTEM_MINIMALT_SAMMENDRAG,
+    SYSTEM_UTFYLLENDE_SAMMENDRAG,
     SYSTEM_REFERAT,
     SYSTEM_RULLERENDE,
     SYSTEM_SAMMENDRAG,
@@ -43,6 +47,20 @@ class ReferatScenario:
 STANDARD_REFERAT_SCENARIO = "generelt_mote"
 
 REFERAT_SCENARIER: dict[str, ReferatScenario] = {
+    "minimalt_sammendrag": ReferatScenario(
+        id="minimalt_sammendrag",
+        tittel="Minimalt sammendrag",
+        beskrivelse="Maks tre korte punkter og 60 ord med hovedpoeng, beslutning og neste steg.",
+        system_prompt=SYSTEM_MINIMALT_SAMMENDRAG,
+        bruker_prompt_template=BRUKER_MINIMALT_SAMMENDRAG,
+    ),
+    "utfyllende_sammendrag": ReferatScenario(
+        id="utfyllende_sammendrag",
+        tittel="Utfyllende sammendrag",
+        beskrivelse="Temaer, begrunnelser, alternativer, beslutninger, åpne spørsmål og oppfølging.",
+        system_prompt=SYSTEM_UTFYLLENDE_SAMMENDRAG,
+        bruker_prompt_template=BRUKER_UTFYLLENDE_SAMMENDRAG,
+    ),
     "veiledermote": ReferatScenario(
         id="veiledermote",
         tittel="Veiledermøte",
