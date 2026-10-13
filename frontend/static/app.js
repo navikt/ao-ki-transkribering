@@ -747,7 +747,8 @@ async function startSanntid() {
   }, 1000);
 
   // WebSocket til server
-  const wsUrl = `ws://${location.host}/ws/sanntid`;
+  const wsProtocol = location.protocol === "https:" ? "wss:" : "ws:";
+  const wsUrl = `${wsProtocol}//${location.host}/ws/sanntid`;
   sanntidWs = new WebSocket(wsUrl);
   sanntidWs.binaryType = "arraybuffer";
 
@@ -1207,7 +1208,10 @@ function kopierReferat() {
 
 // ── Systemstatus (lastes ved sideoppstart) ───────────────────────────────────
 function _statusChip(label, tekst, status) {
-  return `<span class="status-chip status-chip--${status}"><b>${label}</b> ${tekst}</span>`;
+  const tryggTekst = String(tekst).replace(/[&<>"']/g, tegn => ({
+    "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
+  })[tegn]);
+  return `<span class="status-chip status-chip--${status}"><b>${label}</b> ${tryggTekst}</span>`;
 }
 
 function _statusKlasse(status) {
@@ -1279,12 +1283,12 @@ async function lastSystemstatus() {
         _statusChip("API", _statusTekst(status.api?.status), _statusKlasse(status.api?.status)),
         _statusChip(
           "Transkripsjon",
-          `${_statusTekst(status.transcription?.status)} · ${status.transcription?.backend || "ukjent"}`,
+          `${_statusTekst(status.transcription?.status)} · ${status.transcription?.model || "ukjent modell"}`,
           _statusKlasse(status.transcription?.status),
         ),
         _statusChip(
           "LLM",
-          `${_statusTekst(status.llm?.status)} · ${status.llm?.backend || "ukjent"}`,
+          `${_statusTekst(status.llm?.status)} · ${status.llm?.model || "ukjent modell"}`,
           _statusKlasse(status.llm?.status),
         ),
         _statusChip("Talerskille", _statusTekst(status.diarization?.status), _statusKlasse(status.diarization?.status)),

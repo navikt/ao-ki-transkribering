@@ -23,7 +23,7 @@
   </div>
 </header>
 <main class="app-main">
-  <div class="app-main-grid" data-lydkilde="batch">
+  <div class="app-main-grid" data-lydkilde="sanntid">
   <div class="app-main-venstre">
 
   <!-- ===== OPPTAK / OPPLASTING ===== -->
@@ -35,14 +35,14 @@
       <label class="scenario-velger">
         <span>Lydkilde</span>
         <select id="lydkilde" onchange="byttLydkilde(this.value)">
-          <option value="batch" selected>Lydfil</option>
-          <option value="sanntid">Mikrofon (sanntid)</option>
+          <option value="sanntid" selected>Mikrofon (sanntid)</option>
+          <option value="batch">Lydfil</option>
         </select>
       </label>
     </div>
 
     <!-- Batch-panel -->
-    <div id="panel-batch">
+    <div id="panel-batch" style="display:none">
       <h2 class="seksjon-tittel">Velg lydfil</h2>
       <div class="opplast-rad">
         <input type="file" id="fil-input" accept="audio/*,video/webm"
@@ -88,7 +88,7 @@
     </div>
 
     <!-- Sanntid-panel -->
-    <div id="panel-sanntid" style="display:none">
+    <div id="panel-sanntid">
       <!-- ── Opptak ── -->
       <div class="modul-kort">
         <div class="modul-tittel">Opptak</div>
@@ -135,7 +135,7 @@
 
   <div class="app-main-hoyre">
   <div class="transkripsjon-kolonne">
-  <div id="sanntid-resultat" hidden>
+  <div id="sanntid-resultat">
     <h2 class="seksjon-tittel">Transkripsjon</h2>
     <div class="info-boks info-boks--advarsel" id="sanntid-gjennomgang" hidden></div>
     <div class="tomtilstand" id="sanntid-tomtilstand">Start opptaket for å transkribere møtet.</div>
@@ -159,7 +159,7 @@
       </p>
   </div>
   <!-- ===== RESULTAT ===== -->
-  <div id="seksjon-resultat" class="seksjon aktiv resultat-tom">
+  <div id="seksjon-resultat" class="seksjon aktiv resultat-tom" hidden>
     <h2 class="seksjon-tittel">Transkripsjon</h2>
     <div class="tomtilstand" id="resultat-tomtilstand">
       Last opp en lydfil eller start et opptak. Transkripsjonen vises her.

@@ -31,6 +31,22 @@ function workspace() {
   return { element, run: code => vm.runInContext(code, context) };
 }
 
+for (const [protocol, expected] of [["https:", "wss:"], ["http:", "ws:"]]) {
+  test(`microphone opens the correct WebSocket on ${protocol}`, async () => {
+    const { element, run } = workspace();
+    element("sanntid-nedlasting").remove = () => {};
+    run(`
+      navigator.mediaDevices = { getUserMedia: async () => ({ getTracks: () => [] }) };
+      globalThis.location = { protocol: ${JSON.stringify(protocol)}, host: "meeting.example:8765" };
+      globalThis.WebSocket = class {
+        constructor(url) { globalThis.requestedSocketUrl = url; }
+      };
+    `);
+    await run("startSanntid()");
+    assert.equal(run("requestedSocketUrl"), `${expected}//meeting.example:8765/ws/sanntid`);
+  });
+}
+
 test("audio modes toggle input and output together without clearing content", () => {
   const { element, run } = workspace();
   element("sanntid-tekst").textContent = "Recorded conversation";
