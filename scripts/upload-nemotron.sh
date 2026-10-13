@@ -10,3 +10,7 @@ for name in config.json generation_config.json processor_config.json tokenizer.j
   FILES+=("$CACHE/$name")
 done
 gcloud storage cp "${FILES[@]}" "gs://$BUCKET/nemotron/$REVISION/"
+DIAR_REVISION=f667ed73aee57d40cc39428eb768b4fd87a0a29e
+DIAR_CACHE=$("$PYTHON" -c 'from huggingface_hub import snapshot_download; import sys; print(snapshot_download("nvidia/Nemotron-3-Diarization", revision=sys.argv[1], allow_patterns=["config.json", "processor_config.json", "model.safetensors"]))' "$DIAR_REVISION")
+gcloud storage cp "$DIAR_CACHE/config.json" "$DIAR_CACHE/processor_config.json" \
+  "$DIAR_CACHE/model.safetensors" "gs://$BUCKET/nemotron-diarization/$DIAR_REVISION/"

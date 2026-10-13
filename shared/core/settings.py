@@ -26,8 +26,9 @@ JOB_RETENTION_SECONDS = int(os.getenv("JOB_RETENTION_SECONDS", "21600"))
 if JOB_RETENTION_SECONDS <= 0:
     raise ValueError("JOB_RETENTION_SECONDS must be positive")
 TRANSKRIPSJON_API_PATH = os.getenv("TRANSKRIPSJON_API_PATH", "/transkriber")
-_standard_transkripsjon_modell = "nemotron-3.5-asr-streaming-0.6b" if TRANSKRIPSJON_BACKEND == "remote" else MODELL_ID
+_standard_transkripsjon_modell = "nb-whisper-large" if TRANSKRIPSJON_BACKEND == "remote" else MODELL_ID
 TRANSKRIPSJON_MODELL = os.getenv("TRANSKRIPSJON_MODELL", _standard_transkripsjon_modell)
+REMOTE_DIARIZATION_MODEL = os.getenv("REMOTE_DIARIZATION_MODEL", "")
 _start_lokal_worker_default = "true" if TRANSKRIPSJON_BACKEND == "local" else "false"
 START_LOKAL_WORKER = os.getenv("START_LOKAL_WORKER", _start_lokal_worker_default).lower() in {
     "1",

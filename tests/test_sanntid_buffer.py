@@ -6,12 +6,12 @@ from worker.transkribering.konstanter import SAMPLE_RATE
 
 
 def test_large_packet_preserves_every_sample_across_multiple_flushes():
-    pcm = np.linspace(0.1, 0.5, 22 * SAMPLE_RATE, dtype="float32")
+    pcm = np.linspace(0.1, 0.5, 32 * SAMPLE_RATE, dtype="float32")
     buf = VadBuffer()
     chunks = buf.legg_til(pcm)
     chunks.append(buf.flush_alt())
-    assert [chunk.start_s for chunk in chunks] == [0, 9, 18]
-    assert [len(chunk.pcm) / SAMPLE_RATE for chunk in chunks] == [10, 10, 4]
+    assert [chunk.start_s for chunk in chunks] == [0, 14, 28]
+    assert [len(chunk.pcm) / SAMPLE_RATE for chunk in chunks] == [15, 15, 4]
     reconstructed = np.concatenate([
         chunk.pcm[int(chunk.overlapp_s * SAMPLE_RATE):] for chunk in chunks
     ])
@@ -20,12 +20,12 @@ def test_large_packet_preserves_every_sample_across_multiple_flushes():
 
 def test_exact_cut_does_not_emit_overlap_only_chunk_on_stop():
     buf = VadBuffer()
-    assert len(buf.legg_til(np.full(10 * SAMPLE_RATE, 0.1, dtype="float32"))) == 1
+    assert len(buf.legg_til(np.full(15 * SAMPLE_RATE, 0.1, dtype="float32"))) == 1
     assert buf.flush_alt() is None
 
 
 def test_packet_tail_and_short_final_packet_are_preserved():
-    pcm = np.full(10 * SAMPLE_RATE + 127, 0.1, dtype="float32")
+    pcm = np.full(15 * SAMPLE_RATE + 127, 0.1, dtype="float32")
     buf = VadBuffer()
     chunks = buf.legg_til(pcm)
     final = buf.flush_alt()
@@ -54,15 +54,35 @@ def test_long_silence_does_not_create_chunks():
     assert buf.flush_alt() is None
 
 
+@pytest.mark.parametrize("amplitude", [0, 0.005, 0.1])
+def test_lossless_buffer_preserves_quiet_audio_and_final_tail(amplitude):
+    pcm = (amplitude * np.sin(np.arange(32 * SAMPLE_RATE) * 0.07)).astype("float32")
+    buf = VadBuffer(preserve_audio=True)
+    chunks = buf.legg_til(pcm)
+    tail = buf.flush_alt()
+    if tail is not None:
+        chunks.append(tail)
+    reconstructed = np.concatenate([
+        c.pcm[round(c.overlapp_s * SAMPLE_RATE):] for c in chunks
+    ])
+    np.testing.assert_array_equal(reconstructed, pcm)
+
+
+def test_lossless_exact_cut_does_not_repeat_overlap():
+    buf = VadBuffer(preserve_audio=True)
+    assert len(buf.legg_til(np.full(15 * SAMPLE_RATE, 0.001, dtype="float32"))) == 1
+    assert buf.flush_alt() is None
+
+
 def test_zero_overlap_does_not_retain_the_entire_previous_chunk(monkeypatch):
     from worker.transkribering import sanntid
 
     monkeypatch.setattr(sanntid, "OVERLAPP_S", 0)
     buf = VadBuffer()
-    buf.legg_til(np.full(12 * SAMPLE_RATE, 0.1, dtype="float32"))
+    buf.legg_til(np.full(17 * SAMPLE_RATE, 0.1, dtype="float32"))
     final = buf.flush_alt()
     assert len(final.pcm) == 2 * SAMPLE_RATE
-    assert final.start_s == 10
+    assert final.start_s == 15
 
 
 def result(texts):
@@ -123,14 +143,14 @@ async def test_websocket_dispatches_all_chunks_and_deduplicates_before_sending(m
         audio_lengths.append(len(pcm) / SAMPLE_RATE)
         return next(outputs), None
 
-    async def transcribe_remote(pcm):
+    async def transcribe_remote(pcm, *, session_id=None, chunk_start=0):
         output, _ = transcribe(pcm)
         return TranskripsjonSvar.model_validate(output)
 
     class Socket:
         def __init__(self):
             self.messages = iter([
-                {"bytes": np.full(22 * SAMPLE_RATE, 0.1, dtype="<f4").tobytes()},
+                {"bytes": np.full(32 * SAMPLE_RATE, 0.1, dtype="<f4").tobytes()},
                 {"text": '{"type":"stopp"}'},
             ])
             self.sent = []
@@ -151,7 +171,7 @@ async def test_websocket_dispatches_all_chunks_and_deduplicates_before_sending(m
     handler = routes._sanntid_remote if remote else routes._sanntid_lokal
     await handler(socket)
     assert socket.closed
-    assert audio_lengths == [10, 10, 4]
+    assert audio_lengths == [15, 15, 4]
     assert [message["tekst"] for message in socket.sent] == [
         "Dette er neste steg.", "Vi avtaler mandag.", "Takk for i dag.",
     ]

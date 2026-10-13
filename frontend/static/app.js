@@ -214,9 +214,10 @@ async function hentResultat(jobbId) {
 let _sistResultat = null;  // cache for navnebytte
 
 const TALER_FARGER = ["#3b82f6", "#22c55e", "#f97316", "#a855f7"];
-const TALER_STANDARDNAVN = ["Nav-veileder", "Bruker", "Tolk/Observatør", "Taler 4"];
+const TALER_STANDARDNAVN = ["Taler 1", "Taler 2", "Taler 3", "Taler 4"];
 
 function talerNavn(id) {
+  if (id === "SPEAKER_UNKNOWN") return "Ukjent taler";
   const match = id && id.match(/SPEAKER_(\d+)/);
   if (match) {
     const n = parseInt(match[1]);
@@ -509,6 +510,7 @@ function byttLydkilde(fane) {
 let sanntidWs        = null;
 let sanntidStream    = null;
 let sanntidAktivt    = false;
+let sanntidStoppgrunn = "";
 let sanntidTimer     = null;
 let sanntidSekunder  = 0;
 let audioCtx         = null;
@@ -751,6 +753,7 @@ async function startSanntid() {
   }
 
   sanntidAktivt    = true;
+  sanntidStoppgrunn = "";
   nullstillMikrofonNiva(true);
   document.getElementById("paragraf14-hake").disabled = true;
   document.getElementById("lydkilde").disabled = true;
@@ -787,9 +790,11 @@ async function startSanntid() {
   const wsProtocol = location.protocol === "https:" ? "wss:" : "ws:";
   const wsUrl = `${wsProtocol}//${location.host}/ws/sanntid`;
   sanntidWs = new WebSocket(wsUrl);
+  const socket = sanntidWs;
   sanntidWs.binaryType = "arraybuffer";
 
   sanntidWs.onopen = async () => {
+    if (sanntidWs !== socket || !sanntidAktivt) return;
     settSanntidStatus("Tar opp …");
     await startAudioWorklet();
 
@@ -804,10 +809,11 @@ async function startSanntid() {
   };
 
   sanntidWs.onmessage = (evt) => {
+    if (sanntidWs !== socket) return;
     const data = JSON.parse(evt.data);
     if (data.type === "feil") {
-      settSanntidStatus("Feil: " + data.melding);
-      stoppSanntid();
+      if (data.recoverable) settSanntidStatus(data.melding);
+      else stoppSanntid("Feil: " + data.melding);
       return;
     }
     if (data.type === "segment" && data.tekst) {
@@ -855,11 +861,12 @@ async function startSanntid() {
   };
 
   sanntidWs.onerror = () => settSanntidStatus("WebSocket-feil", false);
-  sanntidWs.onclose = () => {
+  sanntidWs.onclose = (evt) => {
+    if (sanntidWs !== socket) return;
     const avbrutt = sanntidAktivt;
     sanntidWs = null;
-    if (avbrutt) stoppSanntid();
-    settSanntidStatus(avbrutt ? "Tilkobling avbrutt" : "Opptak avsluttet", false);
+    if (avbrutt) stoppSanntid(`Tilkoblingen ble avbrutt (kode ${evt.code}). Start opptaket igjen.`);
+    settSanntidStatus(sanntidStoppgrunn || "Opptak avsluttet", false);
   };
 }
 
@@ -892,7 +899,8 @@ async function startAudioWorklet() {
   workletNode.connect(audioCtx.destination);
 }
 
-function stoppSanntid() {
+function stoppSanntid(grunn = "") {
+  if (grunn) sanntidStoppgrunn = grunn;
   sanntidAktivt = false;
   nullstillMikrofonNiva();
   document.getElementById("paragraf14-hake").disabled = false;
@@ -928,7 +936,7 @@ function stoppSanntid() {
   document.getElementById("sanntid-timer").style.display  = "none";
   const opptakHake = document.getElementById("sanntid-lagre-opptak");
   if (opptakHake) opptakHake.disabled = false;
-  settSanntidStatus("Avslutter …");
+  settSanntidStatus(sanntidStoppgrunn || "Avslutter …");
 }
 
 function _tilbyNedlasting() {

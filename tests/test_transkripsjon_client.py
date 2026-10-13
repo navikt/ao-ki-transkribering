@@ -48,6 +48,15 @@ def test_pcm_to_wav_bytes_creates_nonempty_payload():
     assert wav.startswith(b"RIFF")
 
 
+def test_preserves_remote_speakers_and_warnings():
+    result = _normalize_transkripsjon_payload({"text": "Hei ja", "segments": [
+        {"start": 0, "end": 1, "text": "Hei", "speaker": "SPEAKER_00"},
+        {"start": 1, "end": 2, "text": "ja", "speaker": "SPEAKER_01"},
+    ], "warnings": ["Approximate timestamps"]})
+    assert [s.taler for s in result.segmenter] == ["SPEAKER_00", "SPEAKER_01"]
+    assert result.advarsler == ["Approximate timestamps"]
+
+
 @pytest.mark.asyncio
 async def test_openai_audio_path_uses_file_multipart_field(monkeypatch):
     monkeypatch.setattr(transkripsjon_client, "TRANSKRIPSJON_API_PATH", "/v1/audio/transcriptions")

@@ -1,7 +1,8 @@
 FROM pytorch/pytorch:2.8.0-cuda12.8-cudnn9-runtime
 
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 HF_HUB_OFFLINE=1 \
-    NEMOTRON_ENHET=cuda NEMOTRON_MODELL=/models/nemotron-3.5-asr-streaming-0.6b
+    NEMOTRON_ENHET=cuda NEMOTRON_MODELL=/models/nemotron-3.5-asr-streaming-0.6b \
+    NEMOTRON_DIAR_MODELL=/models/nemotron-diarization
 WORKDIR /app
 RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg git ca-certificates \
     && rm -rf /var/lib/apt/lists/*

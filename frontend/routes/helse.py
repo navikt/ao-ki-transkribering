@@ -9,6 +9,7 @@ from shared.core.settings import (
     LOKAL_ASR_BACKEND,
     MODELL_ID,
     OLLAMA_URL,
+    REMOTE_DIARIZATION_MODEL,
     TRANSKRIPSJON_BACKEND,
     TRANSKRIPSJON_MODELL,
     TRANSKRIPSJON_SERVICE_URL,
@@ -98,7 +99,7 @@ def system_info():
             "lokal_motor": LOKAL_ASR_BACKEND if TRANSKRIPSJON_BACKEND == "local" else None,
         },
         "diarisering": {
-            "modell": _ECAPA_KILDE,
+            "modell": REMOTE_DIARIZATION_MODEL if TRANSKRIPSJON_BACKEND == "remote" else _ECAPA_KILDE,
             "vindu_s": _VINDU_S,
             "rate": _RATE,
         },
@@ -180,7 +181,11 @@ async def system_status():
             )
 
     if TRANSKRIPSJON_BACKEND == "remote":
-        status["diarization"]["status"] = "degraded"
-        status["diarization"]["message"] = "Ekstern transkripsjon kan ha begrenset talerskille"
+        if REMOTE_DIARIZATION_MODEL:
+            status["diarization"]["model"] = REMOTE_DIARIZATION_MODEL
+            status["diarization"]["status"] = status["transcription"]["status"]
+        else:
+            status["diarization"]["status"] = "degraded"
+            status["diarization"]["message"] = "Ekstern transkripsjon kan ha begrenset talerskille"
 
     return status

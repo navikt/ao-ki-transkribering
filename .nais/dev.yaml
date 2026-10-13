@@ -76,7 +76,9 @@ spec:
     - name: TRANSKRIPSJON_API_PATH
       value: "/v1/audio/transcriptions"
     - name: TRANSKRIPSJON_MODELL
-      value: "nemotron-3.5-asr-streaming-0.6b"
+      value: "nb-whisper-large"
+    - name: REMOTE_DIARIZATION_MODEL
+      value: "nvidia/Nemotron-3-Diarization"
     - name: LLM_MODELL
       value: "borealis-12b"
     - name: LLM_MAX_TOKENS

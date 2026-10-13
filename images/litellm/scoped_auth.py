@@ -1,18 +1,20 @@
 """Database-free inference credentials; application keys cannot administer LiteLLM."""
 
 import os
+import math
 import secrets
+from uuid import UUID
 
 from fastapi import HTTPException, Request
 
 _ROUTES = {
     ("GET", "/v1/models"): None,
     ("POST", "/v1/chat/completions"): "borealis-12b",
-    ("POST", "/v1/audio/transcriptions"): "nemotron-3.5-asr-streaming-0.6b",
+    ("POST", "/v1/audio/transcriptions"): "nb-whisper-large",
 }
 _FIELDS = {
     "/v1/chat/completions": {"model", "messages", "stream", "temperature", "max_tokens"},
-    "/v1/audio/transcriptions": {"model", "file", "response_format", "language"},
+    "/v1/audio/transcriptions": {"model", "file", "response_format", "language", "session_id", "chunk_start"},
 }
 
 
@@ -41,6 +43,17 @@ async def authorize(request: Request, api_key: str) -> str:
             raise HTTPException(status_code=400, detail="Invalid inference request")
         if payload.get("model") != model or set(payload) - _FIELDS[request.url.path]:
             raise HTTPException(status_code=403, detail="Model or request parameter is not permitted")
+        if request.url.path == "/v1/audio/transcriptions":
+            try:
+                if "session_id" in payload:
+                    UUID(payload["session_id"])
+                offset = float(payload.get("chunk_start", 0))
+                if not math.isfinite(offset) or not 0 <= offset <= 7200:
+                    raise ValueError
+                if offset and "session_id" not in payload:
+                    raise ValueError
+            except (ValueError, TypeError, AttributeError):
+                raise HTTPException(status_code=400, detail="Invalid recording metadata") from None
     # Forbid query-based provider overrides as well as JSON/multipart overrides.
     if request.query_params:
         raise HTTPException(status_code=403, detail="Query parameters are not permitted")
@@ -54,7 +67,7 @@ async def user_api_key_auth(request: Request, api_key: str):
     return UserAPIKeyAuth(
         api_key=api_key,
         key_alias=f"nais-{environment}",
-        models=["nemotron-3.5-asr-streaming-0.6b", "borealis-12b"],
+        models=["nb-whisper-large", "borealis-12b"],
         max_parallel_requests=5,
         rpm_limit=120,
     )

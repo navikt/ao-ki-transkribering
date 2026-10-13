@@ -71,5 +71,5 @@ def test_nemotron_startup_selects_local_model_without_changing_remote_default():
     subprocess.run([sys.executable, "-c", code + "assert MODELL_ID == TRANSKRIPSJON_MODELL == 'nvidia/test-nemotron'"],
                    env=env, capture_output=True, check=True)
     env["TRANSKRIPSJON_BACKEND"] = "remote"
-    subprocess.run([sys.executable, "-c", code + "assert TRANSKRIPSJON_MODELL == 'nemotron-3.5-asr-streaming-0.6b'"],
+    subprocess.run([sys.executable, "-c", code + "assert TRANSKRIPSJON_MODELL == 'nb-whisper-large'"],
                    env=env, capture_output=True, check=True)

@@ -44,6 +44,11 @@ def hent_fw_modell():
                     )
                 print(f"[sanntid] Laster {sti} …", flush=True)
                 _fw_modell = WhisperModel(sti, device="auto", compute_type="default")
+                from faster_whisper.feature_extractor import FeatureExtractor
+                # Older local conversions omitted preprocessor_config.json (Large v3 needs 128 bins).
+                if _fw_modell.feature_extractor.mel_filters.shape[0] != _fw_modell.model.n_mels:
+                    _fw_modell.feat_kwargs["feature_size"] = _fw_modell.model.n_mels
+                    _fw_modell.feature_extractor = FeatureExtractor(**_fw_modell.feat_kwargs)
                 print("[sanntid] Klar.", flush=True)
     return _fw_modell
 
@@ -164,9 +169,6 @@ def transkriber_pcm(
         tekst = " ".join(tekst_deler)
         return {"tekst": tekst, "segmenter": segmenter_liste}, ny_prototyper
 
-    except Exception as exc:
-        print(f"[sanntid] Feil: {exc}", flush=True)
-        return None, prototyper
     finally:
         wav_sti.unlink(missing_ok=True)
 
@@ -231,7 +233,8 @@ class VadBuffer:
     Energibasert VAD-buffer. Samler PCM-frames og avgjør når det er trygt
     å sende til Whisper (ved naturlig pause eller maks bufferlengde).
     """
-    def __init__(self):
+    def __init__(self, *, preserve_audio: bool = False):
+        self._preserve_audio = preserve_audio
         self._frames: list[np.ndarray] = []
         self._total_samples: int = 0
         self._tale_samples: int = 0
@@ -271,13 +274,18 @@ class VadBuffer:
             ):
                 chunks.append(self._flush(behold_overlapp=stille_s < STILLHET_TERSKEL_S))
             elif not self._harTale and total_s >= MAKS_BUFFER_S:
-                self._reset()
+                if self._preserve_audio:
+                    chunks.append(self._flush(behold_overlapp=True))
+                else:
+                    self._reset()
 
         return chunks
 
     def flush_alt(self) -> LydChunk | None:
         """Tøm buffer ved stopp-kommando."""
-        if self._harTale and self._tale_samples > 0:
+        if (self._harTale and self._tale_samples > 0) or (
+            self._preserve_audio and self._total_samples > self._overlapp_samples
+        ):
             return self._flush()
         self._reset()
         return None

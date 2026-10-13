@@ -25,7 +25,7 @@ spec:
         - key: nvidia.com/gpu
           value: present
           effect: NoSchedule
-      # Keep the legacy deployment/service name so GPU allocation and TLS IP stay stable.
+      # Reuse the existing speech GPU and authenticated service address.
       initContainers:
         - name: last-ned-modell
           image: google/cloud-sdk:slim
@@ -34,16 +34,26 @@ spec:
             - -c
             - |
               set -euo pipefail
-              mkdir -p /models/nemotron-3.5-asr-streaming-0.6b
-              BASE=gs://ao-ki-taskforce-prod-2472-modeller/nemotron/ea30d66debe3740a08b573244286791d423d6b3e
+              mkdir -p /models/nb-whisper-large
+              BASE=gs://ao-ki-taskforce-prod-2472-modeller/whisper/nb-whisper-large
               gcloud storage cp \
+                "$BASE/added_tokens.json" \
                 "$BASE/config.json" \
                 "$BASE/generation_config.json" \
-                "$BASE/model.safetensors" \
-                "$BASE/processor_config.json" \
+                "$BASE/merges.txt" \
+                "$BASE/model-00001-of-00002.safetensors" \
+                "$BASE/model-00002-of-00002.safetensors" \
+                "$BASE/model.safetensors.index.json" \
+                "$BASE/preprocessor_config.json" \
+                "$BASE/special_tokens_map.json" \
                 "$BASE/tokenizer.json" \
                 "$BASE/tokenizer_config.json" \
-                /models/nemotron-3.5-asr-streaming-0.6b/
+                "$BASE/vocab.json" \
+                /models/nb-whisper-large/
+              mkdir -p /models/nemotron-diarization
+              DIAR=gs://ao-ki-taskforce-prod-2472-modeller/nemotron-diarization/f667ed73aee57d40cc39428eb768b4fd87a0a29e
+              gcloud storage cp "$DIAR/config.json" "$DIAR/processor_config.json" \
+                "$DIAR/model.safetensors" /models/nemotron-diarization/
           volumeMounts:
             - name: modeller
               mountPath: /models
@@ -53,9 +63,16 @@ spec:
               memory: 1Gi
       containers:
         - name: vllm
-          # Transformers RNNT server, retaining the existing audio API contract.
-          image: europe-west4-docker.pkg.dev/ao-ki-taskforce-prod-2472/vllm/nemotron-asr:20261013
+          # Self-hosted Whisper transcription and separate Nemotron speaker model.
+          image: europe-west4-docker.pkg.dev/ao-ki-taskforce-prod-2472/vllm/whisper-diarization:20261013-v2
           command: ["python", "-m", "uvicorn"]
+          env:
+            - name: SPEECH_ASR_BACKEND
+              value: whisper
+            - name: SPEECH_MODEL_NAME
+              value: nb-whisper-large
+            - name: WHISPER_MODELL
+              value: /models/nb-whisper-large
           args:
             - worker.nemotron_api:app
             - --host

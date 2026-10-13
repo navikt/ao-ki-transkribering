@@ -58,12 +58,6 @@ body {
   gap: 1rem;
   flex-wrap: wrap;
 }
-.nav-logo {
-  display: flex;
-  align-items: center;
-  flex-shrink: 0;
-  color: #C30000;
-}
 .app-header-tekst { display: flex; flex-direction: column; }
 h1 {
   font-size: var(--font-xl);

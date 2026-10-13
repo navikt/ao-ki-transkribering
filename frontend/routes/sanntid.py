@@ -1,5 +1,9 @@
 import asyncio
 import json
+import logging
+import time
+from contextlib import suppress
+from uuid import uuid4
 
 import numpy as np
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
@@ -15,6 +19,13 @@ from worker.transkribering.sanntid import (
 )
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
+
+
+async def _heartbeat(websocket):
+    while True:
+        await asyncio.sleep(15)
+        await websocket.send_json({"type": "heartbeat"})
 
 
 @router.websocket("/ws/sanntid")
@@ -28,10 +39,16 @@ async def sanntid_ws(websocket: WebSocket):
       Server -> Client: JSON {"type": "segment", "tekst": "...", "segmenter": [{..., "taler": "SPEAKER_XX"}]}
     """
     await websocket.accept()
-    if TRANSKRIPSJON_BACKEND == "remote":
-        await _sanntid_remote(websocket)
-        return
-    await _sanntid_lokal(websocket)
+    heartbeat = asyncio.create_task(_heartbeat(websocket))
+    try:
+        if TRANSKRIPSJON_BACKEND == "remote":
+            await _sanntid_remote(websocket)
+        else:
+            await _sanntid_lokal(websocket)
+    finally:
+        heartbeat.cancel()
+        with suppress(asyncio.CancelledError, RuntimeError, WebSocketDisconnect, OSError):
+            await heartbeat
 
 
 async def _sanntid_lokal(websocket: WebSocket) -> None:
@@ -43,7 +60,7 @@ async def _sanntid_lokal(websocket: WebSocket) -> None:
         await websocket.close()
         return
 
-    buf = VadBuffer()
+    buf = VadBuffer(preserve_audio=True)
     transkriber_kø: asyncio.Queue = asyncio.Queue(maxsize=4)
     prototyper_state: list[np.ndarray | None] = [None]
     samler = SegmentSamler()
@@ -53,6 +70,10 @@ async def _sanntid_lokal(websocket: WebSocket) -> None:
             chunk = await transkriber_kø.get()
             if chunk is None:
                 break
+            started = time.monotonic()
+            logger.info("Audio chunk start=%.2fs duration=%.2fs rms=%.5f backend=local",
+                        chunk.start_s, len(chunk.pcm) / 16000,
+                        float(np.sqrt(np.mean(chunk.pcm ** 2))))
             try:
                 resultat, ny_proto = await asyncio.to_thread(
                     transkriber_pcm, chunk.pcm, prototyper_state[0]
@@ -67,6 +88,10 @@ async def _sanntid_lokal(websocket: WebSocket) -> None:
                 continue
             prototyper_state[0] = ny_proto
             resultat = samler.legg_til(resultat, chunk)
+            logger.info("Audio result start=%.2fs elapsed=%.2fs characters=%d speakers=%d",
+                        chunk.start_s, time.monotonic() - started,
+                        len(resultat.get("tekst", "")) if resultat else 0,
+                        len({s.get("taler") for s in resultat.get("segmenter", [])}) if resultat else 0)
             if resultat and resultat.get("tekst"):
                 try:
                     await websocket.send_json({
@@ -118,23 +143,38 @@ async def _sanntid_lokal(websocket: WebSocket) -> None:
 
 async def _sanntid_remote(websocket: WebSocket) -> None:
     """Proxy-basert sanntid: lokal VAD, ekstern transkribering per chunk."""
-    buf = VadBuffer()
+    # Quiet microphones must not lose whole chunks before ASR can inspect them.
+    buf = VadBuffer(preserve_audio=True)
     transkriber_kø: asyncio.Queue = asyncio.Queue(maxsize=4)
     samler = SegmentSamler()
+    session_id = str(uuid4())
 
     async def transkriber_worker():
         while True:
             chunk = await transkriber_kø.get()
             if chunk is None:
                 break
+            started = time.monotonic()
+            logger.info("Audio chunk start=%.2fs duration=%.2fs rms=%.5f backend=remote",
+                        chunk.start_s, len(chunk.pcm) / 16000,
+                        float(np.sqrt(np.mean(chunk.pcm ** 2))))
             try:
-                resultat = await transkriber_remote_pcm(chunk.pcm)
+                resultat = await transkriber_remote_pcm(chunk.pcm, session_id=session_id,
+                                                       chunk_start=chunk.start_s)
             except Exception as exc:
                 samler.legg_til(None, chunk)
-                await websocket.send_json({"type": "feil", "melding": f"Ekstern transkribering feilet: {exc}"})
+                # Log only error classes/status, never audio, transcripts or credentials.
+                response = getattr(exc, "response", None)
+                logger.warning("Live transcription failed: %s status=%s", type(exc).__name__,
+                               getattr(response, "status_code", None))
+                with suppress(RuntimeError, WebSocketDisconnect, OSError):
+                    await websocket.send_json({"type": "feil", "melding":
+                        "Transkripsjonen feilet etter nye forsok. Opptaket er stoppet; teksten hittil er beholdt."})
                 transkriber_kø.task_done()
                 continue
 
+            logger.info("Audio result start=%.2fs elapsed=%.2fs characters=%d",
+                        chunk.start_s, time.monotonic() - started, len(resultat.tekst))
             if resultat.tekst.strip():
                 segmenter = [s.model_dump() for s in resultat.segmenter]
                 if not segmenter:

@@ -4,6 +4,12 @@ const path = require("node:path");
 const test = require("node:test");
 const vm = require("node:vm");
 
+test("header and page title do not contain NAV branding", () => {
+  const html = fs.readFileSync(path.join(__dirname, "../frontend/static/index.html"), "utf8");
+  assert.doesNotMatch(html.match(/<header[\s\S]*?<\/header>/)[0], /nav-logo|NAV logo/);
+  assert.equal(html.match(/<title>(.*?)<\/title>/)[1], "Møtetranskribering");
+});
+
 function workspace() {
   const elements = new Map();
   const element = id => {
@@ -25,11 +31,40 @@ function workspace() {
     },
     fetch: () => new Promise(() => {}),
     setInterval() {},
+    clearInterval() {},
     navigator: { clipboard: { writeText: async () => {} } },
   });
   vm.runInContext(fs.readFileSync(path.join(__dirname, "../frontend/static/app.js"), "utf8"), context);
   return { element, run: code => vm.runInContext(code, context) };
 }
+
+test("temporary model errors do not stop the microphone", async () => {
+  const { element, run } = workspace();
+  element("sanntid-nedlasting").remove = () => {};
+  run(`
+    navigator.mediaDevices = { getUserMedia: async () => ({ getTracks: () => [] }) };
+    globalThis.location = { protocol: "https:", host: "meeting.example" };
+    globalThis.WebSocket = class { static OPEN = 1; readyState = 1; send() {} };
+  `);
+  await run("startSanntid()");
+  run('sanntidWs.onmessage({data: JSON.stringify({type:"feil", melding:"Modellen er opptatt", recoverable:true})})');
+  assert.equal(run("sanntidAktivt"), true);
+  assert.match(element("sanntid-status-tekst").textContent, /opptatt/);
+});
+
+test("fatal model error remains visible after microphone stops and socket closes", async () => {
+  const { element, run } = workspace();
+  element("sanntid-nedlasting").remove = () => {};
+  run(`
+    navigator.mediaDevices = { getUserMedia: async () => ({ getTracks: () => [] }) };
+    globalThis.location = { protocol: "https:", host: "meeting.example" };
+    globalThis.WebSocket = class { static OPEN = 1; readyState = 1; send() {} };
+  `);
+  await run("startSanntid()");
+  run('sanntidWs.onmessage({data: JSON.stringify({type:"feil", melding:"Modellen er utilgjengelig"})}); sanntidWs.onclose({code:1000})');
+  assert.equal(run("sanntidAktivt"), false);
+  assert.match(element("sanntid-status-tekst").textContent, /utilgjengelig/);
+});
 
 for (const [protocol, expected] of [["https:", "wss:"], ["http:", "ws:"]]) {
   test(`microphone opens the correct WebSocket on ${protocol}`, async () => {

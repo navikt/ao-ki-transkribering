@@ -215,7 +215,7 @@ python -m uvicorn frontend.app:app --host 127.0.0.1 --port 8765
 | `START_LOKAL_WORKER` | `true` | Starter lokal transkripsjonsarbeider sammen med API-et |
 | `TRANSKRIPSJON_BACKEND` | `local` | `local` eller `remote` modellbackend for batch-transkripsjon |
 | `TRANSKRIPSJON_SERVICE_URL` | `http://127.0.0.1:9000` | URL til ekstern modellarbeider ved `TRANSKRIPSJON_BACKEND=remote` |
-| `TRANSKRIPSJON_MODELL` | `nemotron-3.5-asr-streaming-0.6b` ved remote | Modellnavn sendt til OpenAI-kompatibel transkripsjons-API |
+| `TRANSKRIPSJON_MODELL` | `nb-whisper-large` i NAIS | Modellnavn sendt til OpenAI-kompatibel transkripsjons-API |
 
 ### Container
 
@@ -518,8 +518,8 @@ See [dataset research and limitations](docs/norwegian-speech-testdata.md) and th
 
 Experimental Nemotron ASR can replace local Whisper for both file uploads and
 recording. ECAPA speaker diarisation and the selected LLM are unchanged.
-The normal local app command still defaults to Whisper. GCP uses the same
-Nemotron RNNT implementation through a separate speech API (see below).
+The normal local app command still defaults to Whisper. GCP also uses
+NB-Whisper; the Nemotron runtime remains an experimental alternative.
 
 Use the isolated optional runtime described above. On first setup, cache the ASR
 weights before starting the offline app:
@@ -553,34 +553,29 @@ with upload results. This stock model performed substantially worse than
 NB-Whisper on our podcast subset, so review its output before using it for minutes
 or summaries. The Transformers runtime remains experimental.
 
-### GCP Nemotron
+### GCP speech model
 
-The speech GPU serves `nemotron-3.5-asr-streaming-0.6b` using Transformers,
-not vLLM. Borealis continues to use vLLM on its own GPU. The existing
-`vllm-whisper` Kubernetes deployment/service name, internal IP, GPU pool and
-scaling scripts are deliberately retained to avoid replacing allocated GPUs.
+The speech GPU serves `nb-whisper-large` with word timestamps using Transformers,
+alongside `nvidia/Nemotron-3-Diarization` for speaker labels. Borealis uses vLLM on
+the other GPU. Both retain their authenticated TLS endpoints and allocated L4s.
+The NAIS model setting, gateway routing and gateway model allowlist must agree.
 
-```bash
-bash scripts/upload-nemotron.sh
-bash scripts/build-nemotron-image.sh
-# Prepare and review the gateway change before the cutover:
-tofu -chdir=terraform/gke plan
-# Deploy the speech server, then apply gateway routing/auth:
-START_GPU_FALLBACK=false ./scripts/apply-k8s.sh
-tofu -chdir=terraform/gke apply
-```
+Nemotron ASR was rolled back on 2026-10-13 after Norwegian audio produced
+Swedish-like output despite the `nb-NO` language prompt. The same synthetic
+Norwegian clip passed through the authenticated NAIS-to-GCP path after restoring
+Whisper. This is a smoke test, not an accuracy evaluation of real meetings.
 
-The image runs `worker.nemotron_api` with the existing authenticated TLS audio
-contract. Model weights are loaded from a revisioned GCS prefix, with no model
-downloads during inference. Restart the speech deployment after rotating its
-TLS certificate: Uvicorn does not hot-reload certificates like vLLM.
-Uploads support Norwegian Bokmal, JSON/verbose JSON/text, up to 200 MiB and
-two hours of audio. One inference runs at a time; excess requests return 429.
-Live recording still uses the existing pause-aware chunks, not persistent
-cache-aware RNNT streaming. No cloud diarisation model has been added.
+Nemotron ASR remains experimental and is not used for cloud transcription.
+The speech image uses `SPEECH_ASR_BACKEND=whisper` and downloads both Whisper and
+the separate Nemotron diarization checkpoint from GCS. Build it with
+`IMAGE=europe-west4-docker.pkg.dev/ao-ki-taskforce-prod-2472/vllm/whisper-diarization:20261013-v2 bash scripts/build-nemotron-image.sh`.
 
-Deploy the speech server and validate a synthetic request before enabling the
-new gateway model and rolling out NAIS. Changing the gateway/model name requires
-the matching NAIS `TRANSKRIPSJON_MODELL` setting; expect a brief cutover outage.
-For rollback, restore the previous speech manifest, gateway routing/auth and
-NAIS model setting together. Whisper weights and its image are retained.
+Recordings use at most 15-second windows, with one second of overlap on forced
+cuts. Quiet audio is retained; energy detection chooses pause boundaries only.
+Speaker state is isolated per recording UUID, expires after five idle minutes,
+and is bounded to eight active recordings. It is not persisted across restarts.
+Repeated delivery of the latest chunk is idempotent. Speaker labels are estimates,
+not identities; users must review them, especially around overlapping speech.
+
+Model switches restart the speech service and NAIS model-setting changes restart
+the API. Finish recordings before a cutover; active WebSockets can disconnect.
