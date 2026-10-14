@@ -1,0 +1,265 @@
+[
+  {
+    "model": "whisper+nemotron-diarization",
+    "concurrency": 4,
+    "requests": 20,
+    "successes": 20,
+    "statuses": {
+      "200": 20
+    },
+    "success_avg_s": 3.705276035462157,
+    "success_p50_s": 3.6937786465277895,
+    "success_max_s": 4.962220499990508,
+    "wall_s": 60.896042499982286,
+    "successful_requests_per_minute": 19.705714045380684,
+    "rounds": 5,
+    "interval_s": 14.0,
+    "recording": true,
+    "results": [
+      {
+        "status": 200,
+        "seconds": 2.457775709044654,
+        "ok": true,
+        "chars": 218,
+        "speakers": [
+          "SPEAKER_00"
+        ],
+        "segments": 41,
+        "round": 0,
+        "completion_lag_s": 4.8015107499668375
+      },
+      {
+        "status": 200,
+        "seconds": 4.799393000022974,
+        "ok": true,
+        "chars": 218,
+        "speakers": [
+          "SPEAKER_00"
+        ],
+        "segments": 41,
+        "round": 0,
+        "completion_lag_s": 4.801515250001103
+      },
+      {
+        "status": 200,
+        "seconds": 2.572869083029218,
+        "ok": true,
+        "chars": 218,
+        "speakers": [
+          "SPEAKER_00"
+        ],
+        "segments": 41,
+        "round": 0,
+        "completion_lag_s": 4.80151645798469
+      },
+      {
+        "status": 200,
+        "seconds": 4.6718649590038694,
+        "ok": true,
+        "chars": 218,
+        "speakers": [
+          "SPEAKER_00"
+        ],
+        "segments": 41,
+        "round": 0,
+        "completion_lag_s": 4.80151737498818
+      },
+      {
+        "status": 200,
+        "seconds": 2.6256445829640143,
+        "ok": true,
+        "chars": 218,
+        "speakers": [
+          "SPEAKER_00"
+        ],
+        "segments": 41,
+        "round": 1,
+        "completion_lag_s": 4.911269707954489
+      },
+      {
+        "status": 200,
+        "seconds": 4.908620083006099,
+        "ok": true,
+        "chars": 218,
+        "speakers": [
+          "SPEAKER_00"
+        ],
+        "segments": 41,
+        "round": 1,
+        "completion_lag_s": 4.911272416997235
+      },
+      {
+        "status": 200,
+        "seconds": 2.5523431659676135,
+        "ok": true,
+        "chars": 218,
+        "speakers": [
+          "SPEAKER_00"
+        ],
+        "segments": 41,
+        "round": 1,
+        "completion_lag_s": 4.911272874975111
+      },
+      {
+        "status": 200,
+        "seconds": 4.813370332994964,
+        "ok": true,
+        "chars": 218,
+        "speakers": [
+          "SPEAKER_00"
+        ],
+        "segments": 41,
+        "round": 1,
+        "completion_lag_s": 4.91127374995267
+      },
+      {
+        "status": 200,
+        "seconds": 2.7156923340517096,
+        "ok": true,
+        "chars": 218,
+        "speakers": [
+          "SPEAKER_00"
+        ],
+        "segments": 41,
+        "round": 2,
+        "completion_lag_s": 4.966421624994837
+      },
+      {
+        "status": 200,
+        "seconds": 2.6425317500252277,
+        "ok": true,
+        "chars": 218,
+        "speakers": [
+          "SPEAKER_00"
+        ],
+        "segments": 41,
+        "round": 2,
+        "completion_lag_s": 4.966424832993653
+      },
+      {
+        "status": 200,
+        "seconds": 4.962220499990508,
+        "ok": true,
+        "chars": 218,
+        "speakers": [
+          "SPEAKER_00"
+        ],
+        "segments": 41,
+        "round": 2,
+        "completion_lag_s": 4.966425791964866
+      },
+      {
+        "status": 200,
+        "seconds": 4.879610500007402,
+        "ok": true,
+        "chars": 218,
+        "speakers": [
+          "SPEAKER_00"
+        ],
+        "segments": 41,
+        "round": 2,
+        "completion_lag_s": 4.966426207975019
+      },
+      {
+        "status": 200,
+        "seconds": 2.575675417028833,
+        "ok": true,
+        "chars": 218,
+        "speakers": [
+          "SPEAKER_00"
+        ],
+        "segments": 41,
+        "round": 3,
+        "completion_lag_s": 4.808598999981768
+      },
+      {
+        "status": 200,
+        "seconds": 4.764868209022097,
+        "ok": true,
+        "chars": 218,
+        "speakers": [
+          "SPEAKER_00"
+        ],
+        "segments": 41,
+        "round": 3,
+        "completion_lag_s": 4.808600582997315
+      },
+      {
+        "status": 200,
+        "seconds": 4.802559834031854,
+        "ok": true,
+        "chars": 218,
+        "speakers": [
+          "SPEAKER_00"
+        ],
+        "segments": 41,
+        "round": 3,
+        "completion_lag_s": 4.80860120797297
+      },
+      {
+        "status": 200,
+        "seconds": 2.5387352500110865,
+        "ok": true,
+        "chars": 218,
+        "speakers": [
+          "SPEAKER_00"
+        ],
+        "segments": 41,
+        "round": 3,
+        "completion_lag_s": 4.8086014579748735
+      },
+      {
+        "status": 200,
+        "seconds": 4.820775375002995,
+        "ok": true,
+        "chars": 218,
+        "speakers": [
+          "SPEAKER_00",
+          "SPEAKER_UNKNOWN"
+        ],
+        "segments": 41,
+        "round": 4,
+        "completion_lag_s": 4.896038499951828
+      },
+      {
+        "status": 200,
+        "seconds": 2.5319671670440584,
+        "ok": true,
+        "chars": 218,
+        "speakers": [
+          "SPEAKER_00",
+          "SPEAKER_UNKNOWN"
+        ],
+        "segments": 41,
+        "round": 4,
+        "completion_lag_s": 4.896039874991402
+      },
+      {
+        "status": 200,
+        "seconds": 2.575940415961668,
+        "ok": true,
+        "chars": 218,
+        "speakers": [
+          "SPEAKER_00",
+          "SPEAKER_UNKNOWN"
+        ],
+        "segments": 41,
+        "round": 4,
+        "completion_lag_s": 4.896040291991085
+      },
+      {
+        "status": 200,
+        "seconds": 4.893063041032292,
+        "ok": true,
+        "chars": 218,
+        "speakers": [
+          "SPEAKER_00",
+          "SPEAKER_UNKNOWN"
+        ],
+        "segments": 41,
+        "round": 4,
+        "completion_lag_s": 4.896040666964836
+      }
+    ]
+  }
+]

@@ -26,6 +26,26 @@ class WhisperTranskriberer:
             pcm, chunk_length_s=30, stride_length_s=(5, 2), return_timestamps="word",
             generate_kwargs={"language": "no", "task": "transcribe", "num_beams": 5},
         )
+        return self._normalize(result, pcm)
+
+    def transkriber_batch(self, recordings):
+        results = [{"text": "", "chunks": []} for _ in recordings]
+        active = [(i, pcm) for i, pcm in enumerate(recordings) if len(pcm) and np.any(pcm)]
+        if not active:
+            return results
+        outputs = self.pipeline(
+            [pcm for _, pcm in active], batch_size=len(active),
+            chunk_length_s=30, stride_length_s=(5, 2), return_timestamps="word",
+            generate_kwargs={"language": "no", "task": "transcribe", "num_beams": 5},
+        )
+        if len(outputs) != len(active):
+            raise RuntimeError("Whisper returned an incomplete batch")
+        for (index, pcm), output in zip(active, outputs):
+            results[index] = self._normalize(output, pcm)
+        return results
+
+    @staticmethod
+    def _normalize(result, pcm):
         # Keep every recognized word, even when Whisper omits its final timestamp.
         previous = 0.0
         chunks = []

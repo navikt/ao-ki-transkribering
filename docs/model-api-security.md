@@ -11,7 +11,8 @@ until credentials and GPU TLS are prepared. Local operation is unchanged.
 
 The cutover smoke tests cover NAIS dev/prod model listing, synthetic Whisper
 transcription, and denial of admin routes, alternate models, and provider overrides.
-Borealis inference still needs verification when its second GPU becomes available.
+Borealis Q8_0 inference and protected backend routes have also been verified on
+the allocated L4 through the authenticated gateway; see ADR 0005 for the results.
 The checklist below also includes follow-up network-isolation and log-content
 checks; deployment alone does not prove every security property.
 
@@ -56,8 +57,14 @@ them in `X-Serverless-Authorization`. The separate application key stays in
   health-check NodePorts allow Google's probe ranges while other NodePort access
   on GPU nodes is denied.
 - LiteLLM verifies the private CA and certificate IP SANs, never `ssl_verify=false`.
-  vLLM requires a backend-only API key. An additional ASGI middleware denies
+  The model-facing API requires a backend-only API key. An ASGI middleware denies
   alternative inference/admin routes; `/health` is the only unauthenticated route.
+- Borealis Q8_0 keeps that TLS/auth boundary in `worker.llama_api`. Its llama.cpp
+  inference container binds only `127.0.0.1:8001`, with plaintext communication
+  restricted to the same pod's loopback network. It has no externally bound
+  listener or exposed service port. The adapter never forwards caller credentials
+  and its upstream address is fixed, not caller-selected; native completion, slots, props and UI routes
+  are blocked. The GPU container does not mount the TLS private key or API key.
 - Kubernetes HTTPS probes do not verify certificates. They are liveness checks,
   not evidence that LiteLLM certificate verification works.
 
@@ -122,9 +129,10 @@ content in smoke tests. Do not paste keys, ID tokens, or secret output into logs
 Server certificates last 90 days. Run `./scripts/bootstrap-model-security.sh --renew`
 before expiry (schedule at least monthly in an authorized operator environment).
 It keeps the CA and application keys, signs a new leaf certificate, updates Secret
-Manager and Kubernetes, and vLLM's SSL-refresh option reloads the mounted files.
-Verify certificate reload on the deployed vLLM version; restart the model pods if
-needed. The certificate extensions in `scripts/model-tls.cnf` include authority and
+Manager and Kubernetes. The deployed speech and Borealis TLS adapters use Uvicorn;
+restart both model deployments after renewal to load the new certificate. The
+historical BF16 vLLM rollback runtime has an SSL-refresh option, but verify reload
+there rather than assuming it. The certificate extensions in `scripts/model-tls.cnf` include authority and
 subject key identifiers, and the script verifies server purpose, IP SANs, and
 strict X.509 compliance. Gateway trust verification must remain enabled.
 The script refuses certificates with less than seven days remaining unless

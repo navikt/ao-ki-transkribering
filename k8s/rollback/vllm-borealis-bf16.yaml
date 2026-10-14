@@ -1,0 +1,137 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: vllm-borealis
+  namespace: vllm
+  labels:
+    app: vllm-borealis
+spec:
+  # Keep one GPU request active, including outside office hours.
+  replicas: 1
+  selector:
+    matchLabels:
+      app: vllm-borealis
+  template:
+    metadata:
+      labels:
+        app: vllm-borealis
+    spec:
+      serviceAccountName: vllm
+      nodeSelector:
+        cloud.google.com/gke-nodepool: gpu-l4
+      tolerations:
+        - key: nvidia.com/gpu
+          value: present
+          effect: NoSchedule
+      initContainers:
+        - name: last-ned-modell
+          image: google/cloud-sdk:slim
+          command:
+            - /bin/sh
+            - -c
+            - |
+              set -euo pipefail
+              mkdir -p /models/borealis-12b
+              BASE=gs://ao-ki-taskforce-prod-2472-modeller/borealis-12b/borealis-12b
+              gcloud storage cp \
+                "$BASE/chat_template.jinja" \
+                "$BASE/config.json" \
+                "$BASE/generation_config.json" \
+                "$BASE/model.safetensors" \
+                "$BASE/preprocessor_config.json" \
+                "$BASE/processor_config.json" \
+                "$BASE/special_tokens_map.json" \
+                "$BASE/tokenizer.json" \
+                "$BASE/tokenizer.model" \
+                "$BASE/tokenizer_config.json" \
+                /models/borealis-12b/
+          volumeMounts:
+            - name: modeller
+              mountPath: /models
+          resources:
+            requests:
+              cpu: "1"
+              memory: 2Gi
+      containers:
+        - name: vllm
+          # Exact pre-Q8 runtime for a reproducible rollback.
+          image: vllm/vllm-openai@sha256:c1c9f6fd5c109ba7f0546a59f5b2f15fb87f64c77782e90a27b648b42a8e67c3
+          args:
+            - --model
+            - /models/borealis-12b
+            - --port
+            - "8000"
+            - --dtype
+            - bfloat16
+            # Borealis-12b fills the L4 (24 GB VRAM) in BF16.
+            # Bound concurrent sequences and prefill batches to leave memory for
+            # meeting transcripts on the existing single-L4/offload setup.
+            - --max-model-len
+            - "8192"
+            - --max-num-seqs
+            - "4"
+            - --enable-chunked-prefill
+            - --max-num-batched-tokens
+            - "512"
+            - --gpu-memory-utilization
+            - "0.88"
+            - --cpu-offload-gb
+            - "6"
+            - --enforce-eager
+            - --trust-remote-code
+          ports:
+            - containerPort: 8000
+              name: http
+          resources:
+            requests:
+              cpu: "4"
+              memory: 32Gi
+              nvidia.com/gpu: "1"
+            limits:
+              nvidia.com/gpu: "1"
+          volumeMounts:
+            - name: modeller
+              mountPath: /models
+          startupProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            periodSeconds: 10
+            failureThreshold: 90
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            # Model loading takes ~36 sec from GCS + warm-up time
+            initialDelaySeconds: 90
+            periodSeconds: 15
+            failureThreshold: 20
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 120
+            periodSeconds: 30
+      volumes:
+        - name: modeller
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: vllm-borealis
+  namespace: vllm
+  annotations:
+    networking.gke.io/load-balancer-type: "Internal"
+spec:
+  selector:
+    app: vllm-borealis
+  ports:
+    - port: 8000
+      targetPort: 8000
+      name: http
+  type: LoadBalancer
+  # IP reserved by Terraform. Get it with:
+  #   terraform -chdir=terraform/gke output -raw vllm_borealis_ilb_ip
+  # Or run: scripts/apply-k8s.sh (substitutes automatically)
+  loadBalancerIP: ""  # filled by scripts/apply-k8s.sh

@@ -1,4 +1,6 @@
 from types import SimpleNamespace
+from concurrent.futures import ThreadPoolExecutor
+import threading
 
 import numpy as np
 import pytest
@@ -67,3 +69,43 @@ def test_labels_use_overlap_and_do_not_invent_speakers_during_unassigned_speech(
     turns = [{"start": 0, "end": .7, "speaker": "SPEAKER_00"},
              {"start": 1, "end": 2, "speaker": "SPEAKER_01"}]
     assert [s["speaker"] for s in label_words(chunks, turns)] == ["SPEAKER_00", "SPEAKER_01", "SPEAKER_UNKNOWN"]
+
+
+def test_distinct_recordings_can_reach_asr_concurrently_without_mixing_state():
+    sessions = SpeechSessions()
+    asr, diar, _ = engines()
+    barrier = threading.Barrier(2)
+    original = asr.transkriber
+
+    def infer(pcm):
+        barrier.wait(timeout=5)
+        return original(pcm)
+
+    asr.transkriber = infer
+    with ThreadPoolExecutor(2) as pool:
+        jobs = [pool.submit(sessions.transcribe, np.ones(16000), asr, diar, key, 0) for key in ("a", "b")]
+        assert all(job.result(timeout=10)["text"] == "Hei" for job in jobs)
+    assert sessions.records["a"] is not sessions.records["b"]
+    assert sessions.records["a"].cache == sessions.records["b"].cache == 1
+    assert not sessions.active
+
+
+def test_concurrent_retry_for_same_recording_does_not_repeat_inference():
+    sessions = SpeechSessions()
+    asr, diar, calls = engines()
+    entered, release = threading.Event(), threading.Event()
+    original = asr.transkriber
+
+    def infer(pcm):
+        entered.set()
+        assert release.wait(timeout=5)
+        return original(pcm)
+
+    asr.transkriber = infer
+    with ThreadPoolExecutor(2) as pool:
+        first = pool.submit(sessions.transcribe, np.ones(16000), asr, diar, "a", 0)
+        assert entered.wait(timeout=5)
+        second = pool.submit(sessions.transcribe, np.ones(16000), asr, diar, "a", 0)
+        release.set()
+        assert first.result(timeout=5) is second.result(timeout=5)
+    assert len(calls) == 1

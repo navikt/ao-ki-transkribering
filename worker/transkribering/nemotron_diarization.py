@@ -2,6 +2,7 @@
 
 import copy
 import hashlib
+import logging
 import threading
 import time
 from dataclasses import dataclass, field
@@ -9,6 +10,7 @@ from dataclasses import dataclass, field
 import numpy as np
 
 SAMPLE_RATE = 16000
+logger = logging.getLogger(__name__)
 
 
 class NemotronDiarizer:
@@ -18,8 +20,17 @@ class NemotronDiarizer:
         self.processor = AutoProcessor.from_pretrained(model_path)
         self.model = AutoModelForAudioFrameClassification.from_pretrained(model_path).to(device).eval()
         self.device = device
+        self._inference_lock = threading.Lock()
 
     def infer(self, pcm, cache=None):
+        with self._inference_lock:
+            started = time.monotonic()
+            result = self._infer(pcm, cache)
+            logger.warning("diarization_inference seconds=%.3f audio_seconds=%.3f",
+                           time.monotonic() - started, len(pcm) / SAMPLE_RATE)
+            return result
+
+    def _infer(self, pcm, cache=None):
         import torch
 
         turns = []
@@ -71,6 +82,8 @@ class SpeechSessions:
         self.records = {}
         self.ttl, self.capacity, self.clock = ttl, capacity, clock
         self.lock = threading.Lock()
+        self.condition = threading.Condition(self.lock)
+        self.active = set()
 
     def purge(self):
         with self.lock:
@@ -78,13 +91,16 @@ class SpeechSessions:
 
     def _purge(self):
         now = self.clock()
-        self.records = {key: value for key, value in self.records.items() if now - value.touched < self.ttl}
+        self.records = {key: value for key, value in self.records.items()
+                        if key in self.active or now - value.touched < self.ttl}
 
     def transcribe(self, pcm, asr, diarizer, session_id=None, chunk_start=0):
-        with self.lock:
+        with self.condition:
+            while session_id and session_id in self.active:
+                self.condition.wait()
             self._purge()
             previous = self.records.get(session_id)
-            if session_id and previous is None and len(self.records) >= self.capacity:
+            if session_id and previous is None and len(set(self.records) | self.active) >= self.capacity:
                 raise OverflowError("Too many active recordings")
             fingerprint = (chunk_start, hashlib.sha256(pcm.tobytes()).digest())
             if previous and previous.fingerprint == fingerprint:
@@ -94,6 +110,9 @@ class SpeechSessions:
                 raise ValueError("Recording chunk is out of order")
             # Model cache updates are mutable: commit only after both inference stages succeed.
             state = copy.deepcopy(previous) if previous else Recording()
+            if session_id:
+                self.active.add(session_id)
+        try:
             overlap = max(0, round((state.end - chunk_start) * SAMPLE_RATE)) if previous else 0
             turns, state.cache = diarizer.infer(pcm[overlap:], state.cache)
             offset = chunk_start + overlap / SAMPLE_RATE
@@ -110,5 +129,11 @@ class SpeechSessions:
                 state.end = chunk_start + len(pcm) / SAMPLE_RATE
                 state.turns = [t for t in state.turns if t["end"] >= state.end - 40]
                 state.fingerprint, state.result, state.touched = fingerprint, result, self.clock()
-                self.records[session_id] = state
+                with self.condition:
+                    self.records[session_id] = state
             return result
+        finally:
+            if session_id:
+                with self.condition:
+                    self.active.discard(session_id)
+                    self.condition.notify_all()

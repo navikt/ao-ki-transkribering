@@ -1,0 +1,552 @@
+[
+  {
+    "model": "whisper+nemotron-diarization",
+    "concurrency": 1,
+    "requests": 1,
+    "successes": 1,
+    "statuses": {
+      "200": 1
+    },
+    "success_avg_s": 9.902992709015962,
+    "success_p50_s": 9.902992709015962,
+    "success_max_s": 9.902992709015962,
+    "wall_s": 9.90360324998619,
+    "successful_requests_per_minute": 6.05840101683028,
+    "results": [
+      {
+        "status": 200,
+        "seconds": 9.902992709015962,
+        "ok": true,
+        "chars": 240,
+        "speakers": [
+          "SPEAKER_00"
+        ],
+        "segments": 44
+      }
+    ]
+  },
+  {
+    "model": "whisper+nemotron-diarization",
+    "concurrency": 2,
+    "requests": 2,
+    "successes": 2,
+    "statuses": {
+      "200": 2
+    },
+    "success_avg_s": 14.415308520459803,
+    "success_p50_s": 14.415308520459803,
+    "success_max_s": 14.415831165970303,
+    "wall_s": 14.420459916989785,
+    "successful_requests_per_minute": 8.321509902650146,
+    "results": [
+      {
+        "status": 200,
+        "seconds": 14.414785874949303,
+        "ok": true,
+        "chars": 240,
+        "speakers": [
+          "SPEAKER_00"
+        ],
+        "segments": 44
+      },
+      {
+        "status": 200,
+        "seconds": 14.415831165970303,
+        "ok": true,
+        "chars": 240,
+        "speakers": [
+          "SPEAKER_00"
+        ],
+        "segments": 44
+      }
+    ]
+  },
+  {
+    "model": "whisper+nemotron-diarization",
+    "concurrency": 4,
+    "requests": 4,
+    "successes": 4,
+    "statuses": {
+      "200": 4
+    },
+    "success_avg_s": 21.511176166473888,
+    "success_p50_s": 21.50851272896398,
+    "success_max_s": 28.45004812499974,
+    "wall_s": 28.453451208013576,
+    "successful_requests_per_minute": 8.434829161687313,
+    "results": [
+      {
+        "status": 200,
+        "seconds": 14.577631082967855,
+        "ok": true,
+        "chars": 240,
+        "speakers": [
+          "SPEAKER_00"
+        ],
+        "segments": 44
+      },
+      {
+        "status": 200,
+        "seconds": 14.579727249976713,
+        "ok": true,
+        "chars": 240,
+        "speakers": [
+          "SPEAKER_00"
+        ],
+        "segments": 44
+      },
+      {
+        "status": 200,
+        "seconds": 28.45004812499974,
+        "ok": true,
+        "chars": 240,
+        "speakers": [
+          "SPEAKER_00"
+        ],
+        "segments": 44
+      },
+      {
+        "status": 200,
+        "seconds": 28.437298207951244,
+        "ok": true,
+        "chars": 240,
+        "speakers": [
+          "SPEAKER_00"
+        ],
+        "segments": 44
+      }
+    ]
+  },
+  {
+    "model": "whisper+nemotron-diarization",
+    "concurrency": 8,
+    "requests": 8,
+    "successes": 8,
+    "statuses": {
+      "200": 8
+    },
+    "success_avg_s": 35.35251487512869,
+    "success_p50_s": 35.39675241702935,
+    "success_max_s": 56.206403792020865,
+    "wall_s": 56.21291470795404,
+    "successful_requests_per_minute": 8.538963021109465,
+    "results": [
+      {
+        "status": 200,
+        "seconds": 14.40682133298833,
+        "ok": true,
+        "chars": 240,
+        "speakers": [
+          "SPEAKER_00"
+        ],
+        "segments": 44
+      },
+      {
+        "status": 200,
+        "seconds": 14.400015207997058,
+        "ok": true,
+        "chars": 240,
+        "speakers": [
+          "SPEAKER_00"
+        ],
+        "segments": 44
+      },
+      {
+        "status": 200,
+        "seconds": 56.20366970798932,
+        "ok": true,
+        "chars": 240,
+        "speakers": [
+          "SPEAKER_00"
+        ],
+        "segments": 44
+      },
+      {
+        "status": 200,
+        "seconds": 42.35194258397678,
+        "ok": true,
+        "chars": 240,
+        "speakers": [
+          "SPEAKER_00"
+        ],
+        "segments": 44
+      },
+      {
+        "status": 200,
+        "seconds": 56.206403792020865,
+        "ok": true,
+        "chars": 240,
+        "speakers": [
+          "SPEAKER_00"
+        ],
+        "segments": 44
+      },
+      {
+        "status": 200,
+        "seconds": 42.335379750002176,
+        "ok": true,
+        "chars": 240,
+        "speakers": [
+          "SPEAKER_00"
+        ],
+        "segments": 44
+      },
+      {
+        "status": 200,
+        "seconds": 28.45812508405652,
+        "ok": true,
+        "chars": 240,
+        "speakers": [
+          "SPEAKER_00"
+        ],
+        "segments": 44
+      },
+      {
+        "status": 200,
+        "seconds": 28.45776154199848,
+        "ok": true,
+        "chars": 240,
+        "speakers": [
+          "SPEAKER_00"
+        ],
+        "segments": 44
+      }
+    ]
+  },
+  {
+    "model": "whisper+nemotron-diarization",
+    "concurrency": 32,
+    "requests": 32,
+    "successes": 32,
+    "statuses": {
+      "200": 32
+    },
+    "success_avg_s": 118.55542725515079,
+    "success_p50_s": 118.61195360397687,
+    "success_max_s": 222.18333341600373,
+    "wall_s": 222.1999568750034,
+    "successful_requests_per_minute": 8.640865763444225,
+    "results": [
+      {
+        "status": 200,
+        "seconds": 14.759845041960943,
+        "ok": true,
+        "chars": 240,
+        "speakers": [
+          "SPEAKER_00"
+        ],
+        "segments": 44
+      },
+      {
+        "status": 200,
+        "seconds": 14.761398207978345,
+        "ok": true,
+        "chars": 240,
+        "speakers": [
+          "SPEAKER_00"
+        ],
+        "segments": 44
+      },
+      {
+        "status": 200,
+        "seconds": 97.89229929097928,
+        "ok": true,
+        "chars": 240,
+        "speakers": [
+          "SPEAKER_00"
+        ],
+        "segments": 44
+      },
+      {
+        "status": 200,
+        "seconds": 28.64354783296585,
+        "ok": true,
+        "chars": 240,
+        "speakers": [
+          "SPEAKER_00"
+        ],
+        "segments": 44
+      },
+      {
+        "status": 200,
+        "seconds": 56.477327583008446,
+        "ok": true,
+        "chars": 240,
+        "speakers": [
+          "SPEAKER_00"
+        ],
+        "segments": 44
+      },
+      {
+        "status": 200,
+        "seconds": 153.14552591595566,
+        "ok": true,
+        "chars": 240,
+        "speakers": [
+          "SPEAKER_00"
+        ],
+        "segments": 44
+      },
+      {
+        "status": 200,
+        "seconds": 28.647876125003677,
+        "ok": true,
+        "chars": 240,
+        "speakers": [
+          "SPEAKER_00"
+        ],
+        "segments": 44
+      },
+      {
+        "status": 200,
+        "seconds": 70.2725777499727,
+        "ok": true,
+        "chars": 240,
+        "speakers": [
+          "SPEAKER_00"
+        ],
+        "segments": 44
+      },
+      {
+        "status": 200,
+        "seconds": 70.2712604170083,
+        "ok": true,
+        "chars": 240,
+        "speakers": [
+          "SPEAKER_00"
+        ],
+        "segments": 44
+      },
+      {
+        "status": 200,
+        "seconds": 180.58445270796074,
+        "ok": true,
+        "chars": 240,
+        "speakers": [
+          "SPEAKER_00"
+        ],
+        "segments": 44
+      },
+      {
+        "status": 200,
+        "seconds": 97.89281233295333,
+        "ok": true,
+        "chars": 240,
+        "speakers": [
+          "SPEAKER_00"
+        ],
+        "segments": 44
+      },
+      {
+        "status": 200,
+        "seconds": 42.69790445902618,
+        "ok": true,
+        "chars": 240,
+        "speakers": [
+          "SPEAKER_00"
+        ],
+        "segments": 44
+      },
+      {
+        "status": 200,
+        "seconds": 111.60640987497754,
+        "ok": true,
+        "chars": 240,
+        "speakers": [
+          "SPEAKER_00"
+        ],
+        "segments": 44
+      },
+      {
+        "status": 200,
+        "seconds": 194.44786579202628,
+        "ok": true,
+        "chars": 240,
+        "speakers": [
+          "SPEAKER_00"
+        ],
+        "segments": 44
+      },
+      {
+        "status": 200,
+        "seconds": 166.8189695830224,
+        "ok": true,
+        "chars": 240,
+        "speakers": [
+          "SPEAKER_00"
+        ],
+        "segments": 44
+      },
+      {
+        "status": 200,
+        "seconds": 222.18333341600373,
+        "ok": true,
+        "chars": 240,
+        "speakers": [
+          "SPEAKER_00"
+        ],
+        "segments": 44
+      },
+      {
+        "status": 200,
+        "seconds": 208.36613300000317,
+        "ok": true,
+        "chars": 240,
+        "speakers": [
+          "SPEAKER_00"
+        ],
+        "segments": 44
+      },
+      {
+        "status": 200,
+        "seconds": 56.462385250022635,
+        "ok": true,
+        "chars": 240,
+        "speakers": [
+          "SPEAKER_00"
+        ],
+        "segments": 44
+      },
+      {
+        "status": 200,
+        "seconds": 83.96583008399466,
+        "ok": true,
+        "chars": 240,
+        "speakers": [
+          "SPEAKER_00"
+        ],
+        "segments": 44
+      },
+      {
+        "status": 200,
+        "seconds": 125.62755837501027,
+        "ok": true,
+        "chars": 240,
+        "speakers": [
+          "SPEAKER_00"
+        ],
+        "segments": 44
+      },
+      {
+        "status": 200,
+        "seconds": 83.96212262503104,
+        "ok": true,
+        "chars": 240,
+        "speakers": [
+          "SPEAKER_00"
+        ],
+        "segments": 44
+      },
+      {
+        "status": 200,
+        "seconds": 42.68582716700621,
+        "ok": true,
+        "chars": 240,
+        "speakers": [
+          "SPEAKER_00"
+        ],
+        "segments": 44
+      },
+      {
+        "status": 200,
+        "seconds": 111.60480470902985,
+        "ok": true,
+        "chars": 240,
+        "speakers": [
+          "SPEAKER_00"
+        ],
+        "segments": 44
+      },
+      {
+        "status": 200,
+        "seconds": 125.6174973329762,
+        "ok": true,
+        "chars": 240,
+        "speakers": [
+          "SPEAKER_00"
+        ],
+        "segments": 44
+      },
+      {
+        "status": 200,
+        "seconds": 166.81546975002857,
+        "ok": true,
+        "chars": 240,
+        "speakers": [
+          "SPEAKER_00"
+        ],
+        "segments": 44
+      },
+      {
+        "status": 200,
+        "seconds": 139.44489904196234,
+        "ok": true,
+        "chars": 240,
+        "speakers": [
+          "SPEAKER_00"
+        ],
+        "segments": 44
+      },
+      {
+        "status": 200,
+        "seconds": 139.44376541598467,
+        "ok": true,
+        "chars": 240,
+        "speakers": [
+          "SPEAKER_00"
+        ],
+        "segments": 44
+      },
+      {
+        "status": 200,
+        "seconds": 208.35412687499775,
+        "ok": true,
+        "chars": 240,
+        "speakers": [
+          "SPEAKER_00"
+        ],
+        "segments": 44
+      },
+      {
+        "status": 200,
+        "seconds": 153.1258515829686,
+        "ok": true,
+        "chars": 240,
+        "speakers": [
+          "SPEAKER_00"
+        ],
+        "segments": 44
+      },
+      {
+        "status": 200,
+        "seconds": 194.44133191701258,
+        "ok": true,
+        "chars": 240,
+        "speakers": [
+          "SPEAKER_00"
+        ],
+        "segments": 44
+      },
+      {
+        "status": 200,
+        "seconds": 180.57477070798632,
+        "ok": true,
+        "chars": 240,
+        "speakers": [
+          "SPEAKER_00"
+        ],
+        "segments": 44
+      },
+      {
+        "status": 200,
+        "seconds": 222.17789200000698,
+        "ok": true,
+        "chars": 240,
+        "speakers": [
+          "SPEAKER_00"
+        ],
+        "segments": 44
+      }
+    ]
+  }
+]

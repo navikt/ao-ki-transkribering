@@ -1,0 +1,12 @@
+{
+  "stream": {
+    "status": 200,
+    "done": true,
+    "nonempty": true,
+    "seconds": 1.2378734999801964
+  },
+  "over_context": {
+    "status": 400,
+    "rejected": true
+  }
+}

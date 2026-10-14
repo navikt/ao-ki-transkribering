@@ -64,15 +64,17 @@ spec:
       containers:
         - name: vllm
           # Self-hosted Whisper transcription and separate Nemotron speaker model.
-          image: europe-west4-docker.pkg.dev/ao-ki-taskforce-prod-2472/vllm/whisper-diarization:20261013-v2
+          image: europe-west4-docker.pkg.dev/ao-ki-taskforce-prod-2472/vllm/whisper-diarization:20261014-runtime-comparison
           command: ["python", "-m", "uvicorn"]
           env:
             - name: SPEECH_ASR_BACKEND
-              value: whisper
+              value: faster-whisper
             - name: SPEECH_MODEL_NAME
               value: nb-whisper-large
             - name: WHISPER_MODELL
               value: /models/nb-whisper-large
+            - name: SPEECH_INFERENCE_CONCURRENCY
+              value: "2"
           args:
             - worker.nemotron_api:app
             - --host

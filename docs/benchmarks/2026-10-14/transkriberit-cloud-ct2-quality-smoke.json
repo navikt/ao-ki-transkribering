@@ -1,0 +1,29 @@
+[
+  {
+    "case": "normal",
+    "status": 200,
+    "seconds": 1.8488552499911748,
+    "chars": 219,
+    "segments": 41,
+    "nonempty_expected": true,
+    "ok": true
+  },
+  {
+    "case": "quiet_minus_20db",
+    "status": 200,
+    "seconds": 1.796427416964434,
+    "chars": 219,
+    "segments": 41,
+    "nonempty_expected": true,
+    "ok": true
+  },
+  {
+    "case": "digital_silence",
+    "status": 200,
+    "seconds": 0.33015204197727144,
+    "chars": 0,
+    "segments": 0,
+    "nonempty_expected": false,
+    "ok": true
+  }
+]

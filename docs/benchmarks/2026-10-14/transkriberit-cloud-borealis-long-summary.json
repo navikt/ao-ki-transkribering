@@ -1,0 +1,41 @@
+[
+  {
+    "model": "borealis",
+    "concurrency": 2,
+    "requests": 2,
+    "successes": 2,
+    "statuses": {
+      "200": 2
+    },
+    "success_avg_s": 178.65738591650734,
+    "success_p50_s": 178.65738591650734,
+    "success_max_s": 178.9737506249803,
+    "wall_s": 178.9746546660317,
+    "successful_requests_per_minute": 0.670485998276801,
+    "rounds": 1,
+    "interval_s": 0,
+    "recording": false,
+    "results": [
+      {
+        "status": 200,
+        "seconds": 178.34102120803436,
+        "ok": true,
+        "chars": 1206,
+        "tokens": 323,
+        "finish_reason": "stop",
+        "round": 0,
+        "completion_lag_s": 178.9746475830325
+      },
+      {
+        "status": 200,
+        "seconds": 178.9737506249803,
+        "ok": true,
+        "chars": 1206,
+        "tokens": 323,
+        "finish_reason": "stop",
+        "round": 0,
+        "completion_lag_s": 178.97465187503258
+      }
+    ]
+  }
+]

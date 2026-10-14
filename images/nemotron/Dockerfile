@@ -10,6 +10,7 @@ COPY requirements/benchmark-speech-runtime.txt /tmp/speech-runtime.txt
 RUN pip install --no-cache-dir -r /tmp/speech-runtime.txt \
     'fastapi>=0.115' 'uvicorn>=0.30' 'python-multipart>=0.0.9' 'librosa>=0.11,<0.12' \
     && python -c "from transformers import AutoModelForRNNT, AutoProcessor"
+RUN pip install --no-cache-dir 'faster-whisper==1.2.1' 'ctranslate2==4.8.1'
 COPY shared/ shared/
 COPY worker/ worker/
 COPY k8s/model_security.py k8s/model_security.py

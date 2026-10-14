@@ -1,0 +1,52 @@
+[
+  {
+    "chunk": 0,
+    "results": [
+      {
+        "status": 200,
+        "seconds": 14.598772957979236,
+        "ok": true,
+        "chars": 240,
+        "speakers": [
+          "SPEAKER_00"
+        ],
+        "segments": 44
+      },
+      {
+        "status": 200,
+        "seconds": 14.593829917022958,
+        "ok": true,
+        "chars": 240,
+        "speakers": [
+          "SPEAKER_00"
+        ],
+        "segments": 44
+      }
+    ]
+  },
+  {
+    "chunk": 1,
+    "results": [
+      {
+        "status": 200,
+        "seconds": 14.146681999962311,
+        "ok": true,
+        "chars": 240,
+        "speakers": [
+          "SPEAKER_00"
+        ],
+        "segments": 44
+      },
+      {
+        "status": 200,
+        "seconds": 14.138179041969124,
+        "ok": true,
+        "chars": 240,
+        "speakers": [
+          "SPEAKER_00"
+        ],
+        "segments": 44
+      }
+    ]
+  }
+]

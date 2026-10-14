@@ -1,0 +1,24 @@
+Lag et utfyllende norsk referat av dette fiktive prosjektmotet. Bruk overskriftene
+Bakgrunn, Diskusjon, Beslutninger og Oppfolging. Bevar ansvar, frister og uenighet.
+Ikke legg til opplysninger som ikke finnes i notatene. Skriv omtrent 150 ord.
+
+Kari ledet motet mandag. Deltakerne var Kari, Ola, Mina og Per. Teamet diskuterer
+en pilot for digital timebestilling, ikke en beslutning om full innforing.
+Kari mener at en liten pilot kan redusere telefonkoen. Mina peker pa at enkelte
+brukere trenger telefon eller fysisk oppmote, og at disse kanalene ma beholdes.
+Ola foreslar a starte med to veiledere og ti frivillige deltakere i fire uker.
+Per mener at datagrunnlaget er for lite til a love en bestemt tidsbesparelse.
+Ingen har vedtatt en prosentvis gevinst eller et budsjett for videre utrulling.
+
+Gruppen blir enig om a skrive en pilotplan. Kari sender utkast fredag klokken
+tolv. Ola undersoker kalenderintegrasjonen innen torsdag. Mina tester teksten
+med to kolleger og dokumenterer tilgjengelighetsproblemer innen neste tirsdag.
+Per lager en enkel mal for a registrere ventetid og avbrutte bestillinger.
+Opplysninger om enkeltpersoner skal ikke legges i den delte prosjektloggen.
+
+Det er ikke enighet om oppstartsdato. Kari foreslar neste maned, men Ola vil
+avklare integrasjonen forst. Beslutningen utsettes til neste mote mandag klokken
+ni. Da skal teamet gjennomga planen, teknisk risiko og tilbakemeldinger fra Mina.
+Pilotdeltakerne skal kunne velge telefon selv om digital bestilling er mulig.
+Teamet vil sammenligne situasjonen for og under piloten, men har ikke valgt
+en endelig metode for evaluering. Per presenterer et forslag i neste mote.

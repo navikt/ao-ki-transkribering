@@ -1,0 +1,482 @@
+[
+  {
+    "model": "whisper+nemotron-diarization",
+    "concurrency": 1,
+    "requests": 8,
+    "successes": 8,
+    "statuses": {
+      "200": 8
+    },
+    "success_avg_s": 9.705588218748744,
+    "success_p50_s": 9.676042708510067,
+    "success_max_s": 9.98499999998603,
+    "wall_s": 77.64856000000145,
+    "successful_requests_per_minute": 6.181698668977132,
+    "results": [
+      {
+        "status": 200,
+        "seconds": 9.687730917008594,
+        "ok": true,
+        "chars": 240,
+        "speakers": [
+          "SPEAKER_00"
+        ],
+        "segments": 44
+      },
+      {
+        "status": 200,
+        "seconds": 9.98499999998603,
+        "ok": true,
+        "chars": 240,
+        "speakers": [
+          "SPEAKER_00"
+        ],
+        "segments": 44
+      },
+      {
+        "status": 200,
+        "seconds": 9.55209199996898,
+        "ok": true,
+        "chars": 240,
+        "speakers": [
+          "SPEAKER_00"
+        ],
+        "segments": 44
+      },
+      {
+        "status": 200,
+        "seconds": 9.742948875005823,
+        "ok": true,
+        "chars": 240,
+        "speakers": [
+          "SPEAKER_00"
+        ],
+        "segments": 44
+      },
+      {
+        "status": 200,
+        "seconds": 9.664354500011541,
+        "ok": true,
+        "chars": 240,
+        "speakers": [
+          "SPEAKER_00"
+        ],
+        "segments": 44
+      },
+      {
+        "status": 200,
+        "seconds": 9.756561624992173,
+        "ok": true,
+        "chars": 240,
+        "speakers": [
+          "SPEAKER_00"
+        ],
+        "segments": 44
+      },
+      {
+        "status": 200,
+        "seconds": 9.597915708029177,
+        "ok": true,
+        "chars": 240,
+        "speakers": [
+          "SPEAKER_00"
+        ],
+        "segments": 44
+      },
+      {
+        "status": 200,
+        "seconds": 9.658102124987636,
+        "ok": true,
+        "chars": 240,
+        "speakers": [
+          "SPEAKER_00"
+        ],
+        "segments": 44
+      }
+    ]
+  },
+  {
+    "model": "whisper+nemotron-diarization",
+    "concurrency": 2,
+    "requests": 8,
+    "successes": 4,
+    "statuses": {
+      "200": 4,
+      "429": 4
+    },
+    "success_avg_s": 9.630937083245954,
+    "success_p50_s": 9.629940083483234,
+    "success_max_s": 9.668929458013736,
+    "wall_s": 38.52607037499547,
+    "successful_requests_per_minute": 6.229547879239895,
+    "results": [
+      {
+        "status": 200,
+        "seconds": 9.603211666981224,
+        "ok": true,
+        "chars": 240,
+        "speakers": [
+          "SPEAKER_00"
+        ],
+        "segments": 44
+      },
+      {
+        "status": 429,
+        "seconds": 4.921033542021178,
+        "ok": false
+      },
+      {
+        "status": 200,
+        "seconds": 9.656668499985244,
+        "ok": true,
+        "chars": 240,
+        "speakers": [
+          "SPEAKER_00"
+        ],
+        "segments": 44
+      },
+      {
+        "status": 429,
+        "seconds": 5.282097250048537,
+        "ok": false
+      },
+      {
+        "status": 200,
+        "seconds": 9.59493870800361,
+        "ok": true,
+        "chars": 240,
+        "speakers": [
+          "SPEAKER_00"
+        ],
+        "segments": 44
+      },
+      {
+        "status": 429,
+        "seconds": 5.283773667004425,
+        "ok": false
+      },
+      {
+        "status": 200,
+        "seconds": 9.668929458013736,
+        "ok": true,
+        "chars": 240,
+        "speakers": [
+          "SPEAKER_00"
+        ],
+        "segments": 44
+      },
+      {
+        "status": 429,
+        "seconds": 5.140633875038475,
+        "ok": false
+      }
+    ]
+  },
+  {
+    "model": "whisper+nemotron-diarization",
+    "concurrency": 4,
+    "requests": 8,
+    "successes": 2,
+    "statuses": {
+      "429": 6,
+      "200": 2
+    },
+    "success_avg_s": 9.680457458016463,
+    "success_p50_s": 9.680457458016463,
+    "success_max_s": 9.786955250019673,
+    "wall_s": 19.363379916001577,
+    "successful_requests_per_minute": 6.197265173774439,
+    "results": [
+      {
+        "status": 429,
+        "seconds": 4.739861041016411,
+        "ok": false
+      },
+      {
+        "status": 200,
+        "seconds": 9.786955250019673,
+        "ok": true,
+        "chars": 240,
+        "speakers": [
+          "SPEAKER_00"
+        ],
+        "segments": 44
+      },
+      {
+        "status": 429,
+        "seconds": 4.985175458015874,
+        "ok": false
+      },
+      {
+        "status": 429,
+        "seconds": 5.1674162080162205,
+        "ok": false
+      },
+      {
+        "status": 200,
+        "seconds": 9.573959666013252,
+        "ok": true,
+        "chars": 240,
+        "speakers": [
+          "SPEAKER_00"
+        ],
+        "segments": 44
+      },
+      {
+        "status": 429,
+        "seconds": 5.181249417015351,
+        "ok": false
+      },
+      {
+        "status": 429,
+        "seconds": 5.256456375005655,
+        "ok": false
+      },
+      {
+        "status": 429,
+        "seconds": 5.225166250020266,
+        "ok": false
+      }
+    ]
+  },
+  {
+    "model": "borealis-12b",
+    "concurrency": 1,
+    "requests": 8,
+    "successes": 8,
+    "statuses": {
+      "200": 8
+    },
+    "success_avg_s": 31.287418380255986,
+    "success_p50_s": 31.286291646014433,
+    "success_max_s": 31.298484583036043,
+    "wall_s": 250.3015244170092,
+    "successful_requests_per_minute": 1.917687082082276,
+    "results": [
+      {
+        "status": 200,
+        "seconds": 31.276690749975387,
+        "ok": true,
+        "chars": 158,
+        "tokens": 48,
+        "finish_reason": "stop"
+      },
+      {
+        "status": 200,
+        "seconds": 31.298484583036043,
+        "ok": true,
+        "chars": 158,
+        "tokens": 48,
+        "finish_reason": "stop"
+      },
+      {
+        "status": 200,
+        "seconds": 31.28723858401645,
+        "ok": true,
+        "chars": 158,
+        "tokens": 48,
+        "finish_reason": "stop"
+      },
+      {
+        "status": 200,
+        "seconds": 31.2882639580057,
+        "ok": true,
+        "chars": 158,
+        "tokens": 48,
+        "finish_reason": "stop"
+      },
+      {
+        "status": 200,
+        "seconds": 31.28516387497075,
+        "ok": true,
+        "chars": 158,
+        "tokens": 48,
+        "finish_reason": "stop"
+      },
+      {
+        "status": 200,
+        "seconds": 31.29465566703584,
+        "ok": true,
+        "chars": 158,
+        "tokens": 48,
+        "finish_reason": "stop"
+      },
+      {
+        "status": 200,
+        "seconds": 31.283504916995298,
+        "ok": true,
+        "chars": 158,
+        "tokens": 48,
+        "finish_reason": "stop"
+      },
+      {
+        "status": 200,
+        "seconds": 31.285344708012417,
+        "ok": true,
+        "chars": 158,
+        "tokens": 48,
+        "finish_reason": "stop"
+      }
+    ]
+  },
+  {
+    "model": "borealis-12b",
+    "concurrency": 2,
+    "requests": 8,
+    "successes": 8,
+    "statuses": {
+      "200": 8
+    },
+    "success_avg_s": 28.012185812491225,
+    "success_p50_s": 27.309518333000597,
+    "success_max_s": 31.360839208005928,
+    "wall_s": 113.31522095896071,
+    "successful_requests_per_minute": 4.235971089654771,
+    "results": [
+      {
+        "status": 200,
+        "seconds": 30.717565541970544,
+        "ok": true,
+        "chars": 158,
+        "tokens": 48,
+        "finish_reason": "stop"
+      },
+      {
+        "status": 200,
+        "seconds": 31.360839208005928,
+        "ok": true,
+        "chars": 158,
+        "tokens": 48,
+        "finish_reason": "stop"
+      },
+      {
+        "status": 200,
+        "seconds": 26.6698662089766,
+        "ok": true,
+        "chars": 158,
+        "tokens": 48,
+        "finish_reason": "stop"
+      },
+      {
+        "status": 200,
+        "seconds": 27.329065249999985,
+        "ok": true,
+        "chars": 158,
+        "tokens": 48,
+        "finish_reason": "stop"
+      },
+      {
+        "status": 200,
+        "seconds": 26.735321292013396,
+        "ok": true,
+        "chars": 158,
+        "tokens": 48,
+        "finish_reason": "stop"
+      },
+      {
+        "status": 200,
+        "seconds": 27.31418962497264,
+        "ok": true,
+        "chars": 158,
+        "tokens": 48,
+        "finish_reason": "stop"
+      },
+      {
+        "status": 200,
+        "seconds": 26.665792332962155,
+        "ok": true,
+        "chars": 158,
+        "tokens": 48,
+        "finish_reason": "stop"
+      },
+      {
+        "status": 200,
+        "seconds": 27.30484704102855,
+        "ok": true,
+        "chars": 158,
+        "tokens": 48,
+        "finish_reason": "stop"
+      }
+    ]
+  },
+  {
+    "model": "borealis-12b",
+    "concurrency": 4,
+    "requests": 8,
+    "successes": 8,
+    "statuses": {
+      "200": 8
+    },
+    "success_avg_s": 40.28449268749682,
+    "success_p50_s": 40.258408562483964,
+    "success_max_s": 53.94337325001834,
+    "wall_s": 107.86590895900736,
+    "successful_requests_per_minute": 4.449969454041462,
+    "results": [
+      {
+        "status": 200,
+        "seconds": 26.670692624989897,
+        "ok": true,
+        "chars": 158,
+        "tokens": 48,
+        "finish_reason": "stop"
+      },
+      {
+        "status": 200,
+        "seconds": 27.215671582962386,
+        "ok": true,
+        "chars": 158,
+        "tokens": 48,
+        "finish_reason": "stop"
+      },
+      {
+        "status": 200,
+        "seconds": 53.27910637500463,
+        "ok": true,
+        "chars": 158,
+        "tokens": 48,
+        "finish_reason": "stop"
+      },
+      {
+        "status": 200,
+        "seconds": 53.91601616702974,
+        "ok": true,
+        "chars": 158,
+        "tokens": 48,
+        "finish_reason": "stop"
+      },
+      {
+        "status": 200,
+        "seconds": 26.70217062497977,
+        "ok": true,
+        "chars": 158,
+        "tokens": 48,
+        "finish_reason": "stop"
+      },
+      {
+        "status": 200,
+        "seconds": 27.2377107499633,
+        "ok": true,
+        "chars": 158,
+        "tokens": 48,
+        "finish_reason": "stop"
+      },
+      {
+        "status": 200,
+        "seconds": 53.94337325001834,
+        "ok": true,
+        "chars": 158,
+        "tokens": 48,
+        "finish_reason": "stop"
+      },
+      {
+        "status": 200,
+        "seconds": 53.31120012502652,
+        "ok": true,
+        "chars": 158,
+        "tokens": 48,
+        "finish_reason": "stop"
+      }
+    ]
+  }
+]

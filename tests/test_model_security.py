@@ -194,9 +194,15 @@ def test_tls_renderer_keeps_credentials_out_of_manifests():
         if name == "whisper":
             assert "worker.nemotron_api:app" in container["args"]
             assert "whisper-diarization" in container["image"]
-            assert {e["name"]: e.get("value") for e in container["env"]}["SPEECH_ASR_BACKEND"] == "whisper"
+            assert {e["name"]: e.get("value") for e in container["env"]}["SPEECH_ASR_BACKEND"] == "faster-whisper"
         else:
-            assert "--middleware" in container["args"]
+            assert "worker.llama_api:app" in container["args"]
+            llama = next(c for c in pod["containers"] if c["name"] == "llama")
+            assert llama["args"][llama["args"].index("--host") + 1] == "127.0.0.1"
+            assert llama["resources"]["limits"]["nvidia.com/gpu"] == "1"
+            assert "nvidia.com/gpu" not in container["resources"]["limits"]
+            assert not llama.get("ports")
+            assert all(m["name"] not in {"model-tls", "model-security"} for m in llama["volumeMounts"])
         assert container["startupProbe"]["httpGet"]["scheme"] == "HTTPS"
         assert service["spec"]["loadBalancerSourceRanges"] == ["10.120.0.0/26"]
         assert service["spec"]["externalTrafficPolicy"] == "Local"

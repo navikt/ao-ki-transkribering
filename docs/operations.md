@@ -66,15 +66,78 @@ committing the files alone does not update the gateway. The 120 requests/minute
 per-key limit and model/route authorization remain unchanged.
 
 This allows more in-flight requests, not more simultaneous GPU inference.
-Borealis currently runs two active sequences, so additional accepted requests
+Borealis Q8_0 runs four llama.cpp slots, so additional accepted requests
 can wait and may exceed gateway or application timeouts. The speech service
-still rejects overlapping inference with HTTP 429 and permits eight retained
-recording sessions. Raising the gateway limit does not remove those limits.
+admits up to 32 outstanding requests and returns HTTP 429 with `Retry-After`
+when full. The deployed speech runtime is `SPEECH_ASR_BACKEND=faster-whisper`,
+using the same NB-Whisper weights converted to CTranslate2 FP16 on the GPU node.
+`SPEECH_INFERENCE_CONCURRENCY=2` permits two independent recordings to execute
+concurrently. Quiet audio is retained, VAD filtering is disabled, and Norwegian
+decoding uses beam size 5 and word timestamps. Conversion is repeated after pod
+replacement because `/models` is an `emptyDir`; it does not run on the developer's
+machine. The alternative `whisper` backend combines independent recordings into
+Transformers batches (`SPEECH_BATCH_SIZE`, default 2, maximum 8), with a 0.1-second
+collection window (`SPEECH_BATCH_WAIT_SECONDS`). Nemotron diarization retains
+separate state per recording and uses serialized access to its shared model.
+Concurrent retries for the same recording wait for its state update and reuse
+the cached result. Cancelled work does not release admission while its inference
+thread is still running. Disconnected requests are skipped before processing
+when the disconnect reaches the speech server. Proxy timeouts do not necessarily
+propagate a disconnect. The service still permits eight retained recording
+sessions. More admitted requests do not mean more real-time meetings; a full
+queue can exceed the gateway or application timeout. Deploy the speech image to
+activate speech queue changes; applying Terraform only updates the gateway.
+
+See [ADR 0005](../adr/0005-model-capacity-and-cost.md) for measured cloud capacity,
+test limitations, rollback settings, and the infrastructure cost calculation.
+
+### Borealis Q8 Runtime
+
+`k8s/vllm-borealis.yaml` keeps the established deployment/service name but runs
+two containers: `llama` holds the GPU and serves only on `127.0.0.1:8001`; `vllm`
+is the lightweight authenticated TLS adapter on port 8000. The public gateway
+model name stays `borealis-12b`. Its historical upstream `/models/borealis-12b`
+alias is accepted by the adapter. Native llama.cpp UI/admin routes are not exposed.
+The adapter bounds admitted requests at 32 and preserves streaming responses.
+The GPU container explicitly includes GKE's `/usr/local/nvidia/lib64` driver path
+and requires `--device CUDA0`; a missing CUDA backend must not silently serve on CPU.
+
+The publisher's full-release Q8_0 GGUF revision, size and SHA-256 are recorded in
+`k8s/borealis-q8.json`. Initial staging uses:
+
+```bash
+.venv/bin/python scripts/stage-borealis-gguf.py
+```
+
+This streams into GCS without a local weights file, verifies the SHA-256 before
+finalizing, and preserves the publisher's license/provenance. It refuses to
+overwrite an existing weights object. Pods download from GCS and verify the hash
+again. Do not delete the existing BF16 model files; they remain the rollback path.
+
+Inspect inference logs with `kubectl -n vllm logs deployment/vllm-borealis -c llama`;
+adapter logs use `-c vllm`. Inference content logging is disabled. Four slots share
+32768 context tokens, preserving 8192 per slot; context shifting is disabled.
+
+To roll back on the currently allocated `gpu-l4-c` node pool:
+
+```bash
+.venv/bin/python scripts/render-model-manifest.py \
+  k8s/rollback/vllm-borealis-bf16.yaml 10.164.15.201 \
+  --secure --gateway-cidr 10.120.0.0/26 --node-pool gpu-l4-c \
+  | kubectl --context gke_ao-ki-taskforce-prod-2472_europe-west4_ao-ki-gpu apply -f -
+```
+
+Use the actual allocated pool if it changes. Both switch and rollback replace the
+pod and briefly interrupt Borealis. Neither requests an extra GPU. Ordinary
+`apply-k8s.sh` reapplies the Q8 manifest; restore the desired manifest as well if
+the rollback is intended to persist.
 
 ## Start and Stop Models
 
-Whisper and Borealis are warmed automatically on weekdays at 06:45 Europe/Oslo
-with explicit GPU zone fallback and scaled down at 17:00.
+Whisper and Borealis currently remain at one replica around the clock. Both
+working-hours CronJobs are suspended. Allocated GPU nodes continue to cost money
+while idle; the eight-hours/day cost scenario in ADR 0005 is not the current
+operating schedule.
 
 Start Whisper manually:
 
@@ -138,9 +201,10 @@ Only run this when L4 has stayed pending and the higher A100 cost is acceptable:
 
 ## Image and Model Caching
 
-The vLLM container images are stored in Artifact Registry, and model artifacts
-are stored in the GCS model bucket. GPU node pools scale to zero outside active
-use, so a newly created GPU node has no local container or model cache.
+Speech and adapter images are stored in Artifact Registry; the official llama.cpp
+CUDA image comes from GHCR. Model artifacts are stored in the GCS model bucket.
+Nodes currently remain allocated 24/7. If a node is removed, its replacement has
+no local container or model cache.
 
 GKE Image Streaming is enabled on GPU node pools with `gcfs_config` to reduce
 container image startup latency. Model files still need to be copied from GCS
@@ -167,7 +231,8 @@ kubectl logs -n vllm deployment/vllm-whisper --tail=100
 Borealis:
 
 ```bash
-kubectl logs -n vllm deployment/vllm-borealis --tail=100
+kubectl logs -n vllm deployment/vllm-borealis -c llama --tail=100
+kubectl logs -n vllm deployment/vllm-borealis -c vllm --tail=100
 ```
 
 Init container logs for model copy:
