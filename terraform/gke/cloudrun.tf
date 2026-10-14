@@ -62,6 +62,9 @@ resource "google_secret_manager_secret_version" "litellm_salt_key" {
 
 resource "google_secret_manager_secret_version" "litellm_config" {
   secret = google_secret_manager_secret.litellm_config.id
+  lifecycle {
+    create_before_destroy = true
+  }
   # vLLM exposes an OpenAI-compatible API — LiteLLM calls it as an openai/ proxy.
   secret_data = <<-YAML
     model_list:
