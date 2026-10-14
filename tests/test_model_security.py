@@ -3,18 +3,47 @@ import json
 import os
 import shutil
 import subprocess
+import sys
 from pathlib import Path
+from types import SimpleNamespace
 
 import httpx
 import pytest
 from fastapi import FastAPI, Request
 from starlette.responses import JSONResponse
 
-from images.litellm.scoped_auth import authorize
+from images.litellm.scoped_auth import authorize, user_api_key_auth
 from k8s.model_security import ModelAccessMiddleware
 from shared.services import model_auth
 
 ROOT = Path(__file__).resolve().parents[1]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("configured,expected", [(None, 32), ("16", 16), ("128", 128)])
+async def test_gateway_parallel_limit_preserves_key_scope(monkeypatch, configured, expected):
+    monkeypatch.setenv("NAIS_PROD_API_KEY", "prod-key")
+    monkeypatch.delenv("MODEL_API_MAX_PARALLEL_REQUESTS", raising=False)
+    if configured is not None:
+        monkeypatch.setenv("MODEL_API_MAX_PARALLEL_REQUESTS", configured)
+    monkeypatch.setitem(sys.modules, "litellm.proxy._types", SimpleNamespace(UserAPIKeyAuth=SimpleNamespace))
+    request = Request({"type": "http", "method": "GET", "path": "/v1/models", "headers": [], "query_string": b""})
+    auth = await user_api_key_auth(request, "prod-key")
+    assert auth.max_parallel_requests == expected
+    assert auth.rpm_limit == 120
+    assert auth.key_alias == "nais-prod"
+    assert auth.models == ["nb-whisper-large", "borealis-12b"]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("configured", ["0", "-1", "129", "2.5", "invalid"])
+async def test_gateway_rejects_invalid_parallel_limit(monkeypatch, configured):
+    monkeypatch.setenv("NAIS_PROD_API_KEY", "prod-key")
+    monkeypatch.setenv("MODEL_API_MAX_PARALLEL_REQUESTS", configured)
+    monkeypatch.setitem(sys.modules, "litellm.proxy._types", SimpleNamespace(UserAPIKeyAuth=SimpleNamespace))
+    request = Request({"type": "http", "method": "GET", "path": "/v1/models", "headers": [], "query_string": b""})
+    with pytest.raises(ValueError):
+        await user_api_key_auth(request, "prod-key")
 
 
 def test_model_certificate_passes_strict_server_verification(tmp_path):

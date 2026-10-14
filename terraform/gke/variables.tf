@@ -45,3 +45,14 @@ variable "litellm_image" {
   type        = string
   default     = "europe-west4-docker.pkg.dev/ao-ki-taskforce-prod-2472/vllm/litellm:main-latest"
 }
+
+variable "model_api_max_parallel_requests" {
+  description = "Gateway in-flight request limit per application key; does not increase GPU inference concurrency"
+  type        = number
+  default     = 32
+
+  validation {
+    condition     = var.model_api_max_parallel_requests >= 1 && var.model_api_max_parallel_requests <= 128 && floor(var.model_api_max_parallel_requests) == var.model_api_max_parallel_requests
+    error_message = "The parallel request limit must be an integer between 1 and 128."
+  }
+}

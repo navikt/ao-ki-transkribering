@@ -57,6 +57,20 @@ Run a heavier concurrency test:
 python3 scripts/stress-test-model-api.py
 ```
 
+### Gateway Concurrency
+
+`model_api_max_parallel_requests` in `terraform/gke` defaults to 32. Terraform
+sets both the LiteLLM general limit and the custom-auth per-application-key limit
+through `MODEL_API_MAX_PARALLEL_REQUESTS`. Apply Terraform to deploy a change;
+committing the files alone does not update the gateway. The 120 requests/minute
+per-key limit and model/route authorization remain unchanged.
+
+This allows more in-flight requests, not more simultaneous GPU inference.
+Borealis currently runs two active sequences, so additional accepted requests
+can wait and may exceed gateway or application timeouts. The speech service
+still rejects overlapping inference with HTTP 429 and permits eight retained
+recording sessions. Raising the gateway limit does not remove those limits.
+
 ## Start and Stop Models
 
 Whisper and Borealis are warmed automatically on weekdays at 06:45 Europe/Oslo

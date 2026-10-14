@@ -64,10 +64,13 @@ async def user_api_key_auth(request: Request, api_key: str):
     from litellm.proxy._types import UserAPIKeyAuth
 
     environment = await authorize(request, api_key)
+    parallel_requests = int(os.getenv("MODEL_API_MAX_PARALLEL_REQUESTS", "32"))
+    if not 1 <= parallel_requests <= 128:
+        raise ValueError("MODEL_API_MAX_PARALLEL_REQUESTS must be between 1 and 128")
     return UserAPIKeyAuth(
         api_key=api_key,
         key_alias=f"nais-{environment}",
         models=["nb-whisper-large", "borealis-12b"],
-        max_parallel_requests=5,
+        max_parallel_requests=parallel_requests,
         rpm_limit=120,
     )

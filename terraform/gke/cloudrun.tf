@@ -80,7 +80,7 @@ resource "google_secret_manager_secret_version" "litellm_config" {
       set_verbose: false
       turn_off_message_logging: true
     general_settings:
-      max_parallel_requests: 10
+      max_parallel_requests: ${var.model_api_max_parallel_requests}
       disable_spend_logs: true
       disable_error_logs: true
       store_prompts_in_spend_logs: false
@@ -190,6 +190,10 @@ resource "google_cloud_run_v2_service" "litellm" {
       env {
         name  = "LITELLM_LOG"
         value = "ERROR"
+      }
+      env {
+        name  = "MODEL_API_MAX_PARALLEL_REQUESTS"
+        value = tostring(var.model_api_max_parallel_requests)
       }
       env {
         name  = "LITELLM_MODE"
