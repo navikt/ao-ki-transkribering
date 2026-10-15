@@ -15,6 +15,7 @@ from frontend.routes.sanntid import router as sanntid_router
 from frontend.routes.transkripsjon import router as transkripsjon_router
 from shared.core.runtime import job_store, start_arbeider, stopp_arbeider
 from shared.core.settings import JOB_RETENTION_SECONDS
+from shared.diagnostics import configure_diagnostics
 
 logging.getLogger("transformers").setLevel(logging.ERROR)
 logging.getLogger("faster_whisper").setLevel(logging.ERROR)
@@ -41,6 +42,7 @@ async def lifespan(app: FastAPI):
 
 
 def create_app() -> FastAPI:
+    configure_diagnostics()
     app = FastAPI(title="Transkribering", lifespan=lifespan)
     app.add_middleware(EntraAuthMiddleware)
 

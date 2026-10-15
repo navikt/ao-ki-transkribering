@@ -241,3 +241,40 @@ Init container logs for model copy:
 kubectl logs -n vllm deployment/vllm-borealis -c last-ned-modell --tail=100
 kubectl logs -n vllm deployment/vllm-whisper -c last-ned-modell --tail=100
 ```
+# Recording Connection Diagnostics
+
+The API emits JSON events through the dedicated `transkriberit.diagnostics`
+logger at INFO, independently of Uvicorn's default application log level.
+Every accepted recording receives a server-generated `recording_id`; this also
+identifies its remote diarization session. Search that ID to correlate events.
+
+- `recording.opened`, `stop_requested`, `peer_disconnected`, `close_sent`, and
+  `ended` describe the connection lifecycle. A peer disconnect code describes
+  what the API observed, not necessarily what the browser observed.
+- `recording.heartbeat` every 15 seconds includes connection age, last audio/result
+  age, received packet/byte counts, queue depth and in-flight chunk duration.
+- `recording.chunk_queued`, `chunk_started`, `chunk_finished` report queue wait
+  and processing duration. `queue_backpressure` reports a full four-chunk queue.
+- `model.transcription_attempt`, `transcription_succeeded` and failure events
+  report attempt number, latency and HTTP status when available.
+- `recording.task_failed`, `send_failed`, `receive_failed`, `handler_failed` and
+  `inference_failed` include exception type and stack locations, not exception
+  messages, local variables or source lines.
+- `recording.browser_closed` is a best-effort authenticated HTTP report from the
+  browser after an unexpected socket close. It contains the server ID, close
+  code, connection age, pending outgoing byte count, online flag, page visibility
+  and AudioContext state. These are client-reported observations, not a verified
+  cause. If the whole network is down, the report may not arrive; it is also
+  written to the browser console. Absence of a report does not prove a clean exit.
+
+No new diagnostics contain audio, transcript text, close-reason text, credentials,
+headers, user identity or full URLs. The reporting endpoint rejects unknown fields
+and restricts metadata types/values. Existing application authentication applies.
+Follow the platform log retention policy; do not collect request payloads for
+debugging. These events diagnose failures; they do not implement reconnection,
+resume lost audio, or change model/proxy timeouts.
+
+```bash
+kubectl --context prod-gcp -n ao-ki-taskforce logs deployment/ao-ki-transkribering \
+  -c ao-ki-transkribering --since=15m --timestamps | rg 'recording\.|model\.transcription'
+```

@@ -791,6 +791,7 @@ async function startSanntid() {
   const wsUrl = `${wsProtocol}//${location.host}/ws/sanntid`;
   sanntidWs = new WebSocket(wsUrl);
   const socket = sanntidWs;
+  const connectedAt = Date.now();
   sanntidWs.binaryType = "arraybuffer";
 
   sanntidWs.onopen = async () => {
@@ -811,6 +812,10 @@ async function startSanntid() {
   sanntidWs.onmessage = (evt) => {
     if (sanntidWs !== socket) return;
     const data = JSON.parse(evt.data);
+    if (data.type === "session") {
+      socket.recordingId = data.recording_id;
+      return;
+    }
     if (data.type === "feil") {
       if (data.recoverable) settSanntidStatus(data.melding);
       else stoppSanntid("Feil: " + data.melding);
@@ -864,6 +869,23 @@ async function startSanntid() {
   sanntidWs.onclose = (evt) => {
     if (sanntidWs !== socket) return;
     const avbrutt = sanntidAktivt;
+    if (avbrutt && socket.recordingId) {
+      const report = {
+        recording_id: socket.recordingId,
+        code: evt.code,
+        elapsed_s: (Date.now() - connectedAt) / 1000,
+        buffered_bytes: socket.bufferedAmount || 0,
+        online: navigator.onLine !== false,
+        visibility: document.visibilityState || "unknown",
+        audio_state: audioCtx?.state || "unknown",
+      };
+      // A separate HTTP request can report a failed WebSocket without audio or transcript data.
+      console.warn("recording.browser_closed", report);
+      fetch("/diagnostics/recording-close", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(report), keepalive: true,
+      }).catch(() => {});
+    }
     sanntidWs = null;
     if (avbrutt) stoppSanntid(`Tilkoblingen ble avbrutt (kode ${evt.code}). Start opptaket igjen.`);
     settSanntidStatus(sanntidStoppgrunn || "Opptak avsluttet", false);

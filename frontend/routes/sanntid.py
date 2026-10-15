@@ -3,12 +3,16 @@ import json
 import logging
 import time
 from contextlib import suppress
-from uuid import uuid4
+from uuid import UUID, uuid4
+from typing import Literal
 
 import numpy as np
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
+from pydantic import BaseModel, ConfigDict, Field
 
 from shared.core.settings import TRANSKRIPSJON_BACKEND
+from shared.diagnostics import event, failure, recording_id
+from frontend.recording_diagnostics import RecordingSocket, observe_task
 from shared.services.transkripsjon_client import transkriber_remote_pcm
 from worker.transkribering.sanntid import (
     VadBuffer,
@@ -20,6 +24,23 @@ from worker.transkribering.sanntid import (
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
+
+
+class RecordingCloseReport(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    recording_id: UUID
+    code: int = Field(ge=1000, le=4999)
+    elapsed_s: float = Field(ge=0, le=604800, allow_inf_nan=False)
+    buffered_bytes: int = Field(ge=0, le=2**53)
+    online: bool
+    visibility: Literal["visible", "hidden", "unknown"]
+    audio_state: Literal["running", "suspended", "closed", "interrupted", "unknown"]
+
+
+@router.post("/diagnostics/recording-close", status_code=204)
+async def recording_close_report(report: RecordingCloseReport):
+    # Client-reported metadata is diagnostic evidence, not a trusted cause of failure.
+    event("recording.browser_closed", **report.model_dump(mode="json"))
 
 
 async def _heartbeat(websocket):
@@ -39,16 +60,28 @@ async def sanntid_ws(websocket: WebSocket):
       Server -> Client: JSON {"type": "segment", "tekst": "...", "segmenter": [{..., "taler": "SPEAKER_XX"}]}
     """
     await websocket.accept()
-    heartbeat = asyncio.create_task(_heartbeat(websocket))
+    websocket = RecordingSocket(websocket)
+    token = recording_id.set(str(uuid4()))
+    event("recording.opened", backend=TRANSKRIPSJON_BACKEND)
+    heartbeat = observe_task(asyncio.create_task(_heartbeat(websocket)), "heartbeat")
     try:
+        await websocket.send_json({"type": "session", "recording_id": recording_id.get()})
         if TRANSKRIPSJON_BACKEND == "remote":
             await _sanntid_remote(websocket)
         else:
             await _sanntid_lokal(websocket)
+    except asyncio.CancelledError:
+        event("recording.cancelled", **websocket.snapshot())
+        raise
+    except Exception as exc:
+        failure("recording.handler_failed", exc, **websocket.snapshot())
+        raise
     finally:
         heartbeat.cancel()
-        with suppress(asyncio.CancelledError, RuntimeError, WebSocketDisconnect, OSError):
+        with suppress(asyncio.CancelledError, Exception):
             await heartbeat
+        event("recording.ended", **websocket.snapshot())
+        recording_id.reset(token)
 
 
 async def _sanntid_lokal(websocket: WebSocket) -> None:
@@ -61,7 +94,7 @@ async def _sanntid_lokal(websocket: WebSocket) -> None:
         return
 
     buf = VadBuffer(preserve_audio=True)
-    transkriber_kø: asyncio.Queue = asyncio.Queue(maxsize=4)
+    transkriber_kø: asyncio.Queue = websocket.queue if isinstance(websocket, RecordingSocket) else asyncio.Queue(maxsize=4)
     prototyper_state: list[np.ndarray | None] = [None]
     samler = SegmentSamler()
 
@@ -79,6 +112,7 @@ async def _sanntid_lokal(websocket: WebSocket) -> None:
                     transkriber_pcm, chunk.pcm, prototyper_state[0]
                 )
             except Exception as exc:
+                failure("recording.inference_failed", exc, backend="local", chunk_start_s=chunk.start_s)
                 samler.legg_til(None, chunk)
                 try:
                     await websocket.send_json({"type": "feil", "melding": f"Transkribering feilet: {exc}"})
@@ -103,7 +137,7 @@ async def _sanntid_lokal(websocket: WebSocket) -> None:
                     pass
             transkriber_kø.task_done()
 
-    worker_task = asyncio.create_task(transkriber_worker())
+    worker_task = observe_task(asyncio.create_task(transkriber_worker()), "local_worker")
 
     async def send_til_modell(chunk: LydChunk):
         await transkriber_kø.put(chunk)
@@ -116,6 +150,9 @@ async def _sanntid_lokal(websocket: WebSocket) -> None:
             if "text" in melding:
                 data = json.loads(melding["text"])
                 if data.get("type") == "stopp":
+                    if isinstance(websocket, RecordingSocket):
+                        websocket.stop_requested = True
+                        event("recording.stop_requested", **websocket.snapshot())
                     rest = buf.flush_alt()
                     if rest is not None:
                         await send_til_modell(rest)
@@ -145,9 +182,9 @@ async def _sanntid_remote(websocket: WebSocket) -> None:
     """Proxy-basert sanntid: lokal VAD, ekstern transkribering per chunk."""
     # Quiet microphones must not lose whole chunks before ASR can inspect them.
     buf = VadBuffer(preserve_audio=True)
-    transkriber_kø: asyncio.Queue = asyncio.Queue(maxsize=4)
+    transkriber_kø: asyncio.Queue = websocket.queue if isinstance(websocket, RecordingSocket) else asyncio.Queue(maxsize=4)
     samler = SegmentSamler()
-    session_id = str(uuid4())
+    session_id = recording_id.get() or str(uuid4())
 
     async def transkriber_worker():
         while True:
@@ -162,6 +199,7 @@ async def _sanntid_remote(websocket: WebSocket) -> None:
                 resultat = await transkriber_remote_pcm(chunk.pcm, session_id=session_id,
                                                        chunk_start=chunk.start_s)
             except Exception as exc:
+                failure("recording.inference_failed", exc, backend="remote", chunk_start_s=chunk.start_s)
                 samler.legg_til(None, chunk)
                 # Log only error classes/status, never audio, transcripts or credentials.
                 response = getattr(exc, "response", None)
@@ -200,7 +238,7 @@ async def _sanntid_remote(websocket: WebSocket) -> None:
                 samler.legg_til(None, chunk)
             transkriber_kø.task_done()
 
-    worker_task = asyncio.create_task(transkriber_worker())
+    worker_task = observe_task(asyncio.create_task(transkriber_worker()), "remote_worker")
 
     async def send_til_remote(chunk: LydChunk):
         await transkriber_kø.put(chunk)
@@ -213,6 +251,9 @@ async def _sanntid_remote(websocket: WebSocket) -> None:
             if "text" in melding:
                 data = json.loads(melding["text"])
                 if data.get("type") == "stopp":
+                    if isinstance(websocket, RecordingSocket):
+                        websocket.stop_requested = True
+                        event("recording.stop_requested", **websocket.snapshot())
                     rest = buf.flush_alt()
                     if rest is not None:
                         await send_til_remote(rest)

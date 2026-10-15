@@ -73,6 +73,32 @@ test("fatal model error remains visible after microphone stops and socket closes
   assert.match(element("sanntid-status-tekst").textContent, /utilgjengelig/);
 });
 
+test("unexpected socket close reports only connection metadata with the server recording ID", async () => {
+  const { element, run } = workspace();
+  element("sanntid-nedlasting").remove = () => {};
+  run(`
+    navigator.mediaDevices = { getUserMedia: async () => ({ getTracks: () => [] }) };
+    navigator.onLine = true;
+    document.visibilityState = "visible";
+    globalThis.location = { protocol: "https:", host: "meeting.example" };
+    globalThis.WebSocket = class { static OPEN = 1; readyState = 3; bufferedAmount = 128; };
+    globalThis.console = { warn() {} };
+    globalThis.reports = [];
+    globalThis.fetch = async (url, options) => { reports.push({url, body: JSON.parse(options.body)}); };
+  `);
+  await run("startSanntid()");
+  run(`sanntidWs.onmessage({data: JSON.stringify({type: "session", recording_id: "00000000-0000-4000-8000-000000000000"})});
+       sanntidWs.onclose({code: 1006, reason: "PRIVATE"});`);
+  const report = JSON.parse(run("JSON.stringify(reports[0])"));
+  assert.equal(report.url, "/diagnostics/recording-close");
+  assert.equal(report.body.recording_id, "00000000-0000-4000-8000-000000000000");
+  assert.equal(report.body.code, 1006);
+  assert.equal(report.body.buffered_bytes, 128);
+  assert.equal(report.body.visibility, "visible");
+  assert.doesNotMatch(JSON.stringify(report), /PRIVATE/);
+  assert.equal(run("sanntidAktivt"), false);
+});
+
 for (const [protocol, expected] of [["https:", "wss:"], ["http:", "ws:"]]) {
   test(`microphone opens the correct WebSocket on ${protocol}`, async () => {
     const { element, run } = workspace();

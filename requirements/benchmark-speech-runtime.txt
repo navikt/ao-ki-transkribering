@@ -1,4 +1,6 @@
 # Experimental runtime tested for Nemotron 3 Diarization; install into .cache only.
+# Also upgrade setuptools inherited from the speech container base image.
+setuptools>=83.0.0
 transformers @ git+https://github.com/huggingface/transformers.git@55c3cc9f03cd4fbf2d27d382dcc8fcc544631f8e
 huggingface-hub==1.31.0
 tokenizers>=0.23.1,<0.24.0
