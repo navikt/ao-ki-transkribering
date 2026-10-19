@@ -48,6 +48,15 @@ function workspace() {
   return { element, run: code => vm.runInContext(code, context) };
 }
 
+test("technical diagnostics are grouped in developer mode and collapsed by default", () => {
+  const html = fs.readFileSync(path.join(__dirname, "../frontend/static/index.html"), "utf8");
+  const details = html.match(/<details id="mikrofon-diagnostikk"[\s\S]*?<\/details>/)[0];
+  assert.match(details, /<summary>Utviklermodus<\/summary>/);
+  assert.match(details, /id="mikrofon-diagnostikk-tekst"/);
+  assert.doesNotMatch(details.split(">")[0], /\bopen\b/);
+  assert.doesNotMatch(details, /id="(?:mikrofonniva|sanntid-status|sanntid-dekning)"/);
+});
+
 test("temporary model errors do not stop the microphone", async () => {
   const { element, run } = workspace();
   element("sanntid-nedlasting").remove = () => {};
@@ -60,6 +69,36 @@ test("temporary model errors do not stop the microphone", async () => {
   run('sanntidWs.onmessage({data: JSON.stringify({type:"feil", melding:"Modellen er opptatt", recoverable:true})})');
   assert.equal(run("sanntidAktivt"), true);
   assert.match(element("sanntid-status-tekst").textContent, /opptatt/);
+});
+
+test("audio diagnostics show actual track settings without identifiers or HTML injection", () => {
+  const {element, run} = workspace();
+  run(`
+    sanntidStream = {getAudioTracks: () => [{
+      label: '<img src=x onerror=alert(1)> USB microphone', readyState: 'live', muted: false, enabled: true,
+      getSettings: () => ({sampleRate: 48000, channelCount: 1, echoCancellation: true,
+        noiseSuppression: false, autoGainControl: true, deviceId: 'PRIVATE-ID', groupId: 'PRIVATE-GROUP'})
+    }]};
+    audioCtx = {sampleRate: 16000};
+    oppdaterLyddiagnostikk();
+  `);
+  const output = element('mikrofon-diagnostikk-tekst');
+  assert.match(output.textContent, /USB microphone/);
+  assert.match(output.textContent, /inngang \(Hz\): 48000/);
+  assert.match(output.textContent, /behandling \(Hz\): 16000/);
+  assert.match(output.textContent, /Ekkokansellering: På/);
+  assert.match(output.textContent, /Støydemping: Av/);
+  assert.doesNotMatch(output.textContent, /PRIVATE/);
+  assert.equal(output.innerHTML, '');
+  assert.equal(element('mikrofon-diagnostikk').hidden, false);
+});
+
+test("unreported audio settings are unknown rather than disabled", () => {
+  const {element, run} = workspace();
+  run(`sanntidStream = {getAudioTracks: () => [{readyState: 'ended', getSettings: () => ({})}]}; oppdaterLyddiagnostikk();`);
+  const output = element('mikrofon-diagnostikk-tekst').textContent;
+  assert.match(output, /Lydspor: Avsluttet/);
+  assert.match(output, /Ekkokansellering: Ikke rapportert/);
 });
 
 test("fatal model error remains visible after microphone stops and socket closes", async () => {

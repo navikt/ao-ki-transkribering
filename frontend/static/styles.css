@@ -777,6 +777,21 @@ h1 {
   .referat-kolonne { border-left: 0; padding-left: 0; border-top: 1px solid var(--color-gray-200); padding-top: 1.5rem; }
   .app-main-hoyre .tomtilstand { min-height: 120px; }
 }
+.utviklermodus {
+  margin-top: .75rem;
+  border-top: 1px solid #ddd;
+  padding-top: .5rem;
+}
+.utviklermodus summary { cursor: pointer; font-size: .875rem; }
+.utviklermodus h3 { font-size: .875rem; margin: .75rem 0 .4rem; }
+.utviklermodus pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font: inherit;
+  font-size: .8rem;
+  margin: 0;
+}
+
 @media (max-width: 640px) {
   .mote-toolbar { grid-template-columns: minmax(0, 1fr); }
   .app-main { padding: 1rem .75rem; }

@@ -5,6 +5,7 @@ let _referatScenarier = [];
 let _lydInngangBekreftet = false;
 let _transkripsjonTilgjengelig = true;
 let recordingArchive = null;
+let diagnosticSampleRate = null;
 
 function settLydInngangAktivert(aktivert) {
   _lydInngangBekreftet = aktivert;
@@ -748,6 +749,31 @@ function _sjekkLiveReferatTerskel() {
   }
 }
 
+function oppdaterLyddiagnostikk() {
+  const track = sanntidStream?.getAudioTracks?.()[0];
+  if (!track) return;
+  const settings = track.getSettings?.() || {};
+  if (Number.isFinite(audioCtx?.sampleRate)) diagnosticSampleRate = audioCtx.sampleRate;
+  const flag = value => value === true ? "På" : value === false ? "Av"
+    : ["all", "remote-only"].includes(value) ? value : "Ikke rapportert";
+  const number = value => Number.isFinite(value) ? value : "Ikke rapportert";
+  // Explicit allowlist: deviceId/groupId and browser fingerprints never leave the track.
+  const lines = [
+    `Mikrofon: ${track.label || "Navn ikke tilgjengelig"}`,
+    `Lydspor: ${track.readyState === "ended" ? "Avsluttet" : "Aktivt"}`,
+    `Midlertidig dempet: ${flag(track.muted)}`,
+    `Aktivert: ${flag(track.enabled)}`,
+    `Samplingsfrekvens, inngang (Hz): ${number(settings.sampleRate)}`,
+    `Samplingsfrekvens, behandling (Hz): ${number(diagnosticSampleRate)}`,
+    `Kanaler: ${number(settings.channelCount)}`,
+    `Ekkokansellering: ${flag(settings.echoCancellation)}`,
+    `Støydemping: ${flag(settings.noiseSuppression)}`,
+    `Automatisk nivåjustering: ${flag(settings.autoGainControl)}`,
+  ];
+  document.getElementById("mikrofon-diagnostikk-tekst").textContent = lines.join("\n");
+  document.getElementById("mikrofon-diagnostikk").hidden = false;
+}
+
 async function startSanntid(restored = []) {
   if (recordingArchive) {
     settSanntidStatus("Last ned eller slett forrige opptak for du starter et nytt.");
@@ -762,6 +788,10 @@ async function startSanntid(restored = []) {
   }
 
   sanntidAktivt    = true;
+  diagnosticSampleRate = null;
+  document.getElementById("mikrofon-diagnostikk").hidden = true;
+  document.getElementById("mikrofon-diagnostikk-tekst").textContent = "";
+  oppdaterLyddiagnostikk();
   sanntidStoppgrunn = "";
   nullstillMikrofonNiva(true);
   document.getElementById("paragraf14-hake").disabled = true;
@@ -786,6 +816,7 @@ async function startSanntid(restored = []) {
   settSanntidStatus("Kobler til …");
 
   sanntidTimer = setInterval(() => {
+    oppdaterLyddiagnostikk();
     sanntidSekunder++;
     const m = Math.floor(sanntidSekunder / 60);
     const s = String(sanntidSekunder % 60).padStart(2, "0");
@@ -942,9 +973,9 @@ async function startSanntid(restored = []) {
 }
 
 async function startAudioWorklet() {
-  // AudioContext – be om 16 kHz (støttes ikke alltid, men AudioWorklet resample
-  // eller vi sender til server som resampler)
+  // The browser converts the input track to this context's sample rate.
   audioCtx = new AudioContext({ sampleRate: 16000 });
+  oppdaterLyddiagnostikk();
 
   await audioCtx.audioWorklet.addModule("/static/audio-processor.js");
 
@@ -988,7 +1019,11 @@ function stoppSanntid(grunn = "") {
   if (workletNode) { workletNode.disconnect(); workletNode = null; }
   if (audioCtx)    { audioCtx.close(); audioCtx = null; }
 
-  if (sanntidStream) { sanntidStream.getTracks().forEach(t => t.stop()); sanntidStream = null; }
+  if (sanntidStream) {
+    sanntidStream.getTracks().forEach(t => t.stop());
+    oppdaterLyddiagnostikk();
+    sanntidStream = null;
+  }
 
   // Be server om å flush VAD-buffer – behold WS åpen til server lukker
   if (sanntidWs && sanntidWs.readyState === WebSocket.OPEN) {
