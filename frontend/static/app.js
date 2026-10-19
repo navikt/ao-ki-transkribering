@@ -4,13 +4,14 @@ let _aktivTranskripsjonskilde = null;
 let _referatScenarier = [];
 let _lydInngangBekreftet = false;
 let _transkripsjonTilgjengelig = true;
+let recordingArchive = null;
 
 function settLydInngangAktivert(aktivert) {
   _lydInngangBekreftet = aktivert;
   const kanBrukeLyd = aktivert && _transkripsjonTilgjengelig;
   ["fil-input", "knapp-start", "sanntid-start-knapp"].forEach(id => {
     const el = document.getElementById(id);
-    if (el) el.disabled = !kanBrukeLyd;
+    if (el) el.disabled = !kanBrukeLyd || (id === "sanntid-start-knapp" && recordingArchive !== null);
   });
 }
 
@@ -555,8 +556,12 @@ function oppdaterMikrofonNiva(samples) {
 }
 
 // ---- Valgfritt lydopptak for nedlasting ----
-let sanntidOpptaker      = null;
-let sanntidOpptakChunks  = [];
+let recordingDownloadUrl = null;
+
+function opptakTid(seconds) {
+  const value = Math.max(0, Math.floor(Number(seconds) || 0));
+  return `${Math.floor(value / 60)}:${String(value % 60).padStart(2, "0")}`;
+}
 
 // ---- Live rullerende referat ----
 let _liveReferatAktivt       = true;   // auto-oppdatering på/av
@@ -743,9 +748,13 @@ function _sjekkLiveReferatTerskel() {
   }
 }
 
-async function startSanntid() {
+async function startSanntid(restored = []) {
+  if (recordingArchive) {
+    settSanntidStatus("Last ned eller slett forrige opptak for du starter et nytt.");
+    return;
+  }
   try {
-    sanntidStream = await navigator.mediaDevices.getUserMedia({ audio: true, sampleRate: 16000 });
+    if (!restored.length) sanntidStream = await navigator.mediaDevices.getUserMedia({ audio: true, sampleRate: 16000 });
   } catch (err) {
     document.getElementById("feil-boks").style.display = "block";
     document.getElementById("feil-boks").textContent = "⚠️ Mikrofontilgang nektet: " + err.message;
@@ -760,7 +769,6 @@ async function startSanntid() {
   sanntidSegmenter = [];
   sanntidSekunder  = 0;
   pcmBuffer        = [];
-  sanntidOpptakChunks = [];
 
   // Fjern eventuell tidligere nedlastingslenke
   const gammelLenke = document.getElementById("sanntid-nedlasting");
@@ -775,8 +783,6 @@ async function startSanntid() {
   document.getElementById("sanntid-tekst").style.display  = "block";
   document.getElementById("sanntid-knapper").style.display = "block";
   document.getElementById("sanntid-footer").style.display  = "block";
-  const opptakHake = document.getElementById("sanntid-lagre-opptak");
-  if (opptakHake) opptakHake.disabled = true;
   settSanntidStatus("Kobler til …");
 
   sanntidTimer = setInterval(() => {
@@ -786,12 +792,32 @@ async function startSanntid() {
     document.getElementById("sanntid-timer-tekst").textContent = m + ":" + s;
   }, 1000);
 
-  // WebSocket til server
-  const wsProtocol = location.protocol === "https:" ? "wss:" : "ws:";
-  const wsUrl = `${wsProtocol}//${location.host}/ws/sanntid`;
-  sanntidWs = new WebSocket(wsUrl);
+  // Retryable HTTP chunks retain the audio independently of the connection.
+  sanntidWs = new RecordingTransport({restored});
+  recordingArchive = sanntidWs;
   const socket = sanntidWs;
+  socket.onstate = message => settSanntidStatus(message);
+  socket.oncoverage = (processed, captured) => {
+    document.getElementById("sanntid-dekning").textContent =
+      `${opptakTid(processed / 16000)} behandlet / ${opptakTid(captured / 16000)} tatt opp`;
+  };
+  socket.onfatal = message => {
+    if (sanntidAktivt) stoppSanntid(message);
+    else settSanntidStatus(message);
+  };
+  socket.onexpired = () => {
+    if (recordingArchive === socket) {
+      recordingArchive = null;
+      if (recordingDownloadUrl) URL.revokeObjectURL(recordingDownloadUrl);
+      recordingDownloadUrl = null;
+      document.getElementById("sanntid-nedlasting")?.remove();
+      settLydInngangAktivert(_lydInngangBekreftet);
+    }
+  };
   const connectedAt = Date.now();
+  let lastMessageAt = null;
+  let lastHeartbeatAt = null;
+  let heartbeatCount = 0;
   sanntidWs.binaryType = "arraybuffer";
 
   sanntidWs.onopen = async () => {
@@ -799,19 +825,20 @@ async function startSanntid() {
     settSanntidStatus("Tar opp …");
     await startAudioWorklet();
 
-    // Start parallelt lydopptak for nedlasting hvis valgt
-    if (document.getElementById("sanntid-lagre-opptak")?.checked) {
-      sanntidOpptakChunks = [];
-      sanntidOpptaker = new MediaRecorder(sanntidStream);
-      sanntidOpptaker.ondataavailable = e => { if (e.data.size > 0) sanntidOpptakChunks.push(e.data); };
-      sanntidOpptaker.onstop = _tilbyNedlasting;
-      sanntidOpptaker.start(1000);
-    }
   };
 
   sanntidWs.onmessage = (evt) => {
     if (sanntidWs !== socket) return;
+    lastMessageAt = Date.now();
     const data = JSON.parse(evt.data);
+    if (data.type === "heartbeat") {
+      lastHeartbeatAt = lastMessageAt;
+      heartbeatCount++;
+      if (Number.isSafeInteger(data.sequence) && socket.readyState === WebSocket.OPEN) {
+        socket.send(JSON.stringify({ type: "heartbeat_ack", sequence: data.sequence }));
+      }
+      return;
+    }
     if (data.type === "session") {
       socket.recordingId = data.recording_id;
       return;
@@ -831,19 +858,27 @@ async function startSanntid() {
 
         // Prøv å slå sammen med siste linje hvis samme taler
         const siste = boks.lastElementChild;
-        if (siste && siste.dataset.taler === taler) {
+        if (siste && siste.dataset.taler === taler && siste.dataset.chunk === String(data.sequence)) {
           const tekst = siste.querySelector(".dialog-tekst");
           if (tekst) tekst.textContent += " " + seg.tekst;
+          const time = siste.querySelector("time");
+          if (time) time.textContent = `${opptakTid(siste.dataset.start)} – ${opptakTid(seg.slutt)}`;
         } else {
           const div = document.createElement("div");
           div.className = "dialog-linje";
           div.dataset.taler = taler;
+          div.dataset.chunk = String(data.sequence);
+          div.dataset.start = seg.start;
 
           const brikke = document.createElement("div");
           brikke.className = `dialog-taler-brikke ${talerKlasse(taler)}`;
           brikke.textContent = talerNavn(taler);
 
           const høyre = document.createElement("div");
+          const timestamp = document.createElement("time");
+          timestamp.textContent = `${opptakTid(seg.start)} – ${opptakTid(seg.slutt)}`;
+          timestamp.style.cssText = "display:block;font-size:.75rem;color:#555";
+          høyre.appendChild(timestamp);
           const tekst = document.createElement("div");
           tekst.className = "dialog-tekst";
           tekst.textContent = seg.tekst;
@@ -878,6 +913,10 @@ async function startSanntid() {
         online: navigator.onLine !== false,
         visibility: document.visibilityState || "unknown",
         audio_state: audioCtx?.state || "unknown",
+        was_clean: evt.wasClean === true,
+        last_message_age_s: lastMessageAt === null ? null : Math.max(0, (Date.now() - lastMessageAt) / 1000),
+        last_heartbeat_age_s: lastHeartbeatAt === null ? null : Math.max(0, (Date.now() - lastHeartbeatAt) / 1000),
+        heartbeat_count: heartbeatCount,
       };
       // A separate HTTP request can report a failed WebSocket without audio or transcript data.
       console.warn("recording.browser_closed", report);
@@ -887,9 +926,19 @@ async function startSanntid() {
       }).catch(() => {});
     }
     sanntidWs = null;
-    if (avbrutt) stoppSanntid(`Tilkoblingen ble avbrutt (kode ${evt.code}). Start opptaket igjen.`);
-    settSanntidStatus(sanntidStoppgrunn || "Opptak avsluttet", false);
+    if (avbrutt) settSanntidStatus("Prover igjen – lyden er lagret lokalt");
+    else settSanntidStatus(sanntidStoppgrunn || "All lyd er behandlet", false);
   };
+  if (restored.length) {
+    sanntidAktivt = false;
+    nullstillMikrofonNiva();
+    document.getElementById("paragraf14-hake").disabled = false;
+    document.getElementById("lydkilde").disabled = false;
+    clearInterval(sanntidTimer);
+    document.getElementById("sanntid-stopp-knapp").disabled = true;
+    document.getElementById("sanntid-timer").style.display = "none";
+    _tilbyNedlasting();
+  }
 }
 
 async function startAudioWorklet() {
@@ -939,12 +988,6 @@ function stoppSanntid(grunn = "") {
   if (workletNode) { workletNode.disconnect(); workletNode = null; }
   if (audioCtx)    { audioCtx.close(); audioCtx = null; }
 
-  // Stopp lydopptak før stream — onstop trenger aktiv stream for siste data
-  if (sanntidOpptaker && sanntidOpptaker.state !== "inactive") {
-    sanntidOpptaker.stop();
-    sanntidOpptaker = null;
-  }
-
   if (sanntidStream) { sanntidStream.getTracks().forEach(t => t.stop()); sanntidStream = null; }
 
   // Be server om å flush VAD-buffer – behold WS åpen til server lukker
@@ -953,32 +996,79 @@ function stoppSanntid(grunn = "") {
     // Ikke null-still sanntidWs her – server kan sende siste segment(er) før den lukker
   }
 
-  document.getElementById("sanntid-start-knapp").disabled = false;
+  document.getElementById("sanntid-start-knapp").disabled = recordingArchive !== null;
   document.getElementById("sanntid-stopp-knapp").disabled = true;
   document.getElementById("sanntid-timer").style.display  = "none";
-  const opptakHake = document.getElementById("sanntid-lagre-opptak");
-  if (opptakHake) opptakHake.disabled = false;
   settSanntidStatus(sanntidStoppgrunn || "Avslutter …");
+  if (recordingArchive) _tilbyNedlasting();
 }
 
 function _tilbyNedlasting() {
-  if (!sanntidOpptakChunks.length) return;
-  const blob = new Blob(sanntidOpptakChunks, { type: "audio/webm" });
-  const url  = URL.createObjectURL(blob);
-  const dato = new Date().toISOString().slice(0, 16).replace("T", "_").replace(":", "-");
+  document.getElementById("sanntid-nedlasting")?.remove();
   const div  = document.createElement("div");
   div.id = "sanntid-nedlasting";
-  div.style.cssText = "margin-top:.75rem; padding:.6rem .9rem; background:#f0f8ff; border:1px solid #b3d7f5; border-radius:6px; font-size:.875rem; display:flex; align-items:center; gap:.75rem;";
+  div.style.cssText = "margin-top:.75rem; padding:.75rem 0; border-top:1px solid #ddd; font-size:.875rem; display:flex; flex-wrap:wrap; align-items:center; gap:.75rem;";
   div.innerHTML = `
-    <span>🎙️ Opptak klart</span>
-    <a href="${url}" download="opptak_${dato}.webm"
-       style="color:#0067c5; font-weight:600; text-decoration:underline">
-      Last ned opptak
-    </a>
-    <span style="color:#888; font-size:.8rem">(slettes når du lukker siden)</span>
+    <button type="button" class="knapp knapp-sekundær" onclick="lastNedOpptak()">Last ned lyd</button>
+    <button type="button" class="knapp knapp-sekundær" onclick="slettOpptak()">Slett lokal lyd</button>
+    <span style="flex-basis:100%">Utløper etter 8 timer; opprydding ved neste besøk hvis siden er lukket. Nedlastede filer beholdes.</span>
   `;
   document.getElementById("sanntid-knapper").after(div);
 }
+
+async function lastNedOpptak() {
+  if (!recordingArchive) return;
+  try {
+    const archive = recordingArchive;
+    const blob = await archive.wav();
+    if (recordingArchive !== archive) return;
+    if (recordingDownloadUrl) URL.revokeObjectURL(recordingDownloadUrl);
+    recordingDownloadUrl = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = recordingDownloadUrl;
+    link.download = `opptak_${new Date().toISOString().slice(0, 10)}.wav`;
+    link.click();
+  } catch { settSanntidStatus("Kunne ikke laste ned lyden. Den lokale kopien er beholdt."); }
+}
+
+async function slettOpptak() {
+  if (sanntidAktivt || !recordingArchive) return;
+  if (!confirm("Slette lokal lyd og avbryte eventuell ventende behandling? Teksten beholdes.")) return;
+  try {
+    await recordingArchive.dispose();
+    recordingArchive = null;
+    sanntidWs = null;
+    if (recordingDownloadUrl) URL.revokeObjectURL(recordingDownloadUrl);
+    recordingDownloadUrl = null;
+    document.getElementById("sanntid-nedlasting")?.remove();
+    settLydInngangAktivert(_lydInngangBekreftet);
+    settSanntidStatus("Lokal lyd slettet");
+  } catch { settSanntidStatus("Kunne ikke slette lokal lyd. Prov igjen."); }
+}
+
+async function gjenopprettLokalLyd() {
+  if (recordingArchive || sanntidAktivt) return;
+  const archive = new RecordingArchive();
+  try {
+    await archive.open();
+    const rows = await archive.all();
+    archive.db.close();
+    if (!rows.length || recordingArchive || sanntidAktivt) return;
+    const session = rows[0].session;
+    const div = document.createElement("div");
+    div.id = "sanntid-gjenopprett";
+    const button = document.createElement("button");
+    button.textContent = "Gjenopprett midlertidig opptak";
+    button.onclick = async () => {
+      div.remove();
+      await startSanntid(rows.filter(row => row.session === session));
+    };
+    div.appendChild(button);
+    document.getElementById("sanntid-knapper").after(div);
+  } catch { /* Recording startup reports storage failures before capturing audio. */ }
+}
+
+if (typeof indexedDB !== "undefined") gjenopprettLokalLyd();
 
 function settSanntidStatus(tekst) {
   document.getElementById("sanntid-status-tekst").textContent = tekst;
@@ -1003,6 +1093,10 @@ function kopierSanntidTekst() {
 
 function nullstillSanntid() {
   if (sanntidAktivt) return;
+  if (recordingArchive) {
+    settSanntidStatus("Slett lokal lyd før du nullstiller transkripsjonen.");
+    return;
+  }
   _aktivTranskripsjonskilde = null;
   document.getElementById("sanntid-tekst").innerHTML = "";
   document.getElementById("sanntid-taler-rad").innerHTML = "";

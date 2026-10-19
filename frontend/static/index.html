@@ -98,10 +98,7 @@
       <!-- ── Opptak ── -->
       <div class="modul-kort">
         <div class="modul-tittel">Opptak</div>
-        <label class="checkbox-label-sanntid">
-          <input type="checkbox" id="sanntid-lagre-opptak" />
-          Ta opp hele møtet for nedlasting
-        </label>
+        <p>Lyd lagres midlertidig i denne nettleseren, i opptil 8 timer. Last ned eller slett etter motet.</p>
         <div class="opptaks-rad">
           <button class="knapp knapp-fare" id="sanntid-start-knapp" onclick="startSanntid()">
             Start opptak
@@ -125,6 +122,7 @@
         <div class="sanntid-status" id="sanntid-status" style="display:none" role="status">
           <span id="sanntid-status-tekst">Kobler til …</span>
         </div>
+        <output id="sanntid-dekning"></output>
       </div>
 
     </div>
@@ -157,7 +155,7 @@
       </div>
 
       <p class="fotnote" style="display:none" id="sanntid-footer">
-        Transkripsjonen lagres ikke og forsvinner når du lukker siden.
+        Lyd og transkripsjon lagres midlertidig i denne nettleseren til du sletter opptaket eller oppbevaringstiden utløper.
       </p>
   </div>
   <!-- ===== RESULTAT ===== -->
@@ -303,6 +301,7 @@
   </div>
 </footer>
 
+<script src="/static/recording.js"></script>
 <script src="/static/app.js"></script>
 </body>
 </html>

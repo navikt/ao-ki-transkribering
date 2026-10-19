@@ -12,6 +12,7 @@ from frontend.auth import EntraAuthMiddleware
 from frontend.routes.helse import router as helse_router
 from frontend.routes.referat import router as referat_router
 from frontend.routes.sanntid import router as sanntid_router
+from frontend.routes.recordings import router as recordings_router, cleanup_sessions
 from frontend.routes.transkripsjon import router as transkripsjon_router
 from shared.core.runtime import job_store, start_arbeider, stopp_arbeider
 from shared.core.settings import JOB_RETENTION_SECONDS
@@ -29,6 +30,7 @@ async def lifespan(app: FastAPI):
     async def expire_results():
         while True:
             await asyncio.to_thread(job_store.cleanup_completed, JOB_RETENTION_SECONDS)
+            cleanup_sessions()
             await asyncio.sleep(300)
 
     cleanup = asyncio.create_task(expire_results())
@@ -57,6 +59,7 @@ def create_app() -> FastAPI:
     app.include_router(transkripsjon_router)
     app.include_router(referat_router)
     app.include_router(sanntid_router)
+    app.include_router(recordings_router)
 
     return app
 

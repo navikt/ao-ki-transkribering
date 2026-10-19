@@ -124,3 +124,37 @@ async def test_heartbeat_send_failure_is_recorded(events):
     assert events()[-1]["event"] == "recording.send_failed"
     assert events()[-1]["message_type"] == "heartbeat"
     assert "PRIVATE" not in json.dumps(events())
+
+
+@pytest.mark.asyncio
+async def test_heartbeat_ack_is_correlated_and_duplicates_ignored(events):
+    sent = []
+
+    async def send(data):
+        sent.append(data)
+
+    async def receive():
+        return {"type": "websocket.receive", "text": json.dumps(
+            {"type": "heartbeat_ack", "sequence": sent[-1]["sequence"]})}
+
+    socket = RecordingSocket(SimpleNamespace(send_json=send, receive=receive))
+    await socket.send_json({"type": "heartbeat"})
+    await socket.receive()
+    await socket.receive()
+    acks = [e for e in events() if e["event"] == "recording.heartbeat_ack"]
+    assert len(acks) == 1
+    assert acks[0]["round_trip_s"] >= 0
+    assert socket.snapshot()["heartbeat_acks"] == 1
+    assert socket.snapshot()["last_ack_age_s"] is not None
+
+
+def test_browser_timing_fields_are_bounded(events):
+    app = FastAPI()
+    app.include_router(sanntid.router)
+    client = TestClient(app)
+    report = dict(recording_id="00000000-0000-4000-8000-000000000000", code=1006,
+                  elapsed_s=150, buffered_bytes=0, online=True, visibility="visible",
+                  audio_state="running", was_clean=False, last_message_age_s=3,
+                  last_heartbeat_age_s=8, heartbeat_count=9)
+    assert client.post("/diagnostics/recording-close", json=report).status_code == 204
+    assert client.post("/diagnostics/recording-close", json={**report, "last_message_age_s": -1}).status_code == 422

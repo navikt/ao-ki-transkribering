@@ -35,6 +35,10 @@ class RecordingCloseReport(BaseModel):
     online: bool
     visibility: Literal["visible", "hidden", "unknown"]
     audio_state: Literal["running", "suspended", "closed", "interrupted", "unknown"]
+    was_clean: bool | None = None
+    last_message_age_s: float | None = Field(default=None, ge=0, le=604800, allow_inf_nan=False)
+    last_heartbeat_age_s: float | None = Field(default=None, ge=0, le=604800, allow_inf_nan=False)
+    heartbeat_count: int = Field(default=0, ge=0, le=1000000)
 
 
 @router.post("/diagnostics/recording-close", status_code=204)
@@ -45,7 +49,11 @@ async def recording_close_report(report: RecordingCloseReport):
 
 async def _heartbeat(websocket):
     while True:
+        expected = time.monotonic() + 15
         await asyncio.sleep(15)
+        lag = time.monotonic() - expected
+        if lag >= 1:
+            event("recording.event_loop_delayed", delay_s=round(lag, 3))
         await websocket.send_json({"type": "heartbeat"})
 
 

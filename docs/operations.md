@@ -243,6 +243,46 @@ kubectl logs -n vllm deployment/vllm-whisper -c last-ned-modell --tail=100
 ```
 # Recording Connection Diagnostics
 
+### Recoverable browser recordings
+
+The current browser uploads 15-second float32 PCM chunks over authenticated HTTP
+(`/recordings/{id}/chunks/{sequence}`), with one second of overlap. The legacy
+WebSocket endpoint remains available for older clients; its diagnostics below do
+not describe the new transport. Quiet audio is retained. Sample offsets, not wall
+clock time, define the timeline and transcript timestamps.
+
+Audio is stored in IndexedDB before uploading. Only one chunk per recording is
+sent at a time. A processed response acknowledges the exact sequence and sample
+range, including silence with no transcript. Failed or lost responses retry the
+same chunk after three seconds; a 90-second request timeout does not stop capture.
+Stop ends microphone capture and flushes the final partial chunk; pending uploads
+continue. The displayed processed/captured durations expose any backlog.
+
+The API caches the latest result and in-flight task per session, preventing
+duplicate inference on the same API process. Cache entries expire after ten idle
+minutes (cleanup runs every five minutes). This is NOT distributed exactly-once
+execution: another replica or a restart may repeat inference and reset speaker
+continuity. The browser only appends each acknowledged chunk once. No server-side
+audio archive is introduced. `chunk_received`, `chunk_processed`, and `chunk_failed`
+events contain sequence/sample metadata, not audio or transcript content.
+
+There is no optional recording checkbox. After Stop, users can download a mono
+16 kHz WAV or explicitly delete the temporary recording, cancelling pending
+uploads. Download does not erase the recovery copy. WAV export removes overlap.
+Reload offers recovery of stored chunks and transcript results. Up to the current
+15-second not-yet-sealed chunk can be lost on a tab/browser crash; ordinary network
+disconnects do not lose that buffer. Browser storage eviction can also remove data.
+
+Temporary recordings expire eight hours after creation. An open page deletes its
+copy at expiry; when the browser is closed, expired records are deleted on the
+next app visit, not by a background guarantee. Explicit deletion is preferable on
+shared devices. A 512 MiB captured-PCM limit (plus overlap storage) or storage
+failure stops capture with a visible warning rather than silently dropping audio.
+Downloaded files are outside this retention policy. Review browser-local sensitive
+audio retention with the deployment owner before production rollout.
+
+### Legacy WebSocket diagnostics
+
 The API emits JSON events through the dedicated `transkriberit.diagnostics`
 logger at INFO, independently of Uvicorn's default application log level.
 Every accepted recording receives a server-generated `recording_id`; this also
@@ -253,6 +293,14 @@ identifies its remote diarization session. Search that ID to correlate events.
   what the API observed, not necessarily what the browser observed.
 - `recording.heartbeat` every 15 seconds includes connection age, last audio/result
   age, received packet/byte counts, queue depth and in-flight chunk duration.
+- `recording.heartbeat_ack` confirms a numbered application heartbeat made the
+  API-to-browser-to-API round trip. It includes round-trip time and cumulative
+  acknowledgement count. Only the latest outstanding heartbeat is tracked;
+  duplicate or stale acknowledgements are ignored. Old browsers do not acknowledge
+  heartbeats, so reload before diagnosing missing acknowledgements.
+- `recording.event_loop_delayed` reports heartbeat scheduling delays of at least
+  one second. `recording.close_requested` records an application close attempt
+  before sending it, including attempts during cleanup after a peer disconnect.
 - `recording.chunk_queued`, `chunk_started`, `chunk_finished` report queue wait
   and processing duration. `queue_backpressure` reports a full four-chunk queue.
 - `model.transcription_attempt`, `transcription_succeeded` and failure events
@@ -266,6 +314,15 @@ identifies its remote diarization session. Search that ID to correlate events.
   and AudioContext state. These are client-reported observations, not a verified
   cause. If the whole network is down, the report may not arrive; it is also
   written to the browser console. Absence of a report does not prove a clean exit.
+  New clients also report the clean-close flag, received heartbeat count and time
+  since the last received message/heartbeat. Older reports remain accepted.
+
+Interpret the sequence, not just close code 1006: missing acknowledgements while
+audio continues suggests a downstream delivery or browser receive problem;
+event-loop delays suggest API scheduling trouble. Successful acknowledgements
+until an abrupt peer disconnect narrow the problem to connection teardown but
+do not identify the responsible proxy. Correlate the UTC timestamp with ingress
+and Wonderwall logs; request NAIS support when ingress log access is denied.
 
 No new diagnostics contain audio, transcript text, close-reason text, credentials,
 headers, user identity or full URLs. The reporting endpoint rejects unknown fields

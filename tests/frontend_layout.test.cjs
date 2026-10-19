@@ -25,6 +25,7 @@ function workspace() {
         style: {}, dataset: {}, hidden: false, innerHTML: "", innerText: "", textContent: "", value: "",
         classList: { toggle() {}, add() {}, remove() {} },
         addEventListener() {},
+        after() {}, remove() {}, appendChild() {},
         setAttribute(name, value) { this[name] = value; },
       });
     }
@@ -35,6 +36,7 @@ function workspace() {
       getElementById: element,
       querySelector: element,
       querySelectorAll: () => [],
+      createElement: () => element("created"),
     },
     fetch: () => new Promise(() => {}),
     setInterval() {},
@@ -42,6 +44,7 @@ function workspace() {
     navigator: { clipboard: { writeText: async () => {} } },
   });
   vm.runInContext(fs.readFileSync(path.join(__dirname, "../frontend/static/app.js"), "utf8"), context);
+  vm.runInContext('globalThis.RecordingTransport = class { constructor() { return new WebSocket("/recordings"); } };', context);
   return { element, run: code => vm.runInContext(code, context) };
 }
 
@@ -95,12 +98,41 @@ test("unexpected socket close reports only connection metadata with the server r
   assert.equal(report.body.code, 1006);
   assert.equal(report.body.buffered_bytes, 128);
   assert.equal(report.body.visibility, "visible");
+  assert.equal(report.body.was_clean, false);
+  assert.equal(report.body.heartbeat_count, 0);
+  assert.equal(report.body.last_heartbeat_age_s, null);
   assert.doesNotMatch(JSON.stringify(report), /PRIVATE/);
-  assert.equal(run("sanntidAktivt"), false);
+  assert.equal(run("sanntidAktivt"), true);
+});
+
+test("browser acknowledges heartbeat sequence and reports receipt on disconnect", async () => {
+  const { element, run } = workspace();
+  element("sanntid-nedlasting").remove = () => {};
+  run(`
+    navigator.mediaDevices = { getUserMedia: async () => ({ getTracks: () => [] }) };
+    globalThis.location = { protocol: "https:", host: "meeting.example" };
+    globalThis.sent = [];
+    globalThis.reports = [];
+    globalThis.console = { warn() {} };
+    globalThis.WebSocket = class {
+      static OPEN = 1; readyState = 1;
+      send(data) { sent.push(JSON.parse(data)); }
+    };
+    globalThis.fetch = async (url, options) => { reports.push(JSON.parse(options.body)); };
+  `);
+  await run("startSanntid()");
+  run(`
+    sanntidWs.onmessage({data: JSON.stringify({type: "session", recording_id: "00000000-0000-4000-8000-000000000000"})});
+    sanntidWs.onmessage({data: JSON.stringify({type: "heartbeat", sequence: 3})});
+    sanntidWs.onclose({code: 1006, wasClean: false});
+  `);
+  assert.deepEqual(JSON.parse(run("JSON.stringify(sent)")), [{type: "heartbeat_ack", sequence: 3}]);
+  assert.equal(run("reports[0].heartbeat_count"), 1);
+  assert.ok(run("reports[0].last_heartbeat_age_s") >= 0);
 });
 
 for (const [protocol, expected] of [["https:", "wss:"], ["http:", "ws:"]]) {
-  test(`microphone opens the correct WebSocket on ${protocol}`, async () => {
+  test(`microphone uses recoverable transport on ${protocol}`, async () => {
     const { element, run } = workspace();
     element("sanntid-nedlasting").remove = () => {};
     run(`
@@ -111,7 +143,7 @@ for (const [protocol, expected] of [["https:", "wss:"], ["http:", "ws:"]]) {
       };
     `);
     await run("startSanntid()");
-    assert.equal(run("requestedSocketUrl"), `${expected}//meeting.example:8765/ws/sanntid`);
+    assert.equal(run("requestedSocketUrl"), "/recordings");
   });
 }
 

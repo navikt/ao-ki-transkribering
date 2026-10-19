@@ -1,6 +1,7 @@
 """Observe the WebSocket without recording audio, text, headers or user identity."""
 
 import asyncio
+import json
 import time
 
 from shared.diagnostics import event, failure
@@ -17,6 +18,10 @@ class RecordingSocket:
         self.results = 0
         self.close_code = None
         self.stop_requested = False
+        self.heartbeat_sequence = 0
+        self.pending_heartbeat = None
+        self.heartbeat_acks = 0
+        self.last_ack = None
         self.queue = RecordingQueue()
         self.send_lock = asyncio.Lock()
 
@@ -27,6 +32,8 @@ class RecordingSocket:
                     last_audio_age_s=round(now - self.last_audio, 2) if self.last_audio else None,
                     last_result_age_s=round(now - self.last_result, 2) if self.last_result else None,
                     results=self.results, close_code=self.close_code,
+                    heartbeat_acks=self.heartbeat_acks,
+                    last_ack_age_s=round(now - self.last_ack, 2) if self.last_ack is not None else None,
                     stop_requested=self.stop_requested, queue_depth=self.queue.qsize(),
                     chunk_inflight_s=round(now - self.queue.inflight, 2) if self.queue.inflight else None)
 
@@ -44,11 +51,31 @@ class RecordingSocket:
             self.last_audio = time.monotonic()
             self.audio_bytes += len(raw)
             self.audio_packets += 1
+        text = message.get("text")
+        if text and len(text) <= 128:
+            try:
+                data = json.loads(text)
+            except ValueError:
+                data = None
+            if (isinstance(data, dict) and data.get("type") == "heartbeat_ack"
+                    and type(data.get("sequence")) is int
+                    and data["sequence"] == self.heartbeat_sequence
+                    and self.pending_heartbeat is not None):
+                self.last_ack = time.monotonic()
+                self.heartbeat_acks += 1
+                event("recording.heartbeat_ack", sequence=self.heartbeat_sequence,
+                      round_trip_s=round(self.last_ack - self.pending_heartbeat, 3),
+                      **self.snapshot())
+                self.pending_heartbeat = None
         return message
 
     async def send_json(self, data):
         try:
             async with self.send_lock:
+                if data.get("type") == "heartbeat":
+                    self.heartbeat_sequence += 1
+                    self.pending_heartbeat = time.monotonic()
+                    data = {**data, "sequence": self.heartbeat_sequence}
                 await self.socket.send_json(data)
         except Exception as exc:
             failure("recording.send_failed", exc, message_type=data.get("type"), **self.snapshot())
@@ -61,6 +88,7 @@ class RecordingSocket:
             event("recording.heartbeat", **self.snapshot())
 
     async def close(self):
+        event("recording.close_requested", **self.snapshot())
         try:
             await self.socket.close()
             event("recording.close_sent", **self.snapshot())
