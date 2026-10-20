@@ -86,7 +86,7 @@ async def chat(request: Request):
     payload["model"] = MODEL
     if payload.get("transkriberit_count_tokens") is True:
         messages = payload.get("messages")
-        if payload.get("stream") is not False or not isinstance(messages, list) or not messages or any(
+        if payload.get("stream", False) is not False or not isinstance(messages, list) or not messages or any(
             not isinstance(message, dict) or message.get("role") not in {"system", "user"}
             or not isinstance(message.get("content"), str) for message in messages
         ):

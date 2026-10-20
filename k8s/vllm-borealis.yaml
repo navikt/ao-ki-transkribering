@@ -48,7 +48,7 @@ spec:
         - name: vllm
           # Keep the service/container name stable for existing deployment scripts.
           # This lightweight adapter owns TLS/auth; inference is loopback-only.
-          image: europe-west4-docker.pkg.dev/ao-ki-taskforce-prod-2472/vllm/llama-api:20261020-grounding
+          image: europe-west4-docker.pkg.dev/ao-ki-taskforce-prod-2472/vllm/llama-api:20261020-grounding-v2
           command: ["python", "-m", "uvicorn"]
           args:
             - worker.llama_api:app

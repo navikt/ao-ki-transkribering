@@ -48,10 +48,11 @@ def proxy(monkeypatch):
 AUTH = {"Authorization": "Bearer test-model-key"}
 
 
-def test_exact_counter_uses_native_template_without_running_inference(proxy):
+@pytest.mark.parametrize("stream_options", [{"stream": False}, {}])
+def test_exact_counter_uses_native_template_without_running_inference(proxy, stream_options):
     client, calls = proxy
     payload = {"model": "borealis-12b", "messages": [{"role": "user", "content": "Hei"}],
-               "stream": False, "transkriberit_count_tokens": True}
+               "transkriberit_count_tokens": True, **stream_options}
     assert client.post("/v1/chat/completions", json=payload).status_code == 401
     response = client.post("/v1/chat/completions", headers=AUTH, json=payload)
     assert response.status_code == 200
@@ -66,6 +67,16 @@ def test_invalid_counter_inputs_do_not_reach_native_server(proxy, messages):
     client, calls = proxy
     assert client.post("/v1/chat/completions", headers=AUTH, json={"model": "borealis-12b",
         "stream": False, "transkriberit_count_tokens": True, "messages": messages}).status_code == 400
+    assert not calls
+
+
+@pytest.mark.parametrize("stream", [True, None, "false", 0])
+def test_counter_rejects_explicit_invalid_or_streaming_modes(proxy, stream):
+    client, calls = proxy
+    response = client.post("/v1/chat/completions", headers=AUTH, json={"model": "borealis-12b",
+        "messages": [{"role": "user", "content": "Hei"}], "stream": stream,
+        "transkriberit_count_tokens": True})
+    assert response.status_code == 400
     assert not calls
 
 
