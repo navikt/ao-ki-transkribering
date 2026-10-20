@@ -224,8 +224,15 @@ gjennom delbehandlingen; teksten kuttes ikke til de første eller siste minutten
 Ved behov sammenstilles delnotatene i flere nivåer. Dette tar flere modellkall og
 kan påvirke detaljnivået; kvalitet på lange møter må vurderes med reelle samtaler.
 Kontekstbudsjettet er konservativt og reserverer plass til instruksjoner og svar.
-Strømming viser fremdrift og sender keep-alive under delbehandling. Logger viser
-antall deler, nivå og tekstlengde, uten møteinnhold eller mellomnotater.
+Nettleseren starter en bakgrunnsjobb og henter fremdrift med korte statuskall.
+Ved nettverksbrudd prøves samme jobb igjen, uten å generere referatet på nytt.
+Logger viser jobb-ID, start, fremdrift, ferdigstilling og feiltype, uten møteinnhold.
+Resultatet er bare tilgjengelig for brukeren som startet jobben og slettes etter
+samme oppbevaringstid som transkripsjonsresultater (standard seks timer).
+Jobbene kjører i én API-replika, med inntil fire aktive genereringer og 16 jobber
+totalt i kø og under behandling. Omstart av API-et avbryter pågående generering;
+en varig kø og delt lagring kreves før flere API-replikaer kan brukes.
+De eldre strømmeendepunktene er fortsatt tilgjengelige for API-klienter.
 
 «Utfyllende sammendrag» gir et tematisk møtereferat med kort oppsummering,
 nummererte hovedtemaer, oppgaver, åpne spørsmål og konklusjon. Temaene følger

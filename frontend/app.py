@@ -10,7 +10,7 @@ from fastapi.staticfiles import StaticFiles
 from frontend.auth import EntraAuthMiddleware
 
 from frontend.routes.helse import router as helse_router
-from frontend.routes.referat import router as referat_router
+from frontend.routes.referat import router as referat_router, summary_jobs
 from frontend.routes.sanntid import router as sanntid_router
 from frontend.routes.recordings import router as recordings_router, cleanup_sessions
 from frontend.routes.transkripsjon import router as transkripsjon_router
@@ -30,6 +30,7 @@ async def lifespan(app: FastAPI):
     async def expire_results():
         while True:
             await asyncio.to_thread(job_store.cleanup_completed, JOB_RETENTION_SECONDS)
+            await asyncio.to_thread(summary_jobs.store.cleanup_completed, JOB_RETENTION_SECONDS)
             cleanup_sessions()
             await asyncio.sleep(300)
 
@@ -37,6 +38,7 @@ async def lifespan(app: FastAPI):
     try:
         yield
     finally:
+        await summary_jobs.shutdown()
         cleanup.cancel()
         with suppress(asyncio.CancelledError):
             await cleanup

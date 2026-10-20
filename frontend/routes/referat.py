@@ -1,12 +1,18 @@
+import hashlib
 import json
 import logging
+import os
+from uuid import UUID
 
 import httpx
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request, Response
 from fastapi.responses import StreamingResponse
 
 from frontend.long_transcript import TranscriptProcessingError, generate, with_heartbeats
+from frontend.summary_jobs import SummaryJobs
+from shared.core.runtime import job_store
 from shared.core.settings import LLM_MODELL
+from shared.services.jobs import JobStore
 from shared.services.llm_proxy_client import (
     LlmForesporsel,
     LlmStatus,
@@ -27,6 +33,7 @@ from worker.prompts.handlinger import LlmHandling
 
 router = APIRouter()
 log = logging.getLogger(__name__)
+summary_jobs = SummaryJobs(JobStore(job_store.work_dir / "summaries"))
 
 
 def beregn_llm_estimat(modell: str | None, transkripsjon: str) -> int:
@@ -170,6 +177,62 @@ def _svargrense(handling: LlmHandling, foresporsel: LlmForesporsel) -> int | Non
         scenario = hent_referat_scenario(foresporsel.scenario)
         return scenario.max_tokens if scenario else None
     return None
+
+
+def _job_owner(request: Request) -> str:
+    user = getattr(request.state, "user", None)
+    if user is None and not os.getenv("NAIS_CLUSTER_NAME") and os.getenv("AUTH_REQUIRED", "").lower() != "true":
+        return "local"
+    principal = (user or {}).get("oid") or (user or {}).get("sub")
+    if not isinstance(principal, str) or not principal:
+        raise HTTPException(401, "Innlogging kreves")
+    return hashlib.sha256(f"{user.get('tid', '')}:{principal}".encode()).hexdigest()
+
+
+def _job_error(exc: Exception) -> str:
+    if isinstance(exc, httpx.HTTPStatusError):
+        return _sse_melding_for_llm(exc)
+    if isinstance(exc, httpx.TimeoutException):
+        return "Modellen brukte for lang tid. Prøv igjen."
+    if isinstance(exc, httpx.RequestError):
+        return "Kan ikke nå AI-proxyen. Prøv igjen."
+    if isinstance(exc, TranscriptProcessingError):
+        return str(exc)
+    return "Genereringen feilet. Prøv igjen."
+
+
+@router.post("/llm/handlinger/{handling_id}/jobber/{jobb_id}", status_code=202)
+async def start_llm_job(handling_id: str, jobb_id: UUID, foresporsel: LlmForesporsel, request: Request, response: Response):
+    response.headers["Cache-Control"] = "no-store"
+    if not foresporsel.transkripsjon.strip():
+        raise HTTPException(400, "Transkripsjon mangler")
+    handling = _hent_eller_404(handling_id)
+    _system, _user, scenario = _bygg_handling_prompt(handling, foresporsel)
+    fingerprint = hashlib.sha256(json.dumps(
+        [handling.id, foresporsel.model_dump()], sort_keys=True, ensure_ascii=False,
+    ).encode()).hexdigest()
+
+    async def run():
+        async for result in generate(
+            foresporsel.transkripsjon,
+            lambda text: _bygg_handling_prompt(
+                handling, foresporsel.model_copy(update={"transkripsjon": text})
+            )[:2],
+            foresporsel.modell, call=kall_llm, max_tokens=_svargrense(handling, foresporsel),
+        ):
+            if result["type"] == "ferdig" and handling.normaliser_output:
+                result["tekst"] = normaliser_til_bokmal(result["tekst"])
+            yield result
+
+    return summary_jobs.submit(str(jobb_id), _job_owner(request), fingerprint, {
+        "modell": foresporsel.modell or LLM_MODELL, "handling": handling.id, "scenario": scenario,
+    }, run, _job_error)
+
+
+@router.get("/llm/jobber/{jobb_id}")
+async def llm_job_status(jobb_id: UUID, request: Request, response: Response):
+    response.headers["Cache-Control"] = "no-store"
+    return summary_jobs.status(str(jobb_id), _job_owner(request))
 
 
 def _stream_handling(handling_id: str, foresporsel: LlmForesporsel):

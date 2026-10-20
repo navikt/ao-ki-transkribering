@@ -689,60 +689,24 @@ async function _triggerLiveReferat(transkripsjon) {
   document.getElementById("live-referat-chevron").textContent = "▲";
   _settLiveReferatStatus("oppdaterer …", true);
 
-  let buffer = "";
   tekstEl.innerHTML = '<span class="live-referat-tom">Genererer …</span>';
   tekstEl.classList.remove("llm-utilgjengelig");
-
+  const controller = new AbortController();
+  _liveReferatReader = {cancel: () => controller.abort()};
   try {
     document.getElementById("live-utkast-tittel").textContent = "Utkast: " + _referatScenarioTittel(valg.scenario);
-    const res = await fetch(valg.scenario === "sammendrag" ? "/sammendrag/stream" : "/referat/rullerende/stream", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ transkripsjon, ...(valg.scenario === "sammendrag" ? {} : valg) })
-    });
-    if (!res.ok) throw new Error("HTTP " + res.status);
-    const reader = res.body.getReader();
-    _liveReferatReader = reader;
-    const dec = new TextDecoder();
-    let rest = "";
-
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      const chunk = rest + dec.decode(value, { stream: true });
-      const linjer = chunk.split("\n");
-      rest = linjer.pop();
-      for (const linje of linjer) {
-        if (!linje.startsWith("data: ")) continue;
-        try {
-          const evt = JSON.parse(linje.slice(6));
-          if (evt.type === "token") {
-            buffer += evt.tekst;
-            tekstEl.textContent = buffer;
-            tekstEl.scrollTop = tekstEl.scrollHeight;
-          } else if (evt.type === "progress") {
-            _settLiveReferatStatus(evt.melding, true);
-          } else if (evt.type === "ferdig") {
-            buffer = evt.tekst;
-            _liveReferatTekst = evt.tekst;
-            tekstEl.textContent = buffer;
-            _settLiveReferatStatus(
-              "sist oppdatert " + new Date().toLocaleTimeString("nb-NO", {hour:"2-digit",minute:"2-digit"}),
-              false
-            );
-            document.getElementById("live-referat-tid").textContent =
-              "Modell: " + (evt.modell || "");
-          } else if (evt.type === "feil") {
-            tekstEl.textContent = evt.melding;
-            tekstEl.classList.toggle("llm-utilgjengelig", _erLlmUtilgjengeligMelding(evt.melding));
-            _settLiveReferatStatus(_erLlmUtilgjengeligMelding(evt.melding) ? "AI utilgjengelig" : "feil", false);
-          }
-        } catch {}
-      }
-    }
+    const data = await _genererLlmJobb(
+      valg.scenario === "sammendrag" ? "sammendrag" : "rullerende_referat",
+      {transkripsjon, ...(valg.scenario === "sammendrag" ? {} : valg)},
+      melding => _settLiveReferatStatus(melding, true), controller.signal,
+    );
+    _liveReferatTekst = data.tekst;
+    tekstEl.textContent = data.tekst;
+    _settLiveReferatStatus("sist oppdatert " + new Date().toLocaleTimeString("nb-NO", {hour:"2-digit", minute:"2-digit"}), false);
+    document.getElementById("live-referat-tid").textContent = "Modell: " + (data.modell || "");
   } catch (e) {
-    if (!e.message.includes("abort")) {
-      tekstEl.textContent = "⚠️ Kunne ikke oppdatere: " + e.message;
+    if (!controller.signal.aborted) {
+      tekstEl.textContent = "Kunne ikke oppdatere: " + e.message;
       _settLiveReferatStatus("feil", false);
     }
   } finally {
@@ -1328,61 +1292,67 @@ function _referatScenarioTittel(scenarioId) {
   return _referatScenarier.find(scenario => scenario.id === scenarioId)?.tittel || "Møtereferat";
 }
 
-async function _streamReferat(endepunkt, tekst, tittel, ekstra = {}) {
-  const res = await fetch(endepunkt, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ transkripsjon: tekst, ...ekstra }),
-  });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({ detail: res.statusText }));
-    const melding = err.detail || "Ukjent feil";
-    if (res.status === 503 || _erLlmUtilgjengeligMelding(melding)) {
-      _visLlmUtilgjengelig(melding);
-    } else {
-      _visReferatFeil(melding);
-    }
-    return;
-  }
-  const reader = res.body.getReader();
-  const decoder = new TextDecoder();
-  let buffer = "";
-  let samletTekst = "";
-
+async function _genererLlmJobb(handling, payload, onProgress, signal) {
+  const key = crypto.randomUUID();
+  const submitUrl = `/llm/handlinger/${handling}/jobber/${key}`;
+  let accepted = false;
   while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    buffer += decoder.decode(value, { stream: true });
-    const linjer = buffer.split("\n");
-    buffer = linjer.pop();
-    for (const linje of linjer) {
-      if (!linje.startsWith("data: ")) continue;
-      let data;
-      try { data = JSON.parse(linje.slice(6)); } catch { continue; }
-      if (data.type === "start") {
-        _startReferatProgress(data.estimert_sek, data.modell);
-      } else if (data.type === "progress") {
-        if (_referatProgressTimer) clearInterval(_referatProgressTimer);
-        _referatProgressTimer = null;
-        document.getElementById("referat-progress-wrap").style.display = "none";
-        document.getElementById("referat-laster-tekst").textContent = data.melding;
-      } else if (data.type === "token") {
-        samletTekst += data.tekst;
-        _visReferatStream(samletTekst);
-      } else if (data.type === "ferdig") {
-        _visReferatResultat(data.tekst, data.modell);
-      } else if (data.type === "feil") {
-        if (_erLlmUtilgjengeligMelding(data.melding)) {
-          _visLlmUtilgjengelig(data.melding);
-        } else {
-          _visReferatFeil(data.melding);
-        }
+    signal?.throwIfAborted();
+    const controller = new AbortController();
+    const abort = () => controller.abort();
+    signal?.addEventListener("abort", abort, {once: true});
+    const timeout = setTimeout(() => controller.abort(), 20000);
+    let state;
+    try {
+      const res = await fetch(accepted ? `/llm/jobber/${key}` : submitUrl, {
+        ...(accepted ? {} : {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify(payload)}),
+        cache: "no-store", signal: controller.signal,
+      });
+      if (res.redirected || res.headers?.get("content-type")?.includes("text/html")) {
+        state = {status: "feil", melding: "Innloggingen er utløpt. Logg inn på nytt."};
+      } else if ([401, 403].includes(res.status)) {
+        state = {status: "feil", melding: "Innlogging kreves. Logg inn på nytt."};
+      } else if (!res.ok && [429, 502, 503, 504].includes(res.status)) {
+        onProgress("Venter på tilkobling. Genereringen fortsetter automatisk …");
+      } else {
+        state = await res.json();
+        if (!res.ok) state = {status: "feil", melding: typeof state.detail === "string" ? state.detail : "Kunne ikke hente genereringen. Prøv igjen."};
+        else accepted = true;
       }
+    } catch {
+      signal?.throwIfAborted();
+      onProgress("Tilkoblingen ble avbrutt. Kobler til igjen …");
+    } finally {
+      clearTimeout(timeout);
+      signal?.removeEventListener("abort", abort);
     }
+    if (state?.status === "ferdig") return state;
+    if (state?.status === "feil") throw new Error(state.melding);
+    if (state?.melding) onProgress(state.melding);
+    await new Promise(resolve => setTimeout(resolve, 1500));
+  }
+}
+
+let _referatGenererer = false;
+
+async function _streamReferat(endepunkt, tekst, tittel, ekstra = {}) {
+  _referatGenererer = true;
+  try {
+    const action = endepunkt === "/sammendrag/stream" ? "sammendrag" : "referat";
+    const data = await _genererLlmJobb(action, {transkripsjon: tekst, ...ekstra}, melding => {
+      if (_referatProgressTimer) clearInterval(_referatProgressTimer);
+      _referatProgressTimer = null;
+      document.getElementById("referat-progress-wrap").style.display = "none";
+      document.getElementById("referat-laster-tekst").textContent = melding;
+    });
+    _visReferatResultat(data.tekst, data.modell);
+  } finally {
+    _referatGenererer = false;
   }
 }
 
 async function hentSammendrag(kilde = "sanntid") {
+  if (_referatGenererer) return;
   const tekst = _hentTranskripsjonTekst(kilde);
   if (!tekst.trim()) { alert("Ingen transkripsjon å oppsummere ennå."); return; }
   _visReferatPanel("Sammendrag");
@@ -1390,11 +1360,12 @@ async function hentSammendrag(kilde = "sanntid") {
   try {
     await _streamReferat("/sammendrag/stream", tekst, "📋 Løpende sammendrag");
   } catch (err) {
-    _visReferatFeil("Nettverksfeil: " + err.message);
+    _visReferatFeil(err.message);
   }
 }
 
 async function hentReferat(kilde) {
+  if (_referatGenererer) return;
   const tekst = _hentTranskripsjonTekst(kilde);
   if (!tekst.trim()) { alert("Ingen transkripsjon å generere referat fra."); return; }
   const valg = _referatValg();
@@ -1406,7 +1377,7 @@ async function hentReferat(kilde) {
   try {
     await _streamReferat("/referat/stream", tekst, tittel, valg);
   } catch (err) {
-    _visReferatFeil("Nettverksfeil: " + err.message);
+    _visReferatFeil(err.message);
   }
 }
 

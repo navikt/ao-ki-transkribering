@@ -32,6 +32,10 @@ function workspace() {
     return elements.get(id);
   };
   const context = vm.createContext({
+    crypto: require("node:crypto").webcrypto,
+    AbortController,
+    setTimeout: callback => { queueMicrotask(callback); return 0; },
+    clearTimeout() {},
     document: {
       getElementById: element,
       querySelector: element,
@@ -485,34 +489,102 @@ test("recording status hides duplicate recording text but preserves exceptional 
   assert.equal(element("sanntid-status-tekst").textContent, "WebSocket-feil");
 });
 
-test("live summary uses the summary endpoint, not a referat scenario", async () => {
+test("live summary uses a summary job, not a referat scenario", async () => {
   const { element, run } = workspace();
   element("referat-scenario").value = "sammendrag";
-  run('fetch = async (url, options) => { document.getElementById("request").value = url; document.getElementById("body").value = options.body; return {ok: true, body: { getReader: () => ({read: async () => ({done: true})}) }}; }');
+  run('fetch = async (url, options) => { document.getElementById("request").value = url; document.getElementById("body").value = options.body; return {ok: true, json: async () => ({status: "ferdig", tekst: "Resultat"})}; }');
   await run('_triggerLiveReferat("Meeting transcript")');
-  assert.equal(element("request").value, "/sammendrag/stream");
+  assert.match(element("request").value, /^\/llm\/handlinger\/sammendrag\/jobber\//);
   assert.deepEqual(JSON.parse(element("body").value), {transkripsjon: "Meeting transcript"});
 });
 
 test("summary generation shows section-processing progress instead of a stale countdown", async () => {
   const {element, run} = workspace();
   run(`
-    globalThis.TextDecoder = class {decode(value) {return value;}};
     _visReferatResultat = text => {document.getElementById('result').textContent = text;};
-    fetch = async () => ({ok: true, body: {getReader: () => {
-      const events = [
-        {type: 'start', estimert_sek: 20, modell: 'borealis-12b'},
-        {type: 'progress', melding: 'Behandler del 2 av 4 …'},
-        {type: 'ferdig', tekst: 'Hele møtet er oppsummert.'},
-      ];
-      return {read: async () => events.length
-        ? {value: 'data: ' + JSON.stringify(events.shift()) + '\\n\\n', done: false}
-        : {done: true}};
-    }}});
+    const events = [
+      {status: 'genererer', melding: 'Behandler del 2 av 4 …'},
+      {status: 'ferdig', tekst: 'Hele møtet er oppsummert.'},
+    ];
+    fetch = async () => ({ok: true, json: async () => events.shift()});
   `);
   await run('_streamReferat("/referat/stream", "Langt møte", "Referat")');
   assert.equal(element('referat-laster-tekst').textContent, 'Behandler del 2 av 4 …');
   assert.equal(element('referat-progress-wrap').style.display, 'none');
   assert.equal(run('_referatProgressTimer'), null);
   assert.equal(element('result').textContent, 'Hele møtet er oppsummert.');
+});
+
+test("summary recovers a lost submission response and a disconnected status request", async () => {
+  const {element, run} = workspace();
+  run(`
+    globalThis.crypto = {randomUUID: () => '00000000-0000-4000-8000-000000000000'};
+    globalThis.TextDecoder = class {decode(value) {return value;}};
+    globalThis.setTimeout = callback => {callback();};
+    document.getElementById('referat-panel').scrollIntoView = () => {};
+    _hentTranskripsjonTekst = () => 'Vi avtaler fredag.';
+    _visReferatPanel = () => {};
+    _visReferatResultat = text => {document.getElementById('result').textContent = text;};
+    _visReferatFeil = text => {document.getElementById('error').textContent = text;};
+    globalThis.submissions = [];
+    let polls = 0;
+    fetch = async (url, options) => {
+      if (url.endsWith('/stream')) return {ok: true, body: {getReader: () => ({read: async () => {
+        throw new TypeError('network error');
+      }})}};
+      if (options?.method === 'POST') {
+        submissions.push(url);
+        if (submissions.length === 1) throw new TypeError('network error');
+        return {ok: true, json: async () => ({status: 'genererer', melding: 'Behandler del 1 av 2 …'})};
+      }
+      if (++polls === 1) throw new TypeError('network error');
+      return {ok: true, json: async () => ({status: 'ferdig', tekst: 'Avtalt fredag.', modell: 'borealis-12b'})};
+    };
+  `);
+  element('referat-scenario').value = 'generelt_mote';
+  await run('hentReferat("sanntid")');
+  assert.equal(element('error').textContent, '');
+  assert.equal(element('result').textContent, 'Avtalt fredag.');
+  assert.equal(run('submissions.length'), 2);
+  assert.equal(run('submissions[0] === submissions[1]'), true);
+});
+
+test("summary stops retrying when login expires", async () => {
+  const {run} = workspace();
+  run(`
+    globalThis.requests = 0;
+    fetch = async () => { requests++; return {ok: false, status: 401}; };
+  `);
+  await assert.rejects(run('_genererLlmJobb("referat", {}, () => {})'), /Innlogging kreves/);
+  assert.equal(run('requests'), 1);
+});
+
+test("summary polls the same accepted job without resubmitting after a reset", async () => {
+  const {run} = workspace();
+  run(`
+    globalThis.posts = 0;
+    let polls = 0;
+    fetch = async (url, options) => {
+      if (options.method === 'POST') {
+        posts++;
+        return {ok: true, json: async () => ({status: 'genererer'})};
+      }
+      if (++polls === 1) throw new TypeError('network error');
+      return {ok: true, json: async () => ({status: 'ferdig', tekst: 'Resultat'})};
+    };
+  `);
+  assert.equal((await run('_genererLlmJobb("referat", {}, () => {})')).tekst, 'Resultat');
+  assert.equal(run('posts'), 1);
+});
+
+test("intentional cancellation stops summary polling", async () => {
+  const {run} = workspace();
+  run(`
+    globalThis.controller = new AbortController();
+    fetch = async () => {
+      controller.abort();
+      throw new TypeError('network error');
+    };
+  `);
+  await assert.rejects(run('_genererLlmJobb("referat", {}, () => {}, controller.signal)'), {name: 'AbortError'});
 });
