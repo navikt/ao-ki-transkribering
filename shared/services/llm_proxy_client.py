@@ -18,7 +18,9 @@ def _int_env(name: str, default: int) -> int:
 
 _OPTIONS = {
     "temperature": 0.25,
-    "num_ctx": _int_env("LLM_NUM_CTX", 32768),
+    "num_ctx": _int_env("LLM_CONTEXT_TOKENS", _int_env(
+        "LLM_NUM_CTX", _int_env("OLLAMA_NUM_CTX", 32768) if LLM_BACKEND == "ollama" else 8192
+    )),
     "repeat_penalty": 1.3,
     # Deployments can reserve more output within their model's context budget.
     "num_predict": _int_env("LLM_MAX_TOKENS", 256),
@@ -65,7 +67,21 @@ def sse(data: dict) -> str:
     return f"data: {json.dumps(data, ensure_ascii=False)}\n\n"
 
 
-def _build_payload(system: str, bruker: str, modell: str | None, stream: bool) -> dict:
+def input_token_budget(max_tokens: int | None = None) -> int:
+    """Reserve output and chat-template space inside the deployed context window."""
+    requested = max_tokens if max_tokens is not None else _OPTIONS["num_predict"]
+    output = max(requested, 600 if LLM_BACKEND == "ollama" else 512)
+    return _OPTIONS["num_ctx"] - output - 512
+
+
+def er_kontekstfeil(exc: httpx.HTTPStatusError) -> bool:
+    return exc.response.status_code == 400 and any(
+        marker in exc.response.text.lower()
+        for marker in ("contextwindowexceeded", "context_length_exceeded", "maximum context length")
+    )
+
+
+def _build_payload(system: str, bruker: str, modell: str | None, stream: bool, max_tokens: int | None = None) -> dict:
     return {
         "model": modell or LLM_MODELL,
         "stream": stream,
@@ -74,7 +90,7 @@ def _build_payload(system: str, bruker: str, modell: str | None, stream: bool) -
             {"role": "user", "content": bruker},
         ],
         "temperature": _OPTIONS["temperature"],
-        "max_tokens": _OPTIONS["num_predict"],
+        "max_tokens": max_tokens if max_tokens is not None else _OPTIONS["num_predict"],
     }
 
 
@@ -104,13 +120,15 @@ def _extract_text_from_delta(data: dict) -> str:
     return ""
 
 
-async def kall(system: str, bruker: str, modell: str | None = None) -> str:
+async def kall(system: str, bruker: str, modell: str | None = None, *, max_tokens: int | None = None) -> str:
     if LLM_BACKEND == "ollama":
         from worker.ollama.klient import kall as kall_ollama
 
+        if max_tokens is not None:
+            return await kall_ollama(system, bruker, modell or LLM_MODELL, max_tokens=max_tokens)
         return await kall_ollama(system, bruker, modell or LLM_MODELL)
 
-    payload = _build_payload(system, bruker, modell, stream=False)
+    payload = _build_payload(system, bruker, modell, stream=False, max_tokens=max_tokens)
     async with httpx.AsyncClient(timeout=httpx.Timeout(10.0, read=300.0)) as klient:
         resp = await klient.post(_chat_url(), json=payload, headers=await authenticated_headers(_chat_url(), _headers()))
         resp.raise_for_status()
@@ -155,20 +173,22 @@ async def hent_status() -> LlmStatus:
     )
 
 
-async def stream_tokens(system: str, bruker: str, modell: str | None = None):
+async def stream_tokens(system: str, bruker: str, modell: str | None = None, *, max_tokens: int | None = None):
     """Async generator som gir (token, er_ferdig, full_normalisert_tekst)."""
     if LLM_BACKEND == "ollama":
         from worker.ollama.klient import stream_tokens as stream_ollama_tokens
 
+        options = {"max_tokens": max_tokens} if max_tokens is not None else {}
         async for token, er_ferdig, full_normalisert_tekst in stream_ollama_tokens(
             system,
             bruker,
             modell or LLM_MODELL,
+            **options,
         ):
             yield token, er_ferdig, full_normalisert_tekst
         return
 
-    payload = _build_payload(system, bruker, modell, stream=True)
+    payload = _build_payload(system, bruker, modell, stream=True, max_tokens=max_tokens)
     svar_deler: list[str] = []
 
     # Tilstandsmaskin for å filtrere bort <think>-blokkar.

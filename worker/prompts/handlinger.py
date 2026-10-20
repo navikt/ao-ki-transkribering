@@ -39,6 +39,7 @@ class ReferatScenario:
     beskrivelse: str
     system_prompt: str
     bruker_prompt_template: str
+    max_tokens: int | None = None
 
     def bygg_bruker_prompt(self, transkripsjon: str) -> str:
         return self.bruker_prompt_template.format(transkripsjon=transkripsjon)
@@ -57,9 +58,10 @@ REFERAT_SCENARIER: dict[str, ReferatScenario] = {
     "utfyllende_sammendrag": ReferatScenario(
         id="utfyllende_sammendrag",
         tittel="Utfyllende sammendrag",
-        beskrivelse="Temaer, begrunnelser, alternativer, beslutninger, åpne spørsmål og oppfølging.",
+        beskrivelse="Tematisk møtereferat med kort oversikt, detaljerte temaer, oppgaver, åpne spørsmål og konklusjon.",
         system_prompt=SYSTEM_UTFYLLENDE_SAMMENDRAG,
         bruker_prompt_template=BRUKER_UTFYLLENDE_SAMMENDRAG,
+        max_tokens=3072,
     ),
     "veiledermote": ReferatScenario(
         id="veiledermote",

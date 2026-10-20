@@ -205,7 +205,8 @@ python -m uvicorn frontend.app:app --host 127.0.0.1 --port 8765
 | `WHISPER_SANNTID_MODELL` | `modeller/nb-whisper-medium` | Modell for sanntidsmodus |
 | `LLM_BACKEND` | `openai` | `openai` for OpenAI-kompatibel proxy, eller `ollama` for lokal Ollama |
 | `LLM_MODELL` | `borealis-12b` (`qwen3:8b` ved `LLM_BACKEND=ollama`) | LLM for møtereferat og sammendrag |
-| `LLM_MAX_TOKENS` | `256` (`1024` i NAIS) | Maksimal svarlengde for proxy-baserte LLM-kall. Prompt og svar deler modellens kontekstvindu. |
+| `LLM_MAX_TOKENS` | `256` (`1024` i NAIS) | Standard svarbudsjett for proxy-baserte LLM-kall. Utfyllende sammendrag bruker et eget budsjett på 3072 tokener. Prompt og svar deler modellens kontekstvindu. |
+| `LLM_CONTEXT_TOKENS` | `8192` (`32768` ved lokal Ollama, eller `OLLAMA_NUM_CTX`) | Kontekstvindu per forespørsel, inkludert instruksjoner og svar. Må samsvare med modellserveren; øker ikke serverens grense. `LLM_NUM_CTX` støttes som eldre alias. |
 | `AI_PROXY_URL` | `http://127.0.0.1:9000` | OpenAI-kompatibelt LLM-endepunkt ved `LLM_BACKEND=openai` |
 | `AI_PROXY_API_KEY` | tom | API-nøkkel for OpenAI-kompatibelt LLM-endepunkt |
 | `OLLAMA_URL` | `http://localhost:11434`     | Ollama-endepunkt |
@@ -216,6 +217,23 @@ python -m uvicorn frontend.app:app --host 127.0.0.1 --port 8765
 | `TRANSKRIPSJON_BACKEND` | `local` | `local` eller `remote` modellbackend for batch-transkripsjon |
 | `TRANSKRIPSJON_SERVICE_URL` | `http://127.0.0.1:9000` | URL til ekstern modellarbeider ved `TRANSKRIPSJON_BACKEND=remote` |
 | `TRANSKRIPSJON_MODELL` | `nb-whisper-large` i NAIS | Modellnavn sendt til OpenAI-kompatibel transkripsjons-API |
+
+Lange transkripsjoner behandles automatisk i deler før referatet eller sammendraget
+sammenstilles med valgt mal og eventuelle egne instruksjoner. Hele kilden sendes
+gjennom delbehandlingen; teksten kuttes ikke til de første eller siste minuttene.
+Ved behov sammenstilles delnotatene i flere nivåer. Dette tar flere modellkall og
+kan påvirke detaljnivået; kvalitet på lange møter må vurderes med reelle samtaler.
+Kontekstbudsjettet er konservativt og reserverer plass til instruksjoner og svar.
+Strømming viser fremdrift og sender keep-alive under delbehandling. Logger viser
+antall deler, nivå og tekstlengde, uten møteinnhold eller mellomnotater.
+
+«Utfyllende sammendrag» gir et tematisk møtereferat med kort oppsummering,
+nummererte hovedtemaer, oppgaver, åpne spørsmål og konklusjon. Temaene følger
+møtet; malen skal ikke gjette talernavn eller gjøre uklare datoer, kostnader og
+juridiske vurderinger til bekreftede fakta. Lange, innholdsrike møter kan gi rundt
+800-1200 ord, mens korte møter skal få kortere referater. Svarbudsjettet reserveres
+før teksten deles. Inndelingen bruker et estimat på to UTF-8-byte per token og
+reduserer delstørrelsen automatisk dersom modellserveren avviser størrelsen.
 
 ### Container
 

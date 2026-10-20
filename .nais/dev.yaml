@@ -83,6 +83,8 @@ spec:
       value: "borealis-12b"
     - name: LLM_MAX_TOKENS
       value: "1024"
+    - name: LLM_CONTEXT_TOKENS
+      value: "8192"
     - name: WHISPER_MODELL
       value: NbAiLab/nb-whisper-medium
     - name: HF_HUB_OFFLINE

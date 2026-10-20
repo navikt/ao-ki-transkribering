@@ -102,7 +102,7 @@ def test_egendefinert_referat_sender_instruksjoner_til_modell(monkeypatch, endpo
         calls.append((system, bruker))
         return "Vi møtes tirsdag."
 
-    async def stream(system, bruker, modell):
+    async def stream(system, bruker, modell, **kwargs):
         calls.append((system, bruker))
         yield "Vi møtes tirsdag.", True, "Vi møtes tirsdag."
 
@@ -184,6 +184,7 @@ def test_referat_bruker_valgt_scenario(monkeypatch, scenario):
     from worker.prompts.handlinger import hent_referat_scenario
     assert system_prompt == hent_referat_scenario(scenario).system_prompt
     assert "Vi tok en beslutning." in bruker_prompt
+    assert kall.await_args.kwargs == ({"max_tokens": 3072} if scenario == "utfyllende_sammendrag" else {})
 
 
 def test_ukjent_referat_scenario_gir_400():
@@ -214,8 +215,8 @@ def test_live_referat_bruker_motetype(monkeypatch, scenario):
 
     calls = []
 
-    async def stream(system, bruker, modell):
-        calls.append((system, bruker))
+    async def stream(system, bruker, modell, **kwargs):
+        calls.append((system, bruker, kwargs))
         yield "Referat", True, "Referat"
 
     monkeypatch.setattr(referat_routes, "stream_llm_tokens", stream)
@@ -229,6 +230,7 @@ def test_live_referat_bruker_motetype(monkeypatch, scenario):
     assert response.status_code == 200
     assert f'"scenario": "{expected}"' in response.text
     assert "Vi avtaler mandag." in calls[0][1]
+    assert calls[0][2] == ({"max_tokens": 3072} if scenario == "utfyllende_sammendrag" else {})
     if expected == "veiledermote":
         assert calls[0][0] == hent_handling("rullerende_referat").system_prompt
     else:

@@ -48,6 +48,99 @@ function workspace() {
   return { element, run: code => vm.runInContext(code, context) };
 }
 
+function transcriptWorkspace() {
+  const w = workspace();
+  w.run(`
+    class TranscriptNode {
+      children = []; dataset = {}; style = {}; className = ''; textContent = '';
+      get lastElementChild() { return this.children.at(-1); }
+      set innerHTML(value) { this.children = []; }
+      appendChild(child) {
+        if (child.tagName === 'fragment') this.children.push(...child.children);
+        else this.children.push(child);
+      }
+      querySelectorAll(selector) {
+        return this.children.flatMap(child => [
+          ...(selector.startsWith('.') ? child.className.split(' ').includes(selector.slice(1)) : child.tagName === selector) ? [child] : [],
+          ...child.querySelectorAll(selector),
+        ]);
+      }
+      querySelector(selector) { return this.querySelectorAll(selector)[0]; }
+    }
+    document.createElement = tag => Object.assign(new TranscriptNode(), {tagName: tag});
+    document.createDocumentFragment = () => document.createElement('fragment');
+    globalThis.transcript = document.createElement('div');
+    const getElement = document.getElementById;
+    document.getElementById = id => ['sanntid-tekst', 'dialog-container'].includes(id) ? transcript : getElement(id);
+    _byggTalerRad = () => {};
+    _sjekkLiveReferatTerskel = () => {};
+  `);
+  return w;
+}
+
+test("live sentence continues across audio chunks and keeps its original start time", async () => {
+  const {run} = transcriptWorkspace();
+  run(`
+    navigator.mediaDevices = {getUserMedia: async () => ({getTracks: () => []})};
+    globalThis.WebSocket = class {};
+  `);
+  await run('startSanntid()');
+  run(`
+    for (const [sequence, start, tekst] of [[0, 12, 'Vi skal se på'], [1, 14, 'saken i morgen.']]) {
+      sanntidWs.onmessage({data: JSON.stringify({type: 'segment', sequence, tekst,
+        segmenter: [{tekst, start, slutt: start + 2, taler: 'SPEAKER_00'}]})});
+    }
+  `);
+  assert.equal(run('transcript.children.length'), 1);
+  assert.equal(run('transcript.querySelector(".dialog-tekst").textContent'), 'Vi skal se på saken i morgen.');
+  assert.equal(run('transcript.querySelector("time").textContent'), '0:12');
+  run(`sanntidWs.onmessage({data: JSON.stringify({type: 'segment', sequence: 2, tekst: 'Neste punkt',
+    segmenter: [
+      {tekst: 'Neste punkt', start: 16, slutt: 17, taler: 'SPEAKER_00'},
+      {tekst: 'Ja.', start: 18, slutt: 19, taler: 'SPEAKER_01'}
+    ]})})`);
+  assert.equal(run('transcript.children.length'), 3);
+  assert.equal(run('transcript.children[1].querySelector("time").textContent'), '0:16');
+  assert.equal(run('transcript.children[2].dataset.taler'), 'SPEAKER_01');
+  assert.match(run('kopierSanntidTekstRaw()'), /Vi skal se på saken i morgen\.\n/);
+});
+
+test("sentence endings recognize closing quotes but keep abbreviations and hesitation open", () => {
+  const {run} = workspace();
+  for (const text of ['Ferdig.', 'Er det riktig?', 'Ja!', 'Hun sa «ja.»']) {
+    assert.equal(run(`erSetningsslutt(${JSON.stringify(text)})`), true, text);
+  }
+  for (const text of ['Vi trenger f.eks.', 'Møtet er kl.', 'Jeg tror ...', 'Jeg tror …', '   ']) {
+    assert.equal(run(`erSetningsslutt(${JSON.stringify(text)})`), false, text);
+  }
+});
+
+test("uploaded transcript groups sentence fragments but preserves sentence and speaker boundaries", () => {
+  const {run} = transcriptWorkspace();
+  run(`byggDialog([
+    {start: 1, slutt: 2, taler: 'SPEAKER_00', tekst: 'Vi følger'},
+    {start: 2, slutt: 4, taler: 'SPEAKER_00', tekst: 'opp i morgen.'},
+    {start: 5, slutt: 6, taler: 'SPEAKER_00', tekst: 'Et nytt tema'},
+    {start: 7, slutt: 8, taler: 'SPEAKER_01', tekst: 'Ja.'}
+  ], '')`);
+  assert.equal(run('transcript.children.length'), 3);
+  assert.equal(run('transcript.children[0].querySelector(".dialog-tekst").textContent'), 'Vi følger opp i morgen.');
+  assert.equal(run('transcript.children[1].querySelector(".dialog-tid").textContent'), '0:05');
+  assert.equal(run('transcript.children[2].dataset.taler'), 'SPEAKER_01');
+});
+
+test("audio actions sit below recording controls and copy sits below the transcript", () => {
+  const html = fs.readFileSync(path.join(__dirname, "../frontend/static/index.html"), "utf8");
+  assert.ok(html.indexOf('id="opptak-handlinger"') > html.indexOf('id="sanntid-stopp-knapp"'));
+  assert.ok(html.indexOf('id="opptak-handlinger"') < html.indexOf('id="sanntid-status"'));
+  assert.ok(html.indexOf('onclick="kopierSanntidTekst()"') > html.indexOf('id="sanntid-tekst"'));
+  const {element, run} = workspace();
+  let attached = false;
+  element('opptak-handlinger').appendChild = () => { attached = true; };
+  run('_tilbyNedlasting()');
+  assert.equal(attached, true);
+});
+
 test("technical diagnostics are grouped in developer mode and collapsed by default", () => {
   const html = fs.readFileSync(path.join(__dirname, "../frontend/static/index.html"), "utf8");
   const details = html.match(/<details id="mikrofon-diagnostikk"[\s\S]*?<\/details>/)[0];
@@ -385,4 +478,27 @@ test("live summary uses the summary endpoint, not a referat scenario", async () 
   await run('_triggerLiveReferat("Meeting transcript")');
   assert.equal(element("request").value, "/sammendrag/stream");
   assert.deepEqual(JSON.parse(element("body").value), {transkripsjon: "Meeting transcript"});
+});
+
+test("summary generation shows section-processing progress instead of a stale countdown", async () => {
+  const {element, run} = workspace();
+  run(`
+    globalThis.TextDecoder = class {decode(value) {return value;}};
+    _visReferatResultat = text => {document.getElementById('result').textContent = text;};
+    fetch = async () => ({ok: true, body: {getReader: () => {
+      const events = [
+        {type: 'start', estimert_sek: 20, modell: 'borealis-12b'},
+        {type: 'progress', melding: 'Behandler del 2 av 4 …'},
+        {type: 'ferdig', tekst: 'Hele møtet er oppsummert.'},
+      ];
+      return {read: async () => events.length
+        ? {value: 'data: ' + JSON.stringify(events.shift()) + '\\n\\n', done: false}
+        : {done: true}};
+    }}});
+  `);
+  await run('_streamReferat("/referat/stream", "Langt møte", "Referat")');
+  assert.equal(element('referat-laster-tekst').textContent, 'Behandler del 2 av 4 …');
+  assert.equal(element('referat-progress-wrap').style.display, 'none');
+  assert.equal(run('_referatProgressTimer'), null);
+  assert.equal(element('result').textContent, 'Hele møtet er oppsummert.');
 });

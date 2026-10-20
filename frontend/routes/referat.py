@@ -5,10 +5,12 @@ import httpx
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
 
+from frontend.long_transcript import TranscriptProcessingError, generate, with_heartbeats
 from shared.core.settings import LLM_MODELL
 from shared.services.llm_proxy_client import (
     LlmForesporsel,
     LlmStatus,
+    er_kontekstfeil,
     hent_status as hent_llm_status,
     kall as kall_llm,
     stream_tokens as stream_llm_tokens,
@@ -96,21 +98,17 @@ def _er_modell_utilgjengelig(exc: httpx.HTTPStatusError) -> bool:
 
 
 def _er_tekst_for_lang(exc: httpx.HTTPStatusError) -> bool:
-    return exc.response.status_code == 400 and any(
-        markor in exc.response.text.lower()
-        for markor in ("contextwindowexceeded", "context_length_exceeded", "maximum context length")
-    )
+    return er_kontekstfeil(exc)
 
 
 _TEKST_FOR_LANG = (
-    "Transkripsjonen og instruksjonene er for lange for modellens tekstgrense. "
-    "Del opp teksten og prøv igjen."
+    "Modellens tekstgrense avviker fra oppsettet. Automatisk oppdeling lyktes ikke."
 )
 
 
 def _http_error_for_llm(exc: httpx.HTTPStatusError) -> HTTPException:
     if _er_tekst_for_lang(exc):
-        return HTTPException(status_code=400, detail=_TEKST_FOR_LANG)
+        return HTTPException(status_code=502, detail=_TEKST_FOR_LANG)
     if _er_modell_utilgjengelig(exc):
         return HTTPException(status_code=503, detail="AI-modellen er ikke tilgjengelig nå")
     return HTTPException(status_code=502, detail=f"AI-proxy svarte med feil: {exc.response.status_code}")
@@ -130,20 +128,26 @@ async def _kjor_handling(handling_id: str, foresporsel: LlmForesporsel):
     handling = _hent_eller_404(handling_id)
     scenario_id = None
     try:
-        if handling.id in {"referat", "rullerende_referat"}:
-            system_prompt, bruker_prompt, scenario_id = _bygg_referat_prompt(
-                foresporsel, rullerende=handling.id == "rullerende_referat"
-            )
-        else:
-            system_prompt = handling.system_prompt
-            bruker_prompt = _bygg_prompt(handling, foresporsel.transkripsjon)
-        tekst = await kall_llm(system_prompt, bruker_prompt, foresporsel.modell)
+        _system, _bruker, scenario_id = _bygg_handling_prompt(handling, foresporsel)
+        async for event in generate(
+            foresporsel.transkripsjon,
+            lambda text: _bygg_handling_prompt(
+                handling, foresporsel.model_copy(update={"transkripsjon": text})
+            )[:2],
+            foresporsel.modell,
+            call=kall_llm,
+            max_tokens=_svargrense(handling, foresporsel),
+        ):
+            if event["type"] == "ferdig":
+                tekst = event["tekst"]
         if handling.normaliser_output:
             tekst = normaliser_til_bokmal(tekst)
     except httpx.ConnectError:
         raise HTTPException(status_code=503, detail="Kan ikke nå AI-proxyen")
     except httpx.HTTPStatusError as e:
         raise _http_error_for_llm(e)
+    except TranscriptProcessingError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
     except HTTPException:
         raise
     except Exception as exc:
@@ -155,6 +159,19 @@ async def _kjor_handling(handling_id: str, foresporsel: LlmForesporsel):
     return svar
 
 
+def _bygg_handling_prompt(handling: LlmHandling, foresporsel: LlmForesporsel) -> tuple[str, str, str | None]:
+    if handling.id in {"referat", "rullerende_referat"}:
+        return _bygg_referat_prompt(foresporsel, rullerende=handling.id == "rullerende_referat")
+    return handling.system_prompt, _bygg_prompt(handling, foresporsel.transkripsjon), None
+
+
+def _svargrense(handling: LlmHandling, foresporsel: LlmForesporsel) -> int | None:
+    if handling.id in {"referat", "rullerende_referat"}:
+        scenario = hent_referat_scenario(foresporsel.scenario)
+        return scenario.max_tokens if scenario else None
+    return None
+
+
 def _stream_handling(handling_id: str, foresporsel: LlmForesporsel):
     if not foresporsel.transkripsjon.strip():
         raise HTTPException(status_code=400, detail="Transkripsjon mangler")
@@ -163,13 +180,7 @@ def _stream_handling(handling_id: str, foresporsel: LlmForesporsel):
     scenario_id = None
     estimat = beregn_llm_estimat(foresporsel.modell, foresporsel.transkripsjon)
     valgt_modell = foresporsel.modell or LLM_MODELL
-    if handling.id in {"referat", "rullerende_referat"}:
-        system_prompt, bruker_prompt, scenario_id = _bygg_referat_prompt(
-            foresporsel, rullerende=handling.id == "rullerende_referat"
-        )
-    else:
-        system_prompt = handling.system_prompt
-        bruker_prompt = _bygg_prompt(handling, foresporsel.transkripsjon)
+    _system, _bruker, scenario_id = _bygg_handling_prompt(handling, foresporsel)
 
     async def generator():
         yield sse({
@@ -180,24 +191,31 @@ def _stream_handling(handling_id: str, foresporsel: LlmForesporsel):
             "scenario": scenario_id,
         })
         try:
-            async for token, ferdig, full_tekst in stream_llm_tokens(
-                system_prompt, bruker_prompt, foresporsel.modell
-            ):
-                if ferdig:
-                    tekst = normaliser_til_bokmal(full_tekst) if handling.normaliser_output else full_tekst
-                    yield sse({
-                        "type": "ferdig",
-                        "tekst": tekst,
-                        "modell": valgt_modell,
-                        "handling": handling.id,
-                        "scenario": scenario_id,
-                    })
-                elif token:
-                    yield sse({"type": "token", "tekst": token})
+            events = generate(
+                foresporsel.transkripsjon,
+                lambda text: _bygg_handling_prompt(
+                    handling, foresporsel.model_copy(update={"transkripsjon": text})
+                )[:2],
+                foresporsel.modell,
+                call=kall_llm,
+                stream=stream_llm_tokens,
+                max_tokens=_svargrense(handling, foresporsel),
+            )
+            async for event in with_heartbeats(events):
+                if event is None:
+                    yield ": keepalive\n\n"
+                else:
+                    if event["type"] == "ferdig":
+                        if handling.normaliser_output:
+                            event["tekst"] = normaliser_til_bokmal(event["tekst"])
+                        event.update(modell=valgt_modell, handling=handling.id, scenario=scenario_id)
+                    yield sse(event)
         except httpx.ConnectError:
             yield sse({"type": "feil", "melding": "Kan ikke nå AI-proxyen"})
         except httpx.HTTPStatusError as e:
             yield sse({"type": "feil", "melding": _sse_melding_for_llm(e)})
+        except TranscriptProcessingError as exc:
+            yield sse({"type": "feil", "melding": str(exc)})
         except Exception:
             log.exception("Feil ved streaming av LLM-handling %s", handling.id)
             yield sse({"type": "feil", "melding": f"Feil ved generering av {handling.tittel}"})

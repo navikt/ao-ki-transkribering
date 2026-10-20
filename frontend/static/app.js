@@ -371,6 +371,13 @@ function visResultatMeta(data) {
   meta.appendChild(fragment);
 }
 
+function erSetningsslutt(tekst) {
+  const slutt = tekst.trim().replace(/["'\u00bb\u201d\u2019)\]]+$/u, "");
+  // Common abbreviations and trailing ellipses do not finish a sentence.
+  if (/(?:\.{2,}|\u2026)$|\b(?:bl\.a|f\.eks|dvs|jf|ca|kl|dr|prof|nr|pkt|mfl)\.$/iu.test(slutt)) return false;
+  return /[.!?]$/.test(slutt);
+}
+
 function byggDialog(segmenter, fallbackTekst) {
   const container = document.getElementById("dialog-container");
   container.innerHTML = "";
@@ -380,15 +387,18 @@ function byggDialog(segmenter, fallbackTekst) {
     return;
   }
 
-  // Slå sammen påfølgende segmenter fra samme taler
+  // Keep the first fragment's timestamp when a sentence spans model segments.
   const linjer = [];
   for (const seg of segmenter) {
+    const tekst = (seg.tekst || "").trim();
+    if (!tekst) continue;
     const taler = seg.taler || "SPEAKER_00";
-    if (linjer.length && linjer[linjer.length - 1].taler === taler) {
-      linjer[linjer.length - 1].tekst += " " + seg.tekst;
-      linjer[linjer.length - 1].slutt = seg.slutt;
+    const siste = linjer.at(-1);
+    if (siste && siste.taler === taler && !erSetningsslutt(siste.tekst)) {
+      siste.tekst += " " + tekst;
+      siste.slutt = seg.slutt;
     } else {
-      linjer.push({ taler, tekst: seg.tekst, start: seg.start, slutt: seg.slutt });
+      linjer.push({ taler, tekst, start: seg.start, slutt: seg.slutt });
     }
   }
 
@@ -710,6 +720,8 @@ async function _triggerLiveReferat(transkripsjon) {
             buffer += evt.tekst;
             tekstEl.textContent = buffer;
             tekstEl.scrollTop = tekstEl.scrollHeight;
+          } else if (evt.type === "progress") {
+            _settLiveReferatStatus(evt.melding, true);
           } else if (evt.type === "ferdig") {
             buffer = evt.tekst;
             _liveReferatTekst = evt.tekst;
@@ -881,24 +893,21 @@ async function startSanntid(restored = []) {
     }
     if (data.type === "segment" && data.tekst) {
       _aktivTranskripsjonskilde = "sanntid";
-      // Legg til segmenter fra dette chunk-et i dialogvisningen
+      // Audio chunk boundaries must not split an unfinished sentence.
       const boks = document.getElementById("sanntid-tekst");
       for (const seg of (data.segmenter || [{ tekst: data.tekst, taler: "SPEAKER_00" }])) {
-        if (!seg.tekst) continue;
+        const innhold = (seg.tekst || "").trim();
+        if (!innhold) continue;
         const taler = seg.taler || "SPEAKER_00";
 
-        // Prøv å slå sammen med siste linje hvis samme taler
         const siste = boks.lastElementChild;
-        if (siste && siste.dataset.taler === taler && siste.dataset.chunk === String(data.sequence)) {
-          const tekst = siste.querySelector(".dialog-tekst");
-          if (tekst) tekst.textContent += " " + seg.tekst;
-          const time = siste.querySelector("time");
-          if (time) time.textContent = `${opptakTid(siste.dataset.start)} – ${opptakTid(seg.slutt)}`;
+        const sisteTekst = siste?.querySelector(".dialog-tekst");
+        if (sisteTekst && siste.dataset.taler === taler && !erSetningsslutt(sisteTekst.textContent)) {
+          sisteTekst.textContent += " " + innhold;
         } else {
           const div = document.createElement("div");
           div.className = "dialog-linje";
           div.dataset.taler = taler;
-          div.dataset.chunk = String(data.sequence);
           div.dataset.start = seg.start;
 
           const brikke = document.createElement("div");
@@ -907,12 +916,12 @@ async function startSanntid(restored = []) {
 
           const høyre = document.createElement("div");
           const timestamp = document.createElement("time");
-          timestamp.textContent = `${opptakTid(seg.start)} – ${opptakTid(seg.slutt)}`;
+          timestamp.textContent = opptakTid(seg.start);
           timestamp.style.cssText = "display:block;font-size:.75rem;color:#555";
           høyre.appendChild(timestamp);
           const tekst = document.createElement("div");
           tekst.className = "dialog-tekst";
-          tekst.textContent = seg.tekst;
+          tekst.textContent = innhold;
           høyre.appendChild(tekst);
           div.appendChild(brikke);
           div.appendChild(høyre);
@@ -1048,7 +1057,7 @@ function _tilbyNedlasting() {
     <button type="button" class="knapp knapp-sekundær" onclick="slettOpptak()">Slett lokal lyd</button>
     <span style="flex-basis:100%">Utløper etter 8 timer; opprydding ved neste besøk hvis siden er lukket. Nedlastede filer beholdes.</span>
   `;
-  document.getElementById("sanntid-knapper").after(div);
+  document.getElementById("opptak-handlinger").appendChild(div);
 }
 
 async function lastNedOpptak() {
@@ -1099,7 +1108,7 @@ async function gjenopprettLokalLyd() {
       await startSanntid(rows.filter(row => row.session === session));
     };
     div.appendChild(button);
-    document.getElementById("sanntid-knapper").after(div);
+    document.getElementById("opptak-handlinger").appendChild(div);
   } catch { /* Recording startup reports storage failures before capturing audio. */ }
 }
 
@@ -1352,6 +1361,11 @@ async function _streamReferat(endepunkt, tekst, tittel, ekstra = {}) {
       try { data = JSON.parse(linje.slice(6)); } catch { continue; }
       if (data.type === "start") {
         _startReferatProgress(data.estimert_sek, data.modell);
+      } else if (data.type === "progress") {
+        if (_referatProgressTimer) clearInterval(_referatProgressTimer);
+        _referatProgressTimer = null;
+        document.getElementById("referat-progress-wrap").style.display = "none";
+        document.getElementById("referat-laster-tekst").textContent = data.melding;
       } else if (data.type === "token") {
         samletTekst += data.tekst;
         _visReferatStream(samletTekst);

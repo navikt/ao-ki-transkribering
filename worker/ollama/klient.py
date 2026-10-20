@@ -8,7 +8,7 @@ from worker.prompts.normalisering import normaliser_til_bokmal
 
 URL       = os.getenv("OLLAMA_URL",        "http://localhost:11434")
 MODELL    = os.getenv("OLLAMA_MODELL", os.getenv("LLM_MODELL", "qwen3:8b"))
-NUM_CTX   = int(os.getenv("OLLAMA_NUM_CTX", "32768"))
+NUM_CTX   = int(os.getenv("LLM_CONTEXT_TOKENS", os.getenv("LLM_NUM_CTX", os.getenv("OLLAMA_NUM_CTX", "32768"))))
 
 _OPTIONS = {"temperature": 0.25, "num_ctx": NUM_CTX, "repeat_penalty": 1.3, "num_predict": 600}
 
@@ -22,7 +22,7 @@ def sse(data: dict) -> str:
     return f"data: {json.dumps(data, ensure_ascii=False)}\n\n"
 
 
-async def stream_tokens(system: str, bruker: str, modell: str | None = None):
+async def stream_tokens(system: str, bruker: str, modell: str | None = None, *, max_tokens: int | None = None):
     """Async generator som gir (token, er_ferdig, full_normalisert_tekst).
 
     Siste yield har er_ferdig=True og normalisert sluttekst.
@@ -49,7 +49,7 @@ async def stream_tokens(system: str, bruker: str, modell: str | None = None):
                 "prompt": bruker,
                 "stream": True,
                 "think": False,
-                "options": _OPTIONS,
+                "options": _OPTIONS if max_tokens is None else {**_OPTIONS, "num_predict": max_tokens},
             },
         ) as resp:
             resp.raise_for_status()
@@ -101,7 +101,7 @@ async def stream_tokens(system: str, bruker: str, modell: str | None = None):
                     return
 
 
-async def kall(system: str, bruker: str, modell: str | None = None) -> str:
+async def kall(system: str, bruker: str, modell: str | None = None, *, max_tokens: int | None = None) -> str:
     """Kaller Ollama /api/generate med streaming og returnerer svarteksten.
 
     Bruker streaming for å unngå timeout ved lange svar.
@@ -119,7 +119,7 @@ async def kall(system: str, bruker: str, modell: str | None = None) -> str:
                 "prompt": bruker,
                 "stream": True,
                 "think": False,
-                "options": _OPTIONS,
+                "options": _OPTIONS if max_tokens is None else {**_OPTIONS, "num_predict": max_tokens},
             },
         ) as resp:
             resp.raise_for_status()
