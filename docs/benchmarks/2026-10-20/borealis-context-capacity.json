@@ -1,0 +1,33 @@
+{
+  "date": "2026-10-20",
+  "model": "borealis-12b",
+  "runtime": "llama.cpp",
+  "quantization": "Q8_0",
+  "gpu": "NVIDIA L4",
+  "scope": "Native loopback API on the existing GCloud Borealis GPU, not a gateway or summary-quality benchmark",
+  "input": "Synthetic Norwegian meeting-note sentence repeated 800 times, with an instruction to return a short acknowledgement",
+  "baseline": {
+    "parallel_slots": 4,
+    "context_per_slot": 8192,
+    "input_tokens_before_chat_template": 24832,
+    "http_status": 400
+  },
+  "larger_context": {
+    "aggregate_context": 65536,
+    "parallel_slots": 2,
+    "context_per_slot": 32768,
+    "simultaneous_requests": 2,
+    "requests": [
+      {"request": 1, "http_status": 200, "prompt_tokens": 24845, "cached_tokens": 0, "completion_tokens": 8, "elapsed_s": 35.19, "finish_reason": "stop"},
+      {"request": 2, "http_status": 200, "prompt_tokens": 24845, "cached_tokens": 0, "completion_tokens": 8, "elapsed_s": 20.65, "finish_reason": "stop"}
+    ],
+    "container_restarts": 0,
+    "startup_gpu_memory_mib": {"total": 23034, "used": 17364, "free": 5200}
+  },
+  "limitations": [
+    "Short eight-token replies do not measure extensive-summary generation latency or factual accuracy.",
+    "Repeated synthetic input is not representative of real meeting content.",
+    "The baseline rejected the request, so this does not establish a speedup.",
+    "Startup memory is a point observation, not peak memory under all workloads."
+  ]
+}
