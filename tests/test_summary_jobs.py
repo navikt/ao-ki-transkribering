@@ -8,6 +8,8 @@ from fastapi.testclient import TestClient
 from frontend.routes import referat as routes
 from frontend.summary_jobs import SummaryJobs
 from shared.services.jobs import JobStore
+from tests.summary_fakes import checked_model
+from frontend.grounded_summary import GROUNDING_RULES
 
 
 def test_summary_submission_is_idempotent_and_result_survives_status_connection(monkeypatch, tmp_path):
@@ -20,7 +22,7 @@ def test_summary_submission_is_idempotent_and_result_survives_status_connection(
         await asyncio.sleep(0.03)
         return "Vi avtaler fredag."
 
-    monkeypatch.setattr(routes, "kall_llm", model)
+    checked_model(monkeypatch, model)
     app = FastAPI()
     app.include_router(routes.router)
     key = str(uuid4())
@@ -143,7 +145,7 @@ async def test_background_job_preserves_selected_prompt_and_output_budget(monkey
         calls.append((system, user, kwargs))
         return "Fredag tester vi løsningen."
 
-    monkeypatch.setattr(routes, "kall_llm", model)
+    checked_model(monkeypatch, model)
     payload = routes.LlmForesporsel(
         transkripsjon="Fredag tester vi løsningen.", scenario=scenario,
         instruksjoner="Bruk en enkel overskrift" if scenario == "egendefinert" else None,
@@ -153,7 +155,9 @@ async def test_background_job_preserves_selected_prompt_and_output_budget(monkey
     await routes.start_llm_job("referat", key, payload, request, Response())
     await asyncio.gather(*service.tasks.values())
     assert len(calls) == 1
-    assert calls[0][:2] == routes._bygg_referat_prompt(payload)[:2]
+    expected_system, expected_user, _ = routes._bygg_referat_prompt(payload)
+    assert calls[0][0].startswith(expected_system + GROUNDING_RULES)
+    assert calls[0][1].startswith(expected_user)
     assert calls[0][2] == ({"max_tokens": 3072} if scenario == "utfyllende_sammendrag" else {})
     result = await routes.llm_job_status(key, request, Response())
     assert result["status"] == "ferdig" and result["scenario"] == scenario

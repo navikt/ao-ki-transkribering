@@ -9,6 +9,8 @@ import frontend.routes.referat as referat_routes
 from frontend.routes.referat import router
 from shared.services.llm_proxy_client import LlmModell, LlmStatus
 from worker.prompts.handlinger import LLM_HANDLINGER, hent_handling, list_handlinger
+from frontend.grounded_summary import GROUNDING_RULES
+from tests.summary_fakes import checked_model
 
 
 def test_handlinger_har_stabile_ider():
@@ -106,7 +108,7 @@ def test_egendefinert_referat_sender_instruksjoner_til_modell(monkeypatch, endpo
         calls.append((system, bruker))
         yield "Vi møtes tirsdag.", True, "Vi møtes tirsdag."
 
-    monkeypatch.setattr(referat_routes, "kall_llm", kall)
+    checked_model(monkeypatch, kall)
     monkeypatch.setattr(referat_routes, "stream_llm_tokens", stream)
     app = FastAPI()
     app.include_router(router)
@@ -171,7 +173,7 @@ def test_referat_bruker_valgt_scenario(monkeypatch, scenario):
     app.include_router(router)
     klient = TestClient(app)
     kall = AsyncMock(return_value="Referat")
-    monkeypatch.setattr(referat_routes, "kall_llm", kall)
+    checked_model(monkeypatch, kall)
 
     res = klient.post(
         "/referat",
@@ -182,7 +184,7 @@ def test_referat_bruker_valgt_scenario(monkeypatch, scenario):
     assert res.json()["scenario"] == scenario
     system_prompt, bruker_prompt, _modell = kall.await_args.args
     from worker.prompts.handlinger import hent_referat_scenario
-    assert system_prompt == hent_referat_scenario(scenario).system_prompt
+    assert system_prompt.startswith(hent_referat_scenario(scenario).system_prompt + GROUNDING_RULES)
     assert "Vi tok en beslutning." in bruker_prompt
     assert kall.await_args.kwargs == ({"max_tokens": 3072} if scenario == "utfyllende_sammendrag" else {})
 
@@ -202,7 +204,7 @@ def test_referat_uten_scenario_bruker_generelt_mote(monkeypatch):
     app = FastAPI()
     app.include_router(router)
     kall = AsyncMock(return_value="Referat")
-    monkeypatch.setattr(referat_routes, "kall_llm", kall)
+    checked_model(monkeypatch, kall)
     response = TestClient(app).post("/referat", json={"transkripsjon": "Vi avtaler et nytt møte."})
     assert response.status_code == 200
     assert response.json()["scenario"] == "generelt_mote"
@@ -215,11 +217,11 @@ def test_live_referat_bruker_motetype(monkeypatch, scenario):
 
     calls = []
 
-    async def stream(system, bruker, modell, **kwargs):
+    async def call(system, bruker, modell, **kwargs):
         calls.append((system, bruker, kwargs))
-        yield "Referat", True, "Referat"
+        return "Referat"
 
-    monkeypatch.setattr(referat_routes, "stream_llm_tokens", stream)
+    checked_model(monkeypatch, call)
     app = FastAPI()
     app.include_router(router)
     response = TestClient(app).post(
@@ -232,9 +234,9 @@ def test_live_referat_bruker_motetype(monkeypatch, scenario):
     assert "Vi avtaler mandag." in calls[0][1]
     assert calls[0][2] == ({"max_tokens": 3072} if scenario == "utfyllende_sammendrag" else {})
     if expected == "veiledermote":
-        assert calls[0][0] == hent_handling("rullerende_referat").system_prompt
+        assert calls[0][0].startswith(hent_handling("rullerende_referat").system_prompt + GROUNDING_RULES)
     else:
-        assert calls[0][0] == hent_referat_scenario(expected).system_prompt
+        assert calls[0][0].startswith(hent_referat_scenario(expected).system_prompt + GROUNDING_RULES)
         assert "Møtet pågår" in calls[0][1]
 
 

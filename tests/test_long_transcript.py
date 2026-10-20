@@ -57,7 +57,6 @@ async def test_note_output_is_reserved_even_when_final_answer_is_short(monkeypat
 
 
 @pytest.mark.parametrize("endpoint", [
-    "/referat", "/referat/stream", "/referat/rullerende/stream", "/sammendrag/stream",
     "/llm/handlinger/avtaler", "/llm/handlinger/kvalitetssjekk/stream",
 ])
 def test_long_meeting_is_processed_without_manual_splitting(monkeypatch, endpoint):

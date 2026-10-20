@@ -9,6 +9,7 @@ from fastapi import APIRouter, HTTPException, Request, Response
 from fastapi.responses import StreamingResponse
 
 from frontend.long_transcript import TranscriptProcessingError, generate, with_heartbeats
+from frontend.grounded_summary import generate as generate_grounded
 from frontend.summary_jobs import SummaryJobs
 from shared.core.runtime import job_store
 from shared.core.settings import LLM_MODELL
@@ -19,6 +20,7 @@ from shared.services.llm_proxy_client import (
     er_kontekstfeil,
     hent_status as hent_llm_status,
     kall as kall_llm,
+    count_tokens as count_llm_tokens,
     stream_tokens as stream_llm_tokens,
 )
 from worker.prompts import (
@@ -60,7 +62,7 @@ def _bygg_referat_prompt(foresporsel: LlmForesporsel, *, rullerende: bool = Fals
     scenario = hent_referat_scenario(foresporsel.scenario)
     if scenario is None:
         raise HTTPException(status_code=400, detail=f"Ukjent referat-scenario: {foresporsel.scenario}")
-    tekst = normaliser_til_bokmal(foresporsel.transkripsjon)
+    tekst = foresporsel.transkripsjon
     if scenario.id == "egendefinert":
         instruksjoner = (foresporsel.instruksjoner or "").strip()
         if not instruksjoner:
@@ -136,15 +138,7 @@ async def _kjor_handling(handling_id: str, foresporsel: LlmForesporsel):
     scenario_id = None
     try:
         _system, _bruker, scenario_id = _bygg_handling_prompt(handling, foresporsel)
-        async for event in generate(
-            foresporsel.transkripsjon,
-            lambda text: _bygg_handling_prompt(
-                handling, foresporsel.model_copy(update={"transkripsjon": text})
-            )[:2],
-            foresporsel.modell,
-            call=kall_llm,
-            max_tokens=_svargrense(handling, foresporsel),
-        ):
+        async for event in _handling_events(handling, foresporsel):
             if event["type"] == "ferdig":
                 tekst = event["tekst"]
         if handling.normaliser_output:
@@ -169,7 +163,21 @@ async def _kjor_handling(handling_id: str, foresporsel: LlmForesporsel):
 def _bygg_handling_prompt(handling: LlmHandling, foresporsel: LlmForesporsel) -> tuple[str, str, str | None]:
     if handling.id in {"referat", "rullerende_referat"}:
         return _bygg_referat_prompt(foresporsel, rullerende=handling.id == "rullerende_referat")
+    if handling.id == "sammendrag":
+        return handling.system_prompt, handling.bygg_bruker_prompt(foresporsel.transkripsjon), None
     return handling.system_prompt, _bygg_prompt(handling, foresporsel.transkripsjon), None
+
+
+def _handling_events(handling, foresporsel, *, stream=None):
+    grounded = handling.id in {"referat", "rullerende_referat", "sammendrag"}
+    engine = generate_grounded if grounded else generate
+    options = {"comprehensive": handling.id != "sammendrag" and foresporsel.scenario != "minimalt_sammendrag"} if grounded else {"stream": stream}
+    return engine(
+        foresporsel.transkripsjon,
+        lambda text: _bygg_handling_prompt(handling, foresporsel.model_copy(update={"transkripsjon": text}))[:2],
+        foresporsel.modell, call=kall_llm, count=count_llm_tokens,
+        max_tokens=_svargrense(handling, foresporsel), **options,
+    )
 
 
 def _svargrense(handling: LlmHandling, foresporsel: LlmForesporsel) -> int | None:
@@ -213,13 +221,7 @@ async def start_llm_job(handling_id: str, jobb_id: UUID, foresporsel: LlmForespo
     ).encode()).hexdigest()
 
     async def run():
-        async for result in generate(
-            foresporsel.transkripsjon,
-            lambda text: _bygg_handling_prompt(
-                handling, foresporsel.model_copy(update={"transkripsjon": text})
-            )[:2],
-            foresporsel.modell, call=kall_llm, max_tokens=_svargrense(handling, foresporsel),
-        ):
+        async for result in _handling_events(handling, foresporsel):
             if result["type"] == "ferdig" and handling.normaliser_output:
                 result["tekst"] = normaliser_til_bokmal(result["tekst"])
             yield result
@@ -254,16 +256,7 @@ def _stream_handling(handling_id: str, foresporsel: LlmForesporsel):
             "scenario": scenario_id,
         })
         try:
-            events = generate(
-                foresporsel.transkripsjon,
-                lambda text: _bygg_handling_prompt(
-                    handling, foresporsel.model_copy(update={"transkripsjon": text})
-                )[:2],
-                foresporsel.modell,
-                call=kall_llm,
-                stream=stream_llm_tokens,
-                max_tokens=_svargrense(handling, foresporsel),
-            )
+            events = _handling_events(handling, foresporsel, stream=stream_llm_tokens)
             async for event in with_heartbeats(events):
                 if event is None:
                     yield ": keepalive\n\n"

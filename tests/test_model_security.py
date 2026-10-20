@@ -12,11 +12,56 @@ import pytest
 from fastapi import FastAPI, Request
 from starlette.responses import JSONResponse
 
-from images.litellm.scoped_auth import authorize, user_api_key_auth
+from images.litellm.scoped_auth import authorize, user_api_key_auth, _safe_response_format
 from k8s.model_security import ModelAccessMiddleware
 from shared.services import model_auth
 
 ROOT = Path(__file__).resolve().parents[1]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("extra,status", [
+    ({"extra_body": {"transkriberit_count_tokens": True}, "stream": False, "max_tokens": 1}, 200),
+    ({"response_format": {"type": "json_object"}}, 200),
+    ({"extra_body": {"api_base": "http://attacker"}}, 403),
+    ({"extra_body": {"transkriberit_count_tokens": True, "api_key": "attacker"}}, 403),
+    ({"extra_body": {"transkriberit_count_tokens": 1}, "stream": False, "max_tokens": 1}, 403),
+    ({"extra_body": [], "stream": False, "max_tokens": 1}, 403),
+    ({"response_format": {"type": "json_schema", "schema": {}}}, 403),
+])
+async def test_grounding_extensions_do_not_enable_provider_overrides(monkeypatch, extra, status):
+    monkeypatch.setenv("NAIS_PROD_API_KEY", "prod-key")
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=gateway_app()), base_url="https://gateway") as client:
+        response = await client.post("/v1/chat/completions", headers={"Authorization": "Bearer prod-key"},
+            json={"model": "borealis-12b", "messages": [{"role": "user", "content": "Hei"}], **extra})
+    assert response.status_code == status
+
+
+@pytest.mark.parametrize("kind", ["EvidenceBatch", "Audit", "Coverage"])
+def test_generated_grounding_schemas_pass_the_gateway_policy(kind):
+    from frontend import grounded_summary as grounded
+
+    values = {"source": {1: "Kilde"}, "claims": [{"id": 0, "text": "Påstand"}], "draft": [{"id": 0, "text": "Påstand"}]}
+    schema = json.loads(grounded._payload(getattr(grounded, kind), **values))["response_schema"]
+    assert _safe_response_format({"type": "json_schema", "json_schema": {
+        "name": "transkriberit_" + kind, "strict": True, "schema": schema,
+    }})
+
+
+@pytest.mark.parametrize("reference", ["https://attacker/schema", "file:///etc/passwd", "#/$defs/Loop"])
+def test_schema_policy_rejects_external_and_recursive_references(reference):
+    schema = {"type": "object", "additionalProperties": False,
+              "properties": {"value": {"$ref": reference}}, "$defs": {"Loop": {"$ref": "#/$defs/Loop"}}}
+    assert not _safe_response_format({"type": "json_schema", "json_schema": {
+        "name": "transkriberit_Audit", "strict": True, "schema": schema,
+    }})
+
+
+@pytest.mark.parametrize("name", [[], {}, None, 1])
+def test_schema_policy_rejects_malformed_names(name):
+    assert not _safe_response_format({"type": "json_schema", "json_schema": {
+        "name": name, "strict": True, "schema": {"type": "object", "additionalProperties": False},
+    }})
 
 
 @pytest.mark.asyncio

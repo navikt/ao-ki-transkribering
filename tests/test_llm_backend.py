@@ -21,6 +21,93 @@ class _FakeResponse:
         return self._data
 
 
+@pytest.mark.asyncio
+async def test_exact_counter_uses_same_authenticated_chat_route(monkeypatch):
+    requests = []
+
+    def respond(request):
+        requests.append(request)
+        return httpx.Response(200, json={"choices": [{"message": {"content": json.dumps({
+            "type": "token_count", "input_tokens": 731,
+        })}}]})
+
+    original = httpx.AsyncClient
+    monkeypatch.setattr(llm_client, "LLM_BACKEND", "openai")
+    monkeypatch.setattr(llm_client, "authenticated_headers", AsyncMock(return_value={"Authorization": "Bearer scoped-test-key"}))
+    monkeypatch.setattr(llm_client.httpx, "AsyncClient", lambda **kwargs: original(transport=httpx.MockTransport(respond), **kwargs))
+    assert await llm_client.count_tokens("Regler", "Kilde", "borealis-12b") == 731
+    assert requests[0].url.path == "/v1/chat/completions"
+    body = json.loads(requests[0].content)
+    assert body["extra_body"] == {"transkriberit_count_tokens": True}
+    assert body["max_tokens"] == 1 and body["stream"] is False
+    assert requests[0].headers["Authorization"] == "Bearer scoped-test-key"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("status,content", [(403, {}), (200, {"choices": [{"message": {"content": "Not a counter"}}]})])
+async def test_unsupported_counter_falls_back_without_exposing_content(monkeypatch, status, content):
+    original = httpx.AsyncClient
+    monkeypatch.setattr(llm_client, "LLM_BACKEND", "openai")
+    monkeypatch.setattr(llm_client, "authenticated_headers", AsyncMock(return_value={}))
+    monkeypatch.setattr(llm_client.httpx, "AsyncClient", lambda **kwargs: original(
+        transport=httpx.MockTransport(lambda request: httpx.Response(status, json=content)), **kwargs))
+    assert await llm_client.count_tokens("Regler", "Privat kilde", "borealis-12b") is None
+
+
+@pytest.mark.asyncio
+async def test_structured_quotes_are_not_normalized_and_truncation_is_rejected(monkeypatch):
+    replies = [{"choices": [{"message": {"content": '{"quote":"Eg jobba ikkje med dette."}'}, "finish_reason": "stop"}]},
+               {"choices": [{"message": {"content": '{"quote":"Eg'}, "finish_reason": "length"}]}]
+    bodies = []
+
+    def respond(request):
+        bodies.append(json.loads(request.content))
+        return httpx.Response(200, json=replies.pop(0))
+
+    original = httpx.AsyncClient
+    monkeypatch.setattr(llm_client, "LLM_BACKEND", "openai")
+    monkeypatch.setattr(llm_client, "authenticated_headers", AsyncMock(return_value={}))
+    monkeypatch.setattr(llm_client.httpx, "AsyncClient", lambda **kwargs: original(transport=httpx.MockTransport(respond), **kwargs))
+    assert await llm_client.kall("Regler", "Kilde", raw=True, json_mode=True) == '{"quote":"Eg jobba ikkje med dette."}'
+    assert bodies[0]["response_format"] == {"type": "json_object"}
+    with pytest.raises(llm_client.IncompleteModelResponse):
+        await llm_client.kall("Regler", "Kilde", raw=True, json_mode=True)
+
+
+@pytest.mark.asyncio
+async def test_structured_client_sends_named_strict_schema(monkeypatch):
+    from frontend.grounded_summary import Audit
+
+    bodies = []
+
+    def respond(request):
+        bodies.append(json.loads(request.content))
+        return httpx.Response(200, json={"choices": [{"message": {"content": '{"checks":[]}'}, "finish_reason": "stop"}]})
+
+    original = httpx.AsyncClient
+    monkeypatch.setattr(llm_client, "LLM_BACKEND", "openai")
+    monkeypatch.setattr(llm_client, "authenticated_headers", AsyncMock(return_value={}))
+    monkeypatch.setattr(llm_client.httpx, "AsyncClient", lambda **kwargs: original(transport=httpx.MockTransport(respond), **kwargs))
+    schema = Audit.model_json_schema()
+    assert await llm_client.kall("Rules", "Source", raw=True, json_mode=True, response_schema=schema) == '{"checks":[]}'
+    assert bodies[0]["temperature"] == 0
+    assert bodies[0]["response_format"] == {"type": "json_schema", "json_schema": {
+        "name": "transkriberit_Audit", "strict": True, "schema": schema,
+    }}
+
+
+@pytest.mark.asyncio
+async def test_token_counter_does_not_hide_authentication_failure(monkeypatch):
+    original = httpx.AsyncClient
+    monkeypatch.setattr(llm_client, "LLM_BACKEND", "openai")
+    monkeypatch.setattr(llm_client, "authenticated_headers", AsyncMock(return_value={}))
+    monkeypatch.setattr(llm_client.httpx, "AsyncClient", lambda **kwargs: original(
+        transport=httpx.MockTransport(lambda request: httpx.Response(401)), **kwargs))
+    with pytest.raises(httpx.HTTPStatusError) as error:
+        await llm_client.count_tokens("Rules", "Source", "borealis-12b")
+    assert error.value.response.status_code == 401
+
+
 class _FakeAsyncClient:
     def __init__(self, *args, **kwargs):
         self.get = MagicMock(side_effect=self._get)

@@ -7,6 +7,7 @@ from pydantic import BaseModel, Field
 from shared.core.settings import AI_PROXY_API_KEY, AI_PROXY_URL, LLM_BACKEND, LLM_MODELL, OLLAMA_URL
 from worker.prompts.normalisering import normaliser_til_bokmal
 from shared.services.model_auth import authenticated_headers
+from shared.diagnostics import event
 
 
 def _int_env(name: str, default: int) -> int:
@@ -120,20 +121,58 @@ def _extract_text_from_delta(data: dict) -> str:
     return ""
 
 
-async def kall(system: str, bruker: str, modell: str | None = None, *, max_tokens: int | None = None) -> str:
+class IncompleteModelResponse(RuntimeError):
+    pass
+
+
+async def count_tokens(system: str, bruker: str, modell: str | None = None) -> int | None:
+    if LLM_BACKEND != "openai" or (modell or LLM_MODELL) != "borealis-12b":
+        return None
+    payload = _build_payload(system, bruker, modell, stream=False, max_tokens=1)
+    payload["extra_body"] = {"transkriberit_count_tokens": True}
+    try:
+        async with httpx.AsyncClient(timeout=httpx.Timeout(5, read=20)) as client:
+            response = await client.post(_chat_url(), json=payload,
+                headers=await authenticated_headers(_chat_url(), _headers()))
+            if response.status_code in {400, 403, 404, 429, 501, 502, 503, 504}:
+                event("llm.token_count_unavailable", status=response.status_code)
+                return None
+            response.raise_for_status()
+            data = json.loads(_extract_text_from_response(response.json()))
+            if data.get("type") != "token_count" or type(data.get("input_tokens")) is not int or data["input_tokens"] < 1:
+                raise ValueError("Invalid token counter response")
+            return data["input_tokens"]
+    except (httpx.RequestError, ValueError, TypeError, AttributeError):
+        event("llm.token_count_unavailable")
+        return None
+
+
+async def kall(system: str, bruker: str, modell: str | None = None, *, max_tokens: int | None = None,
+               raw: bool = False, json_mode: bool = False, response_schema: dict | None = None) -> str:
     if LLM_BACKEND == "ollama":
         from worker.ollama.klient import kall as kall_ollama
 
-        if max_tokens is not None:
-            return await kall_ollama(system, bruker, modell or LLM_MODELL, max_tokens=max_tokens)
-        return await kall_ollama(system, bruker, modell or LLM_MODELL)
+        options = {"max_tokens": max_tokens} if max_tokens is not None else {}
+        if raw or json_mode:
+            options.update(raw=raw, json_mode=json_mode)
+        if response_schema is not None:
+            options["response_schema"] = response_schema
+        return await kall_ollama(system, bruker, modell or LLM_MODELL, **options)
 
     payload = _build_payload(system, bruker, modell, stream=False, max_tokens=max_tokens)
+    if json_mode:
+        payload["response_format"] = {"type": "json_schema", "json_schema": {
+            "name": "transkriberit_" + response_schema["title"], "strict": True, "schema": response_schema,
+        }} if response_schema is not None else {"type": "json_object"}
+        payload["temperature"] = 0
     async with httpx.AsyncClient(timeout=httpx.Timeout(10.0, read=300.0)) as klient:
         resp = await klient.post(_chat_url(), json=payload, headers=await authenticated_headers(_chat_url(), _headers()))
         resp.raise_for_status()
         data = resp.json()
-        return normaliser_til_bokmal(_extract_text_from_response(data))
+        if any(choice.get("finish_reason") == "length" for choice in data.get("choices", [])):
+            raise IncompleteModelResponse("Modellen nådde svargrensen før svaret var ferdig.")
+        text = _extract_text_from_response(data)
+        return text if raw else normaliser_til_bokmal(text)
 
 
 async def hent_status() -> LlmStatus:

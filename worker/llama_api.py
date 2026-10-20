@@ -1,6 +1,8 @@
 """Authenticated TLS boundary for the loopback-only llama.cpp server."""
 
 import json
+import time
+from uuid import uuid4
 from contextlib import asynccontextmanager
 
 import anyio
@@ -82,6 +84,29 @@ async def chat(request: Request):
             or payload["model"] not in {MODEL, "/models/borealis-12b"}):
         raise HTTPException(400, "Unknown model")
     payload["model"] = MODEL
+    if payload.get("transkriberit_count_tokens") is True:
+        messages = payload.get("messages")
+        if payload.get("stream") is not False or not isinstance(messages, list) or not messages or any(
+            not isinstance(message, dict) or message.get("role") not in {"system", "user"}
+            or not isinstance(message.get("content"), str) for message in messages
+        ):
+            raise HTTPException(400, "Invalid token counter request")
+        try:
+            template = await app.state.upstream.post("/apply-template", json={"messages": messages})
+            template.raise_for_status()
+            tokens = await app.state.upstream.post("/tokenize", json={
+                "content": template.json()["prompt"], "add_special": True, "parse_special": True,
+            })
+            tokens.raise_for_status()
+            count = len(tokens.json()["tokens"])
+        except (httpx.HTTPError, KeyError, ValueError, TypeError):
+            raise HTTPException(503, "Model tokenizer unavailable") from None
+        return {
+            "id": "token-count-" + uuid4().hex, "object": "chat.completion", "created": int(time.time()),
+            "model": MODEL, "choices": [{"index": 0, "finish_reason": "stop", "message": {
+                "role": "assistant", "content": json.dumps({"type": "token_count", "input_tokens": count}),
+            }}], "usage": {"prompt_tokens": count, "completion_tokens": 0, "total_tokens": count},
+        }
     try:
         upstream = await app.state.upstream.send(
             app.state.upstream.build_request("POST", "/v1/chat/completions", json=payload), stream=True)

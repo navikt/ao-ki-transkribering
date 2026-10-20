@@ -101,7 +101,8 @@ async def stream_tokens(system: str, bruker: str, modell: str | None = None, *, 
                     return
 
 
-async def kall(system: str, bruker: str, modell: str | None = None, *, max_tokens: int | None = None) -> str:
+async def kall(system: str, bruker: str, modell: str | None = None, *, max_tokens: int | None = None,
+               raw: bool = False, json_mode: bool = False, response_schema: dict | None = None) -> str:
     """Kaller Ollama /api/generate med streaming og returnerer svarteksten.
 
     Bruker streaming for å unngå timeout ved lange svar.
@@ -119,7 +120,9 @@ async def kall(system: str, bruker: str, modell: str | None = None, *, max_token
                 "prompt": bruker,
                 "stream": True,
                 "think": False,
-                "options": _OPTIONS if max_tokens is None else {**_OPTIONS, "num_predict": max_tokens},
+                **({"format": response_schema or "json"} if json_mode else {}),
+                "options": {**_OPTIONS, **({"num_predict": max_tokens} if max_tokens is not None else {}),
+                            **({"temperature": 0} if json_mode else {})},
             },
         ) as resp:
             resp.raise_for_status()
@@ -132,6 +135,9 @@ async def kall(system: str, bruker: str, modell: str | None = None, *, max_token
                     continue
                 deler.append(chunk.get("response", ""))
                 if chunk.get("done"):
+                    if chunk.get("done_reason") == "length":
+                        from shared.services.llm_proxy_client import IncompleteModelResponse
+                        raise IncompleteModelResponse("Modellen nådde svargrensen før svaret var ferdig.")
                     break
     rå = "".join(deler)
-    return normaliser_til_bokmal(rå)
+    return rå if raw else normaliser_til_bokmal(rå)

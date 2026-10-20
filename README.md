@@ -218,12 +218,19 @@ python -m uvicorn frontend.app:app --host 127.0.0.1 --port 8765
 | `TRANSKRIPSJON_SERVICE_URL` | `http://127.0.0.1:9000` | URL til ekstern modellarbeider ved `TRANSKRIPSJON_BACKEND=remote` |
 | `TRANSKRIPSJON_MODELL` | `nb-whisper-large` i NAIS | Modellnavn sendt til OpenAI-kompatibel transkripsjons-API |
 
-Lange transkripsjoner behandles automatisk i deler før referatet eller sammendraget
-sammenstilles med valgt mal og eventuelle egne instruksjoner. Hele kilden sendes
-gjennom delbehandlingen; teksten kuttes ikke til de første eller siste minuttene.
-Ved behov sammenstilles delnotatene i flere nivåer. Dette tar flere modellkall og
-kan påvirke detaljnivået; kvalitet på lange møter må vurderes med reelle samtaler.
-Kontekstbudsjettet er konservativt og reserverer plass til instruksjoner og svar.
+Referater og sammendrag bruker originaltranskripsjonen direkte når den passer i
+kontekstvinduet. Borealis kan telle hele den ferdig formaterte chat-prompten med
+sin egen tokenizer, inkludert spesialtokener. Instruksjoner og svar har reserverte
+budsjetter. Hvis tokentelleren ikke er tilgjengelig, brukes et konservativt estimat.
+For store kilder hentes strukturerte kildepunkter automatisk, uten å kutte bort
+første eller siste del av møtet. Kildenumre peker på uendrede originalutdrag;
+sitater hentes av kode, ikke skrives eller oversettes av modellen.
+Utkastets påstander kontrolleres mot originalen, og en separat kontroll ser etter
+manglende temaer. Korreksjoner kontrolleres på nytt før publisering. Ukjent ansvar
+forblir uavklart. Ved vedvarende kontrollfeil vises en feil, ikke et ukontrollert utkast.
+Dette gir flere modellkall og kan øke ventetiden. Kontrollene bruker fortsatt
+Borealis og er ikke en garanti mot faktafeil; referatet må gjennomgås av en person.
+Se [kildekontroll og innføring](docs/summary-grounding.md).
 Nettleseren starter en bakgrunnsjobb og henter fremdrift med korte statuskall.
 Ved nettverksbrudd prøves samme jobb igjen, uten å generere referatet på nytt.
 Logger viser jobb-ID, start, fremdrift, ferdigstilling og feiltype, uten møteinnhold.
@@ -235,8 +242,9 @@ en varig kø og delt lagring kreves før flere API-replikaer kan brukes.
 De eldre strømmeendepunktene er fortsatt tilgjengelige for API-klienter.
 
 Borealis-oppsettet reserverer 32 768 konteksttokener per forespørsel, fordelt på
-to samtidige modellkall (65 536 totalt i llama.cpp). Mellomnotater har inntil
-2 048 svartokener i stedet for 512. Dette gir færre deloppsummeringer og mindre
+to samtidige modellkall (65 536 totalt i llama.cpp). Kildeuttrekk og strukturerte
+kontroller har inntil 4 096 svartokener. Andre teksthandlingers mellomnotater har
+inntil 2 048 svartokener i stedet for 512. Dette gir mindre
 aggressiv komprimering, men er ingen garanti mot faktafeil. Lengre notater kan
 øke genereringstiden; færre modellkall kan redusere samlet ventetid.
 Ved innføring må modellserveren oppdateres og minnebruk/lange forespørsler
@@ -253,8 +261,9 @@ nummererte hovedtemaer, oppgaver, åpne spørsmål og konklusjon. Temaene følge
 møtet; malen skal ikke gjette talernavn eller gjøre uklare datoer, kostnader og
 juridiske vurderinger til bekreftede fakta. Lange, innholdsrike møter kan gi rundt
 800-1200 ord, mens korte møter skal få kortere referater. Svarbudsjettet reserveres
-før teksten deles. Inndelingen bruker et estimat på to UTF-8-byte per token og
-reduserer delstørrelsen automatisk dersom modellserveren avviser størrelsen.
+før teksten eventuelt deles. Når modellens tokenteller er utilgjengelig, brukes
+et estimat på to UTF-8-byte per token. Delstørrelsen reduseres automatisk dersom
+modellserveren avviser kontekststørrelsen.
 
 Ved filopplasting til modellgatewayen konverterer API-et lyden til 16 kHz mono og
 sender 15-sekunders WAV-deler med ett sekund overlapp. Det gir omtrent 480 kB per

@@ -19,6 +19,12 @@ def proxy(monkeypatch):
         if request.url.path == "/health":
             return httpx.Response(200, json={"status": "ok"})
         payload = json.loads(request.content)
+        if request.url.path == "/apply-template":
+            return httpx.Response(200, json={"prompt": "<bos>" + payload["messages"][-1]["content"]})
+        if request.url.path == "/tokenize":
+            assert payload["add_special"] is True
+            assert payload["parse_special"] is True
+            return httpx.Response(200, json={"tokens": [1, 2, 3, 4]})
         if payload.get("stream"):
             return httpx.Response(200, content=b'data: {"choices":[]}\n\ndata: [DONE]\n\n',
                                   headers={"content-type": "text/event-stream"})
@@ -40,6 +46,27 @@ def proxy(monkeypatch):
 
 
 AUTH = {"Authorization": "Bearer test-model-key"}
+
+
+def test_exact_counter_uses_native_template_without_running_inference(proxy):
+    client, calls = proxy
+    payload = {"model": "borealis-12b", "messages": [{"role": "user", "content": "Hei"}],
+               "stream": False, "transkriberit_count_tokens": True}
+    assert client.post("/v1/chat/completions", json=payload).status_code == 401
+    response = client.post("/v1/chat/completions", headers=AUTH, json=payload)
+    assert response.status_code == 200
+    assert json.loads(response.json()["choices"][0]["message"]["content"]) == {"type": "token_count", "input_tokens": 4}
+    assert [request.url.path for request in calls] == ["/apply-template", "/tokenize"]
+    assert all("authorization" not in request.headers for request in calls)
+    assert client.post("/tokenize", headers=AUTH, json={"content": "Hei"}).status_code == 403
+
+
+@pytest.mark.parametrize("messages", [None, [], [{"role": "user", "content": []}], [{"role": "tool", "content": "Hei"}]])
+def test_invalid_counter_inputs_do_not_reach_native_server(proxy, messages):
+    client, calls = proxy
+    assert client.post("/v1/chat/completions", headers=AUTH, json={"model": "borealis-12b",
+        "stream": False, "transkriberit_count_tokens": True, "messages": messages}).status_code == 400
+    assert not calls
 
 
 @pytest.mark.parametrize("model", ["borealis-12b", "/models/borealis-12b"])
