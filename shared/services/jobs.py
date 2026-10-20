@@ -100,8 +100,11 @@ class JobStore:
             data["advarsler"] = warnings
         self.write_path(result_path, data)
 
-    def write_failed(self, result_path: Path, message: str) -> None:
-        self.write_path(result_path, {"status": "feil", "feilmelding": message})
+    def write_failed(self, result_path: Path, message: str, *, error_code: str | None = None) -> None:
+        data = {"status": "feil", "feilmelding": message}
+        if error_code:
+            data["feilkode"] = error_code
+        self.write_path(result_path, data)
 
     def write_path(self, result_path: Path, data: dict[str, Any]) -> None:
         if result_path.resolve().parent != self.work_dir.resolve():

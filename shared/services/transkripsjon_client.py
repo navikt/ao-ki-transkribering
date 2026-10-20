@@ -3,6 +3,7 @@ import io
 import wave
 import time
 from pathlib import Path
+from uuid import uuid4
 
 import httpx
 import numpy as np
@@ -12,6 +13,8 @@ from shared.services.model_auth import authenticated_headers
 from shared.core.settings import TRANSKRIPSJON_API_KEY, TRANSKRIPSJON_API_PATH, TRANSKRIPSJON_MODELL, TRANSKRIPSJON_SERVICE_URL
 from shared.core.settings import REMOTE_DIARIZATION_MODEL
 from shared.diagnostics import event, failure
+from shared.services.transkripsjon_backend import StatusCallback
+from shared.services.uploaded_audio import SAMPLE_RATE, decoded_audio
 
 _OPENAI_AUDIO_PATH = "/v1/audio/transcriptions"
 
@@ -137,15 +140,49 @@ async def transkriber_remote(
     *,
     n_talere: int = 0,
     service_url: str = TRANSKRIPSJON_SERVICE_URL,
+    status_callback: StatusCallback | None = None,
 ) -> TranskripsjonSvar:
-    """Call the remote transcription model service over HTTP."""
-    with lydfil.open("rb") as f:
-        return await _call_transkripsjon_service(
-            filename=lydfil.name,
-            content=f.read(),
-            n_talere=n_talere,
-            service_url=service_url,
-        )
+    """Send uploaded audio in bounded sections, sharing diarization state throughout."""
+    if not _is_openai_audio_path(TRANSKRIPSJON_API_PATH):
+        with lydfil.open("rb") as f:
+            return await _call_transkripsjon_service(
+                filename=lydfil.name, content=f.read(), n_talere=n_talere, service_url=service_url,
+            )
+
+    from worker.transkribering.sanntid import LydChunk, SegmentSamler
+
+    collector = SegmentSamler()
+    session_id = str(uuid4())
+    texts, segments, warnings = [], [], []
+    async with decoded_audio(lydfil) as audio:
+        total = audio.getnframes()
+        event("upload.audio_prepared", audio_seconds=round(total / SAMPLE_RATE, 3))
+        if status_callback:
+            status_callback({"fase": "transkriberer", "lyd_varighet_s": total / SAMPLE_RATE, "behandlet_lyd_s": 0})
+        start = 0
+        while start < total:
+            audio.setpos(start)
+            pcm = np.frombuffer(audio.readframes(15 * SAMPLE_RATE), dtype="<i2").astype(np.float32) / 32768
+            end = start + len(pcm)
+            result = await _call_transkripsjon_service(
+                filename="segment.wav", content=_pcm_to_wav_bytes(pcm), n_talere=n_talere,
+                service_url=service_url, session_id=session_id, chunk_start=start / SAMPLE_RATE,
+                read_timeout=60,
+            )
+            warnings.extend(result.advarsler)
+            merged = collector.legg_til(result.model_dump(), LydChunk(
+                pcm, start / SAMPLE_RATE, 1 if start else 0,
+            ))
+            if merged:
+                texts.append(merged["tekst"])
+                segments.extend(merged["segmenter"])
+            event("upload.section_processed", start_sample=start, end_sample=end, total_samples=total)
+            if status_callback:
+                status_callback({"behandlet_lyd_s": end / SAMPLE_RATE})
+            if end == total:
+                break
+            start = end - SAMPLE_RATE
+    return TranskripsjonSvar(tekst=" ".join(texts), segmenter=segments, advarsler=list(dict.fromkeys(warnings)))
 
 
 async def transkriber_remote_pcm(

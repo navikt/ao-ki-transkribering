@@ -235,6 +235,14 @@ juridiske vurderinger til bekreftede fakta. Lange, innholdsrike møter kan gi ru
 før teksten deles. Inndelingen bruker et estimat på to UTF-8-byte per token og
 reduserer delstørrelsen automatisk dersom modellserveren avviser størrelsen.
 
+Ved filopplasting til modellgatewayen konverterer API-et lyden til 16 kHz mono og
+sender 15-sekunders WAV-deler med ett sekund overlapp. Det gir omtrent 480 kB per
+modellkall i stedet for hele originalfilen. Talerskille deler samme opptakstilstand,
+tidsstempler flyttes til filens tidslinje, og overlappende tekst håndteres som ved
+mikrofonopptak. Stille partier og siste lyddel beholdes. Fremdrift følger behandlet
+lyd; en mislykket del gir feil på jobben fremfor et delvis resultat. Midlertidig
+konvertert lyd ryddes ved avslutning. Gjeldende varighetsgrense er to timer.
+
 ### Container
 
 Bygg image:

@@ -178,7 +178,7 @@ async function pollStatus(jobbId, startMs) {
         clearInterval(intervall);
         clearInterval(_timerIntervall);
         document.getElementById("fremdrift").classList.remove("synlig");
-        viseFeil("Transkribering feilet på server.");
+        viseFeil(data.feilmelding || "Transkriberingen feilet. Prøv igjen.");
         return;
       }
 

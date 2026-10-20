@@ -141,6 +141,20 @@ test("audio actions sit below recording controls and copy sits below the transcr
   assert.equal(attached, true);
 });
 
+test("failed uploaded transcription shows the server's actionable error", async () => {
+  const {element, run} = workspace();
+  run(`
+    globalThis.intervals = [];
+    setInterval = callback => {intervals.push(callback); return intervals.length;};
+    fetch = async () => ({ok: true, json: async () => ({status: 'feil',
+      feilmelding: 'Lydfilen er for stor for modell-API-et.'})});
+    globalThis.Date = {now: () => 1000};
+  `);
+  await run('pollStatus("test-job", 1000)');
+  await run('intervals.at(-1)()');
+  assert.match(element('feil-boks').textContent, /for stor/);
+});
+
 test("technical diagnostics are grouped in developer mode and collapsed by default", () => {
   const html = fs.readFileSync(path.join(__dirname, "../frontend/static/index.html"), "utf8");
   const details = html.match(/<details id="mikrofon-diagnostikk"[\s\S]*?<\/details>/)[0];
