@@ -20,8 +20,12 @@ def test_manifest_uses_the_verified_artifact_and_no_context_shift():
         assert spec[name] in download
     llama = next(c for c in pod["containers"] if c["name"] == "llama")
     assert "--no-context-shift" in llama["args"]
-    assert llama["args"][llama["args"].index("--ctx-size") + 1] == "32768"
-    assert llama["args"][llama["args"].index("--parallel") + 1] == "4"
+    assert llama["args"][llama["args"].index("--ctx-size") + 1] == "65536"
+    assert llama["args"][llama["args"].index("--parallel") + 1] == "2"
+    for name in ("dev", "prod"):
+        app = yaml.safe_load((ROOT / f".nais/{name}.yaml").read_text().replace("{{image}}", "test-image"))
+        env = {item["name"]: item["value"] for item in app["spec"]["env"]}
+        assert int(env["LLM_CONTEXT_TOKENS"]) == 65536 // 2
     assert llama["args"][llama["args"].index("--device") + 1] == "CUDA0"
     env = {item["name"]: item["value"] for item in llama["env"]}
     assert "/usr/local/nvidia/lib64" in env["LD_LIBRARY_PATH"].split(":")

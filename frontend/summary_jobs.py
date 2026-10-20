@@ -11,7 +11,7 @@ from shared.services.jobs import JobStore
 
 
 class SummaryJobs:
-    def __init__(self, store: JobStore, concurrency: int = 4, capacity: int = 16):
+    def __init__(self, store: JobStore, concurrency: int = 2, capacity: int = 16):
         self.store = store
         self.semaphore = asyncio.Semaphore(concurrency)
         self.capacity = capacity

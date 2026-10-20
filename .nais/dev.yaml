@@ -84,7 +84,7 @@ spec:
     - name: LLM_MAX_TOKENS
       value: "1024"
     - name: LLM_CONTEXT_TOKENS
-      value: "8192"
+      value: "32768"
     - name: WHISPER_MODELL
       value: NbAiLab/nb-whisper-medium
     - name: HF_HUB_OFFLINE

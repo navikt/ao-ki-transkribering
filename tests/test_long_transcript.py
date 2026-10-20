@@ -9,6 +9,51 @@ from fastapi.testclient import TestClient
 
 import frontend.routes.referat as routes
 import frontend.long_transcript as long_text
+import shared.services.llm_proxy_client as llm_client
+
+
+@pytest.mark.asyncio
+async def test_larger_context_needs_fewer_sections_and_allows_detailed_notes(monkeypatch):
+    source = "".join(f"Taler 1: Sak {i}: Juridisk vurdering er uavklart.\n" for i in range(1500))
+    counts = []
+    for context in (8192, 32768):
+        monkeypatch.setitem(llm_client._OPTIONS, "num_ctx", context)
+        calls = []
+
+        async def call(system, user, model, **kwargs):
+            calls.append((system, user, kwargs))
+            return "Juridiske spørsmål er fortsatt uavklart."
+
+        events = [event async for event in long_text.generate(
+            source, lambda text: ("Bevar forbehold", text), None, call=call, max_tokens=3072,
+        )]
+        notes = [(user.removeprefix("KILDEUTDRAG:\n"), options) for _, user, options in calls
+                 if user.startswith("KILDEUTDRAG:\n")]
+        assert "".join(text for text, _ in notes) == source
+        if context == 32768:
+            assert all(options["max_tokens"] == 2048 for _, options in notes)
+        assert events[-1]["type"] == "ferdig"
+        counts.append(len(notes))
+    assert counts[0] >= 8
+    assert counts[1] <= 2
+
+
+@pytest.mark.asyncio
+async def test_note_output_is_reserved_even_when_final_answer_is_short(monkeypatch):
+    monkeypatch.setitem(llm_client._OPTIONS, "num_ctx", 8192)
+    calls = []
+
+    async def call(system, user, model, **kwargs):
+        calls.append(kwargs["max_tokens"])
+        assert long_text._size(system, user) + kwargs["max_tokens"] + 512 <= 8192
+        return "Forslaget krever fortsatt juridisk avklaring."
+
+    events = [event async for event in long_text.generate(
+        "Taler 1: Forslaget er ikke besluttet.\n" * 1200,
+        lambda text: ("Bevar forbehold", text), None, call=call, max_tokens=512,
+    )]
+    assert max(calls[:-1]) > calls[-1] == 512
+    assert events[-1]["type"] == "ferdig"
 
 
 @pytest.mark.parametrize("endpoint", [
@@ -70,7 +115,7 @@ def test_split_preserves_every_character_and_byte_limit(source):
 
 @pytest.mark.asyncio
 async def test_context_rejection_retries_in_smaller_sections(monkeypatch):
-    monkeypatch.setattr(long_text, "input_token_budget", lambda: 7000)
+    monkeypatch.setattr(long_text, "input_token_budget", lambda *_args: 7000)
     source = "Taler 1: Vi beholder oppgaven og fristen.\n" * 120
     accepted = []
     rejected = []
@@ -93,7 +138,7 @@ async def test_context_rejection_retries_in_smaller_sections(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_hierarchical_merge_retains_first_last_parts_and_final_instructions(monkeypatch):
-    monkeypatch.setattr(long_text, "input_token_budget", lambda: 2000)
+    monkeypatch.setattr(long_text, "input_token_budget", lambda *_args: 2000)
     source = "".join(f"<F{i}> " + "Møtedetaljer. " * 100 + "\n" for i in range(40))
     calls = []
 
@@ -135,7 +180,7 @@ async def test_heartbeat_keeps_section_processing_alive_and_cancels_on_disconnec
 
 @pytest.mark.asyncio
 async def test_section_failure_cannot_produce_a_partial_success(monkeypatch):
-    monkeypatch.setattr(long_text, "input_token_budget", lambda: 4000)
+    monkeypatch.setattr(long_text, "input_token_budget", lambda *_args: 4000)
     count = 0
 
     async def call(*args, **kwargs):

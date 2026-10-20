@@ -107,9 +107,9 @@ spec:
             - --device
             - CUDA0
             - --ctx-size
-            - "32768"
+            - "65536"
             - --parallel
-            - "4"
+            - "2"
             - --batch-size
             - "512"
             - --ubatch-size

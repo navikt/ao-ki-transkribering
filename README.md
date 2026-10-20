@@ -229,10 +229,24 @@ Ved nettverksbrudd prøves samme jobb igjen, uten å generere referatet på nytt
 Logger viser jobb-ID, start, fremdrift, ferdigstilling og feiltype, uten møteinnhold.
 Resultatet er bare tilgjengelig for brukeren som startet jobben og slettes etter
 samme oppbevaringstid som transkripsjonsresultater (standard seks timer).
-Jobbene kjører i én API-replika, med inntil fire aktive genereringer og 16 jobber
+Jobbene kjører i én API-replika, med inntil to aktive genereringer og 16 jobber
 totalt i kø og under behandling. Omstart av API-et avbryter pågående generering;
 en varig kø og delt lagring kreves før flere API-replikaer kan brukes.
 De eldre strømmeendepunktene er fortsatt tilgjengelige for API-klienter.
+
+Borealis-oppsettet reserverer 32 768 konteksttokener per forespørsel, fordelt på
+to samtidige modellkall (65 536 totalt i llama.cpp). Mellomnotater har inntil
+2 048 svartokener i stedet for 512. Dette gir færre deloppsummeringer og mindre
+aggressiv komprimering, men er ingen garanti mot faktafeil. Lengre notater kan
+øke genereringstiden; færre modellkall kan redusere samlet ventetid.
+Ved innføring må modellserveren oppdateres og minnebruk/lange forespørsler
+kontrolleres før NAIS-konfigurasjonen økes. Kontekstgrensen i API-et alene
+øker ikke modellserverens kapasitet. Eksisterende målinger med fire 8K-spor
+gjelder ikke automatisk for dette oppsettet.
+En [kapasitetstest på GCloud](docs/benchmarks/2026-10-20/borealis-context-capacity.json)
+bekreftet to samtidige forespørsler med 24 845 inn-tokener hver. Svarene var bare
+åtte tokener; testen dokumenterer kapasitet, ikke referatkvalitet eller ytelse for
+lange svar.
 
 «Utfyllende sammendrag» gir et tematisk møtereferat med kort oppsummering,
 nummererte hovedtemaer, oppgaver, åpne spørsmål og konklusjon. Temaene følger

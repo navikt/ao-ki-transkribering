@@ -58,7 +58,7 @@ def split_text(text: str, byte_limit: int) -> list[str]:
 
 async def _prepare(text: str, build: PromptBuilder, model: str | None, call: ModelCall, budget: int):
     current = text
-    note_tokens = min(512, max(64, budget // 8))
+    note_tokens = min(2048, max(64, budget // 4))
     overhead = _size(*build(""))
     if overhead + 128 > budget:
         raise TranscriptProcessingError(
@@ -68,7 +68,9 @@ async def _prepare(text: str, build: PromptBuilder, model: str | None, call: Mod
         if _size(*build(current)) <= budget:
             yield {"type": "prepared", "tekst": current}
             return
-        capacity = min(budget - _size(_NOTES_SYSTEM, _NOTES_PREFIX), budget - overhead)
+        # Notes have their own output reservation, which can exceed a short final answer.
+        note_budget = min(budget, input_token_budget(note_tokens))
+        capacity = min(note_budget - _size(_NOTES_SYSTEM, _NOTES_PREFIX), budget - overhead)
         parts = split_text(current, capacity * 2)
         log.info("LLM section processing level=%d parts=%d input_chars=%d", level + 1, len(parts), len(current))
         notes = []
