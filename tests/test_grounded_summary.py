@@ -126,6 +126,44 @@ async def test_exact_count_avoids_unnecessary_condensation(monkeypatch):
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("utterances", [512, 513, 1000])
+async def test_large_fitting_transcript_uses_gateway_safe_checks_without_splitting_draft(utterances):
+    from images.litellm.scoped_auth import _safe_response_format
+    from tests.summary_fakes import structured_reply
+
+    source = "Gro: Vi må avklare dette.\n" * utterances
+    extracted, audited, drafted = [], [], []
+
+    async def count(system, user, model):
+        return 100  # The whole transcript fits; schema limits must still apply.
+
+    async def call(system, user, model, **options):
+        if options.get("json_mode"):
+            schema = options["response_schema"]
+            assert _safe_response_format({"type": "json_schema", "json_schema": {
+                "name": "transkriberit_" + schema["title"], "strict": True, "schema": schema,
+            }})
+            payload = json.loads(user)
+            if system in {grounded.EXTRACT_SYSTEM, grounded.AUDIT_SYSTEM}:
+                (extracted if system == grounded.EXTRACT_SYSTEM else audited).append(payload["source"])
+            return structured_reply(system, user)
+        drafted.append(user)
+        return "Vi må avklare dette."
+
+    events = [event async for event in grounded.generate(
+        source, lambda text: ("Skriv referat", text), "borealis-12b",
+        call=call, count=count, max_tokens=3072,
+    )]
+    assert events[-1]["type"] == "ferdig"
+    assert drafted == [source]
+    assert "".join(text for group in extracted for text in group.values()) == source
+    assert "".join(text for group in audited for text in group.values()) == source
+    expected_ids = [str(index) for index in range(1, utterances + 1)]
+    assert [index for group in extracted for index in group] == expected_ids
+    assert [index for group in audited for index in group] == expected_ids
+
+
+@pytest.mark.asyncio
 async def test_later_source_contradiction_overrides_earlier_apparent_support(monkeypatch):
     from tests.summary_fakes import structured_reply
 

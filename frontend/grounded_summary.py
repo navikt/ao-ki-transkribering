@@ -14,6 +14,8 @@ from shared.services.llm_proxy_client import IncompleteModelResponse, er_konteks
 STRUCTURED_TOKENS = 4096
 MAX_REVISIONS = 2
 MAX_CALLS = 128
+# The gateway caps every JSON-schema array, including source-ID enums, at 512.
+MAX_SOURCE_REFERENCES = 512
 _SENTENCES = SentenceSplitter(language="no")
 
 EXTRACT_SYSTEM = """Hent dokumentert faktagrunnlag fra møtekilden. Svar som JSON etter response_schema.
@@ -242,12 +244,14 @@ class Summary:
         records = list(source.items())
         groups = []
         while records:
-            size = await self.sizer.tokens(*build(dict(records)))
+            candidate = records[:MAX_SOURCE_REFERENCES]
+            size = await self.sizer.tokens(*build(dict(candidate)))
             if size <= budget:
-                groups.append(dict(records))
-                break
+                groups.append(dict(candidate))
+                records = records[len(candidate):]
+                continue
             overhead = await self.sizer.tokens(*build({}))
-            length = max(1, min(len(records) - 1, int(len(records) * max(1, budget - overhead) / max(1, size - overhead) * 0.9)))
+            length = max(1, min(len(candidate) - 1, int(len(candidate) * max(1, budget - overhead) / max(1, size - overhead) * 0.9)))
             while await self.sizer.tokens(*build(dict(records[:length]))) > budget:
                 if length == 1:
                     raise TranscriptProcessingError("Kilde og kontrollinstruksjoner overskrider modellens tekstgrense.")

@@ -77,6 +77,13 @@ size and local references; it also accepts `json_object` for compatibility.
 Arbitrary `extra_body`, provider overrides, external or cyclic schema references,
 native administration routes and unknown models remain forbidden.
 
+The gateway caps schema arrays, including reference-ID enums, at 512 entries.
+Evidence extraction and claim verification must therefore group at most 512
+original excerpts per request even when the entire prompt fits the context
+window. Source IDs and all original characters remain intact across groups.
+This limit applies to checks, not to the writer's full-transcript input. A schema
+with 513 references otherwise receives HTTP 403 before reaching Borealis.
+
 ## Rollout Order
 
 The ordinary frontend workflow alone does not deploy the adapter or gateway auth
