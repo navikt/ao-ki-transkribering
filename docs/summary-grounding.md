@@ -36,6 +36,15 @@ are also left untouched so source references and quoted evidence retain their
 original wording. Only the generated presentation uses the existing Bokmal rules.
 Truncated model responses are rejected. A truncated evidence extraction is
 retried on smaller original source groups, without dropping characters.
+Truncated fact checks retry smaller claim batches, then smaller source groups
+if needed. Topic checks start with at most 16 excerpts and halve their group on
+truncation. Completed checks are retained; the draft is not regenerated just
+because a verification response was cut off. All claims and original excerpts
+still require checking. A single-check failure and the overall call ceiling
+remain bounded failures; no partial JSON or unchecked summary is published.
+Fact checks select at most eight direct source references per claim; coverage
+checks select at most four representative draft references per topic instead of
+listing every repetition.
 
 There are at most 128 inference calls per summary job, including repairs. This
 bound accommodates utterance-level coverage of long meetings with small context
@@ -45,6 +54,10 @@ stores prompt hashes and token counts, not a global cache of meeting content.
 Evidence and drafts stay in job memory; only the completed summary/status uses
 the existing retention-controlled job store. Diagnostics contain stage counts and
 fixed error categories, not transcripts, drafts, evidence, tokens or credentials.
+An `llm.output_truncated` event records the stage (`EvidenceBatch`, `Audit`,
+`Coverage` or `draft`), input-token count, requested output cap and call number.
+`llm.verification_split` records the stage and batch sizes when recovery splits
+a check, without including the source text or model response.
 
 These are automated checks by the same model that writes the summary, not an
 independent factual oracle. A valid reference proves where evidence came from,

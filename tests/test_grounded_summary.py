@@ -227,6 +227,110 @@ async def test_truncated_extraction_retries_smaller_source_sections():
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("stage", [grounded.AUDIT_SYSTEM, grounded.COVERAGE_SYSTEM], ids=["audit", "coverage"])
+async def test_truncated_verification_recovers_without_rewriting_or_losing_checks(stage, monkeypatch):
+    from shared.services.llm_proxy_client import IncompleteModelResponse
+    from tests.summary_fakes import structured_reply
+
+    source = "Gro: Dette er fortsatt uavklart.\n" * 8
+    draft = "\n".join(f"Punkt {index} er uavklart." for index in range(4))
+    audit_pairs, covered, drafts, diagnostics = [], [], [], []
+    monkeypatch.setattr(grounded, "event", lambda name, **fields: diagnostics.append({"event": name, **fields}))
+
+    async def count(*args):
+        return 100
+
+    async def call(system, user, model, **options):
+        if not options.get("json_mode"):
+            drafts.append(user)
+            return draft
+        data = json.loads(user)
+        if system == stage and (len(data["source"]) > 2 or len(data.get("claims", [])) > 2):
+            raise IncompleteModelResponse("Synthetic truncated response")
+        if system == grounded.AUDIT_SYSTEM:
+            audit_pairs.extend((claim["id"], int(index)) for claim in data["claims"] for index in data["source"])
+        if system == grounded.COVERAGE_SYSTEM:
+            covered.extend(int(index) for index in data["source"])
+        return structured_reply(system, user)
+
+    events = [result async for result in grounded.generate(source, lambda text: ("Regler", text), None,
+        call=call, count=count, max_tokens=3072)]
+    assert events[-1] == {"type": "ferdig", "tekst": draft}
+    assert drafts == [source]
+    assert sorted(audit_pairs) == [(claim, index) for claim in range(4) for index in range(1, 9)]
+    assert covered == list(range(1, 9))
+    expected_stage = "Audit" if stage == grounded.AUDIT_SYSTEM else "Coverage"
+    assert any(item["event"] == "llm.output_truncated" and item["stage"] == expected_stage for item in diagnostics)
+    assert "Gro:" not in json.dumps(diagnostics)
+
+
+@pytest.mark.asyncio
+async def test_irreducible_truncated_verification_never_publishes_a_draft():
+    from shared.services.llm_proxy_client import IncompleteModelResponse
+    from tests.summary_fakes import structured_reply
+
+    checks, events = [], []
+
+    async def call(system, user, model, **options):
+        if system == grounded.AUDIT_SYSTEM:
+            checks.append(user)
+            raise IncompleteModelResponse("Synthetic truncation")
+        return structured_reply(system, user) or "Ingen test er godkjent."
+
+    with pytest.raises(TranscriptProcessingError, match="svargrensen"):
+        async for result in grounded.generate("Gro: Ingen test er godkjent.", lambda text: ("Regler", text), None,
+                                             call=call, count=roomy_counter):
+            events.append(result)
+    assert len(checks) == 1
+    assert not any(result["type"] == "ferdig" for result in events)
+
+
+@pytest.mark.asyncio
+async def test_truncated_audit_retains_a_later_contradiction():
+    from shared.services.llm_proxy_client import IncompleteModelResponse
+
+    source = "Gro: Testen er godkjent.\nMarte: Rettelse: Ingen test er godkjent."
+
+    async def call(system, user, model, **options):
+        data = json.loads(user)
+        if len(data["source"]) > 1:
+            raise IncompleteModelResponse("Synthetic truncation")
+        index, text = next(iter(data["source"].items()))
+        return json.dumps({"checks": [{"id": claim["id"], "source_ids": [int(index)],
+            "status": "contradicted" if "Rettelse:" in text else "supported"} for claim in data["claims"]]})
+
+    summary = grounded.Summary(lambda text: ("Regler", text), None, call, roomy_counter, 3072, False)
+    result = await summary.audit(source, "Testen er godkjent.", [])
+    assert [item["claim"] for item in result["issues"]] == ["Testen er godkjent."]
+
+
+@pytest.mark.asyncio
+async def test_truncated_coverage_retains_a_missing_topic():
+    from shared.services.llm_proxy_client import IncompleteModelResponse
+    from tests.summary_fakes import structured_reply
+
+    source = "Gro: PVK er uavklart.\nFredrik: Veilederne trenger KI-kompetanse."
+
+    async def call(system, user, model, **options):
+        if system != grounded.COVERAGE_SYSTEM:
+            return structured_reply(system, user)
+        data = json.loads(user)
+        if len(data["source"]) > 1:
+            raise IncompleteModelResponse("Synthetic truncation")
+        index, text = next(iter(data["source"].items()))
+        missing = "KI-kompetanse" in text
+        return json.dumps({"checks": [{"source_id": int(index), "topics": [{
+            "topic": "KI-kompetanse" if missing else "PVK",
+            "draft_ids": [] if missing else [data["draft"][0]["id"]],
+        }]}]})
+
+    summary = grounded.Summary(lambda text: ("Regler", text), None, call, roomy_counter, 3072, True)
+    result = await summary.audit(source, "PVK er uavklart.", [])
+    assert result["issues"] == []
+    assert result["missing_topics"] == [{"topic": "KI-kompetanse", "source_quotes": [source.splitlines()[1]]}]
+
+
+@pytest.mark.asyncio
 async def test_minimal_summary_still_verifies_claims_without_requiring_all_topics():
     from tests.summary_fakes import structured_reply
     flags = []
