@@ -204,12 +204,13 @@ def _validate_evidence(batch: EvidenceBatch, source):
 
 
 class Summary:
-    def __init__(self, build, model, call, count, max_tokens, comprehensive, *, max_calls=MAX_CALLS):
+    def __init__(self, build, model, call, count, max_tokens, comprehensive, *, max_calls=MAX_CALLS, draft_rules=""):
         self.build, self.model, self.call = build, model, call
         self.sizer = PromptSizer(model, count)
         self.max_tokens, self.comprehensive = max_tokens, comprehensive
         self.scale, self.calls = 1.0, 0
         self.max_calls = max_calls
+        self.extra_draft_rules = draft_rules
 
     def budget(self, output=None):
         return int(input_token_budget(output) * self.scale)
@@ -310,7 +311,7 @@ class Summary:
         for content in (source, "KILDEUTDRAG MED FORELØPIGE FAKTAPUNKTER:\n" + ledger,
                         "FORELØPIGE KILDEPUNKTER:\n" + compact):
             system, user = self.build(content)
-            system += _draft_rules(source)
+            system += _draft_rules(source) + self.extra_draft_rules
             if previous:
                 system += (
                     "\nRediger previous_draft med minst mulige endringer. Behold dokumentert innhold og struktur. "

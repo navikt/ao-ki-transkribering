@@ -38,6 +38,43 @@ the model can approve its own incorrect interpretation, as already observed.
 requested output cap and call number without meeting content. Use these timings
 and an independent review of the result when assessing the tradeoff.
 
+## Source-Only Follow-Up
+
+The compact path now applies `frontend/summary_assignments.py` before review and
+after any sentence filtering. Generated task/ownership sections are discarded.
+Norwegian assignment-like sentences and common invented job-role forms outside
+those sections are conservatively removed as well. Draft instructions tell the
+writer not to generate assignments in the narrative or conclusion. This is a
+code boundary in addition to instructions, not another model's approval.
+
+Detailed outputs receive a separate `Oppfølging – kildeutsagn` section containing
+only unchanged original utterances. It retains anonymous speaker IDs, conditions
+and negations; it never maps a speaker ID to a person's name or paraphrases an
+owner/task/deadline. These are source statements about possible follow-up, not
+verified commitments, completed tasks or current legal permission. Quoted source
+markup is escaped. Brief summaries do not receive an extra follow-up appendix.
+If a brief draft consists only of removed assignments, a single source quote of
+at most 60 words can preserve a documented task instead of returning an empty
+result. Without documented remaining content, generation fails closed.
+
+Candidate selection is deliberately conservative: whole utterances only, no
+questions, no utterance over 1,200 characters and at most 16 distinct excerpts.
+Only direct named or first-person action statements are selected, not generic
+plans such as "Vi skal ...". A first-person modal requires a concrete follow-up
+verb, not a social aside. Named statements are prioritized, then restored to
+source order. An omitted or ambiguous task is not assigned to a guessed owner.
+This is neither an exhaustive task extractor nor a semantic proof: unusual
+assignment phrasing can evade the narrative filter, source wording can itself
+be inaccurate, and later corrections can affect an earlier statement. The other
+summary prose remains model-generated and requires human review. Do not claim
+that this guard eliminates all hallucinations or independently verifies facts.
+
+Diagnostics log only numbers of removed units and source excerpts; no quotes,
+names, responsibilities or meeting content. The existing job retention applies.
+No additional inference call, model image, JSON schema or gateway permission is
+introduced. This API-side change requires the ordinary frontend/API deployment
+to become live; a code edit alone does not change the running service.
+
 ## Exhaustive Reference Pipeline
 
 The older exhaustive implementation remains available through the evaluation

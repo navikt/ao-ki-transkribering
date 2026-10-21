@@ -11,6 +11,37 @@ async def roomy(*args):
     return 100
 
 
+@pytest.mark.asyncio
+async def test_approving_reviewer_cannot_publish_invented_task_ownership():
+    source = (
+        "Taler 1: Ada og Bo ser på hvordan kostnader kan presenteres.\n"
+        "Taler 1: Cia, oppsummer innsikt.\n"
+        "Taler 2: Behovet for PVK er uavklart."
+    )
+
+    async def call(system, user, model, **options):
+        if system == compact.REVIEW_SYSTEM:
+            return accepted(user)
+        return (
+            "## Status\nBehovet for PVK er uavklart.\n"
+            "Ada og Bo skal avklare PVK.\n"
+            "## Oppgaver og oppfølging\n"
+            "- Cia skal lage notatet og risikovurderingen.\n"
+            "- Bo (økonomi): Presentere et ferdig budsjett.\n"
+            "## Åpne spørsmål\nNår kan testen starte?"
+        )
+
+    events = [item async for item in compact.generate(source, lambda text: ("Regler", text), None,
+                                                     call=call, count=roomy, max_tokens=3072)]
+    result = events[-1]["tekst"]
+    assert "skal avklare PVK" not in result
+    assert "skal lage notatet" not in result
+    assert "Bo (økonomi)" not in result
+    assert "Taler 1: Ada og Bo ser på hvordan kostnader kan presenteres." in result
+    assert "Taler 1: Cia, oppsummer innsikt." in result
+    assert "Behovet for PVK er uavklart." in result
+
+
 def accepted(user):
     data = json.loads(user)
     return json.dumps({"accepted": [True for claim in data["claims"]],
@@ -38,24 +69,22 @@ async def test_fitting_meeting_uses_one_draft_and_one_compact_review():
 
 
 @pytest.mark.asyncio
-async def test_invented_owner_is_rewritten_and_reviewed_before_publication():
+async def test_invented_owner_is_replaced_by_source_without_a_rewrite():
     source = "Gro: Jeg lager notatet. Vegard skal ikke lage notatet."
-    drafts = iter(["Vegard lager notatet.", "Gro lager notatet."])
     checked = []
 
     async def call(system, user, model, **options):
         if system == compact.REVIEW_SYSTEM:
             data = json.loads(user)
             checked.extend(claim["text"] for claim in data["claims"])
-            if "Vegard" in data["draft"]:
-                return json.dumps({"accepted": [False], "conflicts": [{"id": 0, "source_ids": [1]}], "missing_topics": []})
             return accepted(user)
-        return next(drafts)
+        return "Vegard lager notatet."
 
     events = [item async for item in compact.generate(source, lambda text: ("Regler", text), None,
                                                      call=call, count=roomy, max_tokens=3072)]
-    assert events[-1]["tekst"] == "Gro lager notatet."
-    assert checked == ["Vegard lager notatet.", "Gro lager notatet."]
+    assert "Vegard lager notatet." not in events[-1]["tekst"]
+    assert source in events[-1]["tekst"]
+    assert not any(claim == "Vegard lager notatet." for claim in checked)
 
 
 @pytest.mark.asyncio

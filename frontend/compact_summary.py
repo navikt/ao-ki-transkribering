@@ -9,6 +9,7 @@ from frontend.grounded_summary import (
 )
 from frontend.long_transcript import TranscriptProcessingError
 from shared.diagnostics import event
+from frontend.summary_assignments import DRAFT_RULES, guard_assignments
 from shared.services.llm_proxy_client import IncompleteModelResponse, er_kontekstfeil
 
 REVIEW_TOKENS = 768
@@ -75,7 +76,7 @@ async def review(summary, source, draft):
         for sentence in _SENTENCES.split(line.strip()) if sentence.strip())]
     if not claims:
         raise TranscriptProcessingError("Modellen ga et tomt referat.")
-    instructions = "\n".join(summary.build(""))
+    instructions = "\n".join(summary.build("")) + summary.extra_draft_rules
     accepted, conflicts, gaps = set(), {}, []
     for offset in range(0, len(claims), 128):
         batch = claims[offset:offset + 128]
@@ -124,12 +125,13 @@ async def review(summary, source, draft):
 
 
 async def generate(text, build, model, *, call, count=None, max_tokens=None, comprehensive=True):
-    summary = Summary(build, model, call, count, max_tokens, comprehensive, max_calls=MAX_CALLS)
+    summary = Summary(build, model, call, count, max_tokens, comprehensive,
+                      max_calls=MAX_CALLS, draft_rules=DRAFT_RULES)
     for attempt in range(4):
         try:
             system, user = build(text)
             items = []
-            if await summary.sizer.tokens(system + _draft_rules(text), user) > summary.budget(max_tokens):
+            if await summary.sizer.tokens(system + _draft_rules(text) + DRAFT_RULES, user) > summary.budget(max_tokens):
                 async for result in summary.extract(text):
                     if result["type"] == "evidence":
                         items = result["items"]
@@ -139,13 +141,16 @@ async def generate(text, build, model, *, call, count=None, max_tokens=None, com
             for revision in range(2):
                 yield {"type": "progress", "melding": "Skriver referat …" if not revision else "Retter påstander og manglende temaer …"}
                 draft = await summary.draft(text, items, corrections, previous)
+                draft = guard_assignments(text, draft, comprehensive=comprehensive)
+                if not draft.strip():
+                    raise TranscriptProcessingError("Referatet mangler dokumentert innhold. Prøv igjen.")
                 yield {"type": "progress", "melding": "Kontrollerer referatet mot originalen …"}
                 corrections = await review(summary, text, draft)
                 if corrections["issues"]:
                     filtered = _remove_unsupported(draft, corrections["issues"])
                     if filtered and filtered != draft:
                         yield {"type": "progress", "melding": "Fjerner udokumenterte setninger og kontrollerer på nytt …"}
-                        draft = filtered
+                        draft = guard_assignments(text, filtered, comprehensive=comprehensive)
                         corrections = await review(summary, text, draft)
                 event("llm.summary_audit", mode="compact", revision=revision,
                       unsupported=len(corrections["issues"]), missing_topics=len(corrections["missing_topics"]))
