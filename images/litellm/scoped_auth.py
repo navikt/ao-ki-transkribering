@@ -27,7 +27,7 @@ def _safe_response_format(value):
     spec = value["json_schema"]
     if not isinstance(spec, dict) or set(spec) != {"name", "strict", "schema"} or spec["strict"] is not True:
         return False
-    if not isinstance(spec["name"], str) or spec["name"] not in {"transkriberit_EvidenceBatch", "transkriberit_Audit", "transkriberit_Coverage"}:
+    if not isinstance(spec["name"], str) or spec["name"] not in {"transkriberit_EvidenceBatch", "transkriberit_Audit", "transkriberit_Coverage", "transkriberit_CompactReview"}:
         return False
     schema = spec["schema"]
     if not isinstance(schema, dict) or schema.get("type") != "object" or schema.get("additionalProperties") is not False:

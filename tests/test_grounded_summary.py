@@ -372,6 +372,7 @@ def test_oversized_summary_routes_extract_and_verify_every_original_character(mo
     from frontend.routes import referat
     from shared.services import llm_proxy_client
     from tests.summary_fakes import structured_reply
+    from frontend.compact_summary import REVIEW_SYSTEM
 
     monkeypatch.setitem(llm_proxy_client._OPTIONS, "num_ctx", 8192)
     source = "".join(f"Taler 1: Sak {index}: PVK er fortsatt uavklart.\n" for index in range(1000))
@@ -382,7 +383,7 @@ def test_oversized_summary_routes_extract_and_verify_every_original_character(mo
 
     async def call(system, user, model, **kwargs):
         assert (len((system + user).encode()) + 3) // 4 <= llm_proxy_client.input_token_budget(kwargs.get("max_tokens"))
-        if system in {grounded.EXTRACT_SYSTEM, grounded.AUDIT_SYSTEM}:
+        if system in {grounded.EXTRACT_SYSTEM, REVIEW_SYSTEM}:
             target = extracted if system == grounded.EXTRACT_SYSTEM else audited
             target.append("".join(json.loads(user)["source"].values()))
         return structured_reply(system, user) or "PVK er fortsatt uavklart."

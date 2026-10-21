@@ -3,9 +3,13 @@
 import json
 
 from frontend.grounded_summary import AUDIT_SYSTEM, COVERAGE_SYSTEM, EXTRACT_SYSTEM
+from frontend.compact_summary import REVIEW_SYSTEM
 
 
 def structured_reply(system, user):
+    if system == REVIEW_SYSTEM:
+        data = json.loads(user)
+        return json.dumps({"accepted": [True for claim in data["claims"]], "conflicts": [], "missing_topics": []})
     if system == EXTRACT_SYSTEM:
         source = json.loads(user)["source"]
         first = next(iter(source))

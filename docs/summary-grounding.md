@@ -3,7 +3,45 @@
 All generation, evidence extraction and checking continue to use Borealis. No
 third-party inference provider or alternative model is introduced.
 
-## Processing
+## Default Compact Path
+
+The application uses `frontend/compact_summary.py`. When the source fits the
+writer's context budget, it skips evidence extraction and drafts directly from
+the complete original transcript. One compact `CompactReview` call normally
+follows. It returns a fixed-length true/false verdict array aligned with the
+draft claims, contradictions with source references,
+and missing substantive topics, rather than a row for every sentence/source pair.
+This is less exhaustive than the reference pipeline below, with the latency
+tradeoff explicitly accepted for the two-minute response target.
+
+An unsupported sentence can be removed and rechecked. Missing topics or remaining
+errors allow one rewrite, followed by another review. Contradictions anywhere in
+the original take precedence over support elsewhere. Larger inputs are grouped
+by the actual context budget; every source part is reviewed. Evidence extraction
+is reserved for sources that do not fit the writer. All output remains provisional
+until the review completes; partial JSON and unreviewed revisions are not shown.
+The compact job has a ceiling of 16 inference calls, not a latency guarantee.
+
+The review reserves 768 output tokens and uses contiguous source-ID ranges in its
+schema rather than large enums. Membership is still validated against the actual
+source. This permits a full-meeting review with more than 512 contiguous source
+references without changing gateway size/depth/array limits. Model context limits
+still apply. The normal fitting, accepted result takes two inference calls.
+
+Two minutes is a target for ordinary fitting meetings, not an SLA. Long generated
+answers, GPU queueing, extraction and repairs can exceed it. Detailed templates
+retain their existing output budget; no silent reduction to a brief summary is
+used to make a latency benchmark look better. Human review remains mandatory:
+the model can approve its own incorrect interpretation, as already observed.
+
+`llm.summary_call_completed` records stage, elapsed seconds, input-token count,
+requested output cap and call number without meeting content. Use these timings
+and an independent review of the result when assessing the tradeoff.
+
+## Exhaustive Reference Pipeline
+
+The older exhaustive implementation remains available through the evaluation
+script's `--exhaustive` option, not as the default application path.
 
 1. Count the model-formatted prompt using the running Borealis tokenizer. Reserve
    output and template space. Use the original transcript for drafting whenever
@@ -85,7 +123,7 @@ does not downgrade authentication. Native `/tokenize`, `/props`, `/slots` and
 
 Structured calls use named JSON schemas for evidence, claim checks and topic
 coverage. Runtime schemas restrict reference IDs to the supplied source and
-draft. The gateway permits only these three schema names with bounded structure,
+draft. The gateway permits these schemas and `CompactReview` with bounded structure,
 size and local references; it also accepts `json_object` for compatibility.
 Arbitrary `extra_body`, provider overrides, external or cyclic schema references,
 native administration routes and unknown models remain forbidden.
@@ -101,6 +139,9 @@ with 513 references otherwise receives HTTP 403 before reaching Borealis.
 
 The ordinary frontend workflow alone does not deploy the adapter or gateway auth
 code. Do not release the API first: the old gateway rejects JSON-mode parameters.
+For the compact-review update the existing adapter already supports counting;
+skip its rebuild/restart. Apply only the gateway schema-allowlist change before
+the frontend/API rollout. Do not restart model pods for an API-only change.
 
 1. Build a new immutable Borealis adapter image using
    `images/llama-api/Dockerfile`, publish it, and update the `vllm` container image
@@ -182,3 +223,22 @@ evidence that these omission and assignment cases are solved.
 
 Protocol references: [llama.cpp template/tokenizer endpoints](https://github.com/ggml-org/llama.cpp/tree/master/tools/server),
 [LiteLLM OpenAI-compatible provider](https://docs.litellm.ai/docs/providers/openai_compatible).
+
+## Compact Cloud Measurements: 21 October 2026
+
+Tests used the existing cloud Borealis Q8 L4, not a local model. The native
+localhost tunnel excludes gateway/IAM overhead and is not a browser end-to-end
+benchmark. Only synthetic text was submitted; no inaccurate reference transcript
+was used as ground truth.
+
+| Case | Elapsed | Inference | Limitation |
+| --- | ---: | --- | --- |
+| Early compact prototype, 60,795-character repeated fixture | 54.69 s | Draft + review | Warm/cached draft input; omitted six expected markers and failed the independent coverage check |
+| Deliberately false approval and assignment, 720-character fixture | 49.17 s | Review + corrected draft + review | Both injected errors rejected; all expected markers returned, but human inspection still found questionable inferred responsibilities |
+
+These measurements show reduced pipeline overhead, not a quality sign-off or a
+two-minute guarantee. The long repeated fixture is an attention/length stress
+case, not a representative natural meeting. The observed exhaustive production
+jobs took about 24 and 37 minutes before failing verification; content-free job
+logs, not access to meeting text, established those durations. Compact review
+does not solve Borealis's semantic accuracy limitations.

@@ -13,7 +13,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import httpx
 
-from frontend.grounded_summary import _draft_rules, generate
+from frontend.grounded_summary import _draft_rules, generate as generate_exhaustive
+from frontend.compact_summary import generate as generate_compact
 from frontend.long_transcript import _size
 from frontend.routes.referat import _bygg_referat_prompt
 from shared.services import llm_proxy_client as llm
@@ -107,6 +108,7 @@ async def main(args):
             return await backend_call(system, user, model, **options)
 
         started = time.monotonic()
+        generate = generate_exhaustive if args.exhaustive else generate_compact
         async for result in generate(source, build, "borealis-12b", call=checked_call, count=count, max_tokens=3072):
             if result["type"] == "progress":
                 repaired = repaired or result["melding"].startswith(("Retter", "Fjerner"))
@@ -125,6 +127,7 @@ async def main(args):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--long", action="store_true")
+    parser.add_argument("--exhaustive", action="store_true", help="Compare against the slower exhaustive pipeline")
     parser.add_argument("--count-only", action="store_true", help="Inspect the fitting decision without generating a summary")
     parser.add_argument("--debug", action="store_true", help="Show structured replies for the built-in synthetic fixture only")
     parser.add_argument("--inject-bad-draft", action="store_true", help="Require rejection of a deliberately invented approval and assignment")

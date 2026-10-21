@@ -9,7 +9,7 @@ from fastapi import APIRouter, HTTPException, Request, Response
 from fastapi.responses import StreamingResponse
 
 from frontend.long_transcript import TranscriptProcessingError, generate, with_heartbeats
-from frontend.grounded_summary import generate as generate_grounded
+from frontend.compact_summary import generate as generate_grounded
 from frontend.summary_jobs import SummaryJobs
 from shared.core.runtime import job_store
 from shared.core.settings import LLM_MODELL

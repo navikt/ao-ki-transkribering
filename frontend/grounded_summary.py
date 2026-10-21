@@ -1,6 +1,7 @@
 """Evidence-backed summaries, checked against original text before publication."""
 
 import json
+import time
 from typing import Annotated, Literal
 
 import httpx
@@ -203,33 +204,39 @@ def _validate_evidence(batch: EvidenceBatch, source):
 
 
 class Summary:
-    def __init__(self, build, model, call, count, max_tokens, comprehensive):
+    def __init__(self, build, model, call, count, max_tokens, comprehensive, *, max_calls=MAX_CALLS):
         self.build, self.model, self.call = build, model, call
         self.sizer = PromptSizer(model, count)
         self.max_tokens, self.comprehensive = max_tokens, comprehensive
         self.scale, self.calls = 1.0, 0
+        self.max_calls = max_calls
 
     def budget(self, output=None):
         return int(input_token_budget(output) * self.scale)
 
     async def invoke(self, system, user, **options):
         self.calls += 1
-        if self.calls > MAX_CALLS:
+        if self.calls > self.max_calls:
             raise TranscriptProcessingError("Referatet krever for mange kontrollkall med dette modelloppsettet.")
         input_tokens = await self.sizer.tokens(system, user)
         if input_tokens > self.budget(options.get("max_tokens")):
             raise TranscriptProcessingError("Kilde og kontrollinstruksjoner overskrider modellens tekstgrense.")
+        started = time.monotonic()
+        stage = options.get("response_schema", {}).get("title", "draft")
         try:
-            return await self.call(system, user, self.model, **options)
+            result = await self.call(system, user, self.model, **options)
         except IncompleteModelResponse:
-            event("llm.output_truncated", stage=options.get("response_schema", {}).get("title", "draft"),
-                  input_tokens=input_tokens, max_tokens=options.get("max_tokens"), call=self.calls)
+            event("llm.output_truncated", stage=stage, input_tokens=input_tokens,
+                  max_tokens=options.get("max_tokens"), call=self.calls, elapsed_s=round(time.monotonic() - started, 3))
             raise
+        event("llm.summary_call_completed", stage=stage, input_tokens=input_tokens,
+              max_tokens=options.get("max_tokens"), call=self.calls, elapsed_s=round(time.monotonic() - started, 3))
+        return result
 
-    async def structured(self, system, user, schema, validate):
+    async def structured(self, system, user, schema, validate, *, max_tokens=STRUCTURED_TOKENS):
         for attempt in range(2):
             try:
-                text = await self.invoke(system, user, max_tokens=STRUCTURED_TOKENS, raw=True, json_mode=True,
+                text = await self.invoke(system, user, max_tokens=max_tokens, raw=True, json_mode=True,
                                          response_schema=json.loads(user)["response_schema"])
                 data = schema.model_validate_json(text)
                 validate(data)
@@ -242,17 +249,17 @@ class Summary:
                 event("llm.evidence_check_retry", attempt=attempt + 1, reason=reason)
                 payload = json.loads(user)
                 payload["validation_feedback"] = (
-                    "Forrige svar hadde feil: " + reason + ". Følg response_schema, ta med alle claim-id-er nøyaktig én gang, "
-                    "bruk bare eksisterende source_ids, og sett owner til ett eksplisitt personnavn eller null."
+                    "Forrige svar hadde feil: " + reason + ". Følg response_schema og kontrollinstruksjonene. "
+                    "Rett format og referanser; bruk bare eksisterende kilde- og påstands-ID-er. Ikke endre kilden."
                 )
                 user = _json(payload)
         raise TranscriptProcessingError("Kunne ikke kontrollere modellens kildehenvisninger. Prøv igjen.")
 
-    async def groups(self, source, build, budget):
+    async def groups(self, source, build, budget, *, max_sources=MAX_SOURCE_REFERENCES):
         records = list(source.items())
         groups = []
         while records:
-            candidate = records[:MAX_SOURCE_REFERENCES]
+            candidate = records[:max_sources]
             size = await self.sizer.tokens(*build(dict(candidate)))
             if size <= budget:
                 groups.append(dict(candidate))

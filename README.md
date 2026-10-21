@@ -225,10 +225,14 @@ budsjetter. Hvis tokentelleren ikke er tilgjengelig, brukes et konservativt esti
 For store kilder hentes strukturerte kildepunkter automatisk, uten å kutte bort
 første eller siste del av møtet. Kildenumre peker på uendrede originalutdrag;
 sitater hentes av kode, ikke skrives eller oversettes av modellen.
-Utkastets påstander kontrolleres mot originalen, og en separat kontroll ser etter
-manglende temaer. Korreksjoner kontrolleres på nytt før publisering. Ukjent ansvar
+Når originalen passer, brukes normalt to modellkall: ett for referatet og ett for
+en kompakt kontroll av påstander, ansvar og manglende temaer. Den tidligere
+setnings- og utdragsvise kontrollen brukes ikke som standard. Korreksjoner
+kontrolleres på nytt før publisering. Ukjent ansvar
 forblir uavklart. Ved vedvarende kontrollfeil vises en feil, ikke et ukontrollert utkast.
-Dette gir flere modellkall og kan øke ventetiden. Kontrollene bruker fortsatt
+Målet er rundt to minutter for vanlige møter som passer i kontekstvinduet, ikke
+en garantert svartid. Lange svar, kø, store kilder og rettinger kan ta lengre tid.
+Kontrollen er mindre uttømmende enn tidligere. Kontrollene bruker fortsatt
 Borealis og er ikke en garanti mot faktafeil; referatet må gjennomgås av en person.
 Se [kildekontroll og innføring](docs/summary-grounding.md).
 Nettleseren starter en bakgrunnsjobb og henter fremdrift med korte statuskall.
@@ -242,8 +246,9 @@ en varig kø og delt lagring kreves før flere API-replikaer kan brukes.
 De eldre strømmeendepunktene er fortsatt tilgjengelige for API-klienter.
 
 Borealis-oppsettet reserverer 32 768 konteksttokener per forespørsel, fordelt på
-to samtidige modellkall (65 536 totalt i llama.cpp). Kildeuttrekk og strukturerte
-kontroller har inntil 4 096 svartokener. Andre teksthandlingers mellomnotater har
+to samtidige modellkall (65 536 totalt i llama.cpp). Kompakt kontroll har inntil
+768 svartokener. Kildeuttrekk og de eldre, uttømmende kontrollene har inntil
+4 096 svartokener. Andre teksthandlingers mellomnotater har
 inntil 2 048 svartokener i stedet for 512. Dette gir mindre
 aggressiv komprimering, men er ingen garanti mot faktafeil. Lengre notater kan
 øke genereringstiden; færre modellkall kan redusere samlet ventetid.
