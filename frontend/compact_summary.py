@@ -124,7 +124,7 @@ async def review(summary, source, draft):
     return {"issues": issues, "missing_topics": gaps}
 
 
-async def generate(text, build, model, *, call, count=None, max_tokens=None, comprehensive=True):
+async def generate(text, build, model, *, call, count=None, max_tokens=None, comprehensive=True, source_quotes=True):
     summary = Summary(build, model, call, count, max_tokens, comprehensive,
                       max_calls=MAX_CALLS, draft_rules=DRAFT_RULES)
     for attempt in range(4):
@@ -141,7 +141,7 @@ async def generate(text, build, model, *, call, count=None, max_tokens=None, com
             for revision in range(2):
                 yield {"type": "progress", "melding": "Skriver referat …" if not revision else "Retter påstander og manglende temaer …"}
                 draft = await summary.draft(text, items, corrections, previous)
-                draft = guard_assignments(text, draft, comprehensive=comprehensive)
+                draft = guard_assignments(text, draft, comprehensive=comprehensive, include_source_quotes=source_quotes)
                 if not draft.strip():
                     raise TranscriptProcessingError("Referatet mangler dokumentert innhold. Prøv igjen.")
                 yield {"type": "progress", "melding": "Kontrollerer referatet mot originalen …"}
@@ -150,7 +150,7 @@ async def generate(text, build, model, *, call, count=None, max_tokens=None, com
                     filtered = _remove_unsupported(draft, corrections["issues"])
                     if filtered and filtered != draft:
                         yield {"type": "progress", "melding": "Fjerner udokumenterte setninger og kontrollerer på nytt …"}
-                        draft = guard_assignments(text, filtered, comprehensive=comprehensive)
+                        draft = guard_assignments(text, filtered, comprehensive=comprehensive, include_source_quotes=source_quotes)
                         corrections = await review(summary, text, draft)
                 event("llm.summary_audit", mode="compact", revision=revision,
                       unsupported=len(corrections["issues"]), missing_topics=len(corrections["missing_topics"]))

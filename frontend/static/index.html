@@ -40,11 +40,6 @@
           Jeg bekrefter at opptak og transkripsjon er avklart med deltakerne, og at opplysningene kan behandles til dette formålet.
         </span>
       </label>
-        <label class="checkbox-label juridisk-paragraf">
-          <input type="checkbox" class="checkbox-input" id="paragraf14-hake"
-                 onchange="oppdaterMoteBekreftelse(true)" />
-          Jeg bekrefter at møtet behandles etter nav-loven §14 a, og at tekst om kommunale tjenester (§15) fjernes før videre bruk.
-        </label>
     </div>
 
     <!-- Batch-panel -->
@@ -217,6 +212,18 @@
           <option value="egendefinert">Egendefinert</option>
         </select>
       </label>
+      <label id="veileder-variant-valg" class="scenario-velger" hidden>
+        <span>Møteformål</span>
+        <select id="veileder-variant" onchange="oppdaterReferatMal()">
+          <option value="kartlegging">Kartlegging</option>
+          <option value="oppfolging" selected>Oppfølging</option>
+        </select>
+      </label>
+      <label id="referat-avgrensning" class="checkbox-label" hidden>
+        <input type="checkbox" class="checkbox-input" role="switch" id="paragraf14-hake"
+               onchange="oppdaterReferatMal()" />
+        Begrenset §14a-referat
+      </label>
       <div id="referat-egne-instruksjoner" hidden>
         <label for="referat-instruksjoner">Egne instruksjoner</label>
         <textarea id="referat-instruksjoner" rows="4" maxlength="4000"></textarea>
@@ -275,7 +282,7 @@
               onclick="kopierReferat()">Kopier</button>
       <span id="referat-modell-info"></span>
       <span style="margin-left:auto" class="fotnote">
-        Gjennomgå alltid referatet før du lagrer det i Modia
+        Gjennomgå innhold og mottaker før du deler eller lagrer referatet
       </span>
     </div>
   </div><!-- /referat-panel -->

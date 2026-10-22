@@ -15,6 +15,10 @@ from worker.prompts.motereferat import (
     SYSTEM_RULLERENDE,
     SYSTEM_SAMMENDRAG,
     SYSTEM_SAMARBEIDSMOTE,
+    SYSTEM_VEILEDERSAMTALE,
+    BRUKER_VEILEDERSAMTALE,
+    VEILEDER_KARTLEGGING,
+    VEILEDER_OPPFOLGING,
 )
 
 
@@ -46,6 +50,19 @@ class ReferatScenario:
 
 
 STANDARD_REFERAT_SCENARIO = "generelt_mote"
+STANDARD_VEILEDER_VARIANT = "oppfolging"
+VEILEDER_VARIANTER = {
+    "kartlegging": {
+        "tittel": "Kartlegging",
+        "beskrivelse": "Situasjon, erfaring, interesser, ønsker og videre utforsking.",
+        "instruksjoner": VEILEDER_KARTLEGGING,
+    },
+    "oppfolging": {
+        "tittel": "Oppfølging",
+        "beskrivelse": "Status, erfaringer, utvikling og videre oppfølging.",
+        "instruksjoner": VEILEDER_OPPFOLGING,
+    },
+}
 
 REFERAT_SCENARIER: dict[str, ReferatScenario] = {
     "minimalt_sammendrag": ReferatScenario(
@@ -66,9 +83,10 @@ REFERAT_SCENARIER: dict[str, ReferatScenario] = {
     "veiledermote": ReferatScenario(
         id="veiledermote",
         tittel="Veiledermøte",
-        beskrivelse="NAV §14a-referat til Modia med tydelig §15-grense.",
-        system_prompt=SYSTEM_REFERAT,
-        bruker_prompt_template=BRUKER_REFERAT,
+        beskrivelse="Samtalereferat i vi/du-form med situasjon, ønsker, usikkerhet og oppfølging.",
+        system_prompt=SYSTEM_VEILEDERSAMTALE,
+        bruker_prompt_template=BRUKER_VEILEDERSAMTALE,
+        max_tokens=2048,
     ),
     "generelt_mote": ReferatScenario(
         id="generelt_mote",
@@ -199,13 +217,18 @@ def hent_referat_scenario(scenario_id: str | None) -> ReferatScenario | None:
     return REFERAT_SCENARIER.get(scenario_id or STANDARD_REFERAT_SCENARIO)
 
 
-def list_referat_scenarier() -> list[dict[str, str | bool]]:
+def list_referat_scenarier() -> list[dict]:
     return [
         {
             "id": scenario.id,
             "tittel": scenario.tittel,
             "beskrivelse": scenario.beskrivelse,
             "standard": scenario.id == STANDARD_REFERAT_SCENARIO,
+            **({"varianter": [
+                {"id": key, "tittel": value["tittel"], "beskrivelse": value["beskrivelse"],
+                 "standard": key == STANDARD_VEILEDER_VARIANT}
+                for key, value in VEILEDER_VARIANTER.items()
+            ]} if scenario.id == "veiledermote" else {}),
         }
         for scenario in REFERAT_SCENARIER.values()
     ]

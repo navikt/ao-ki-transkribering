@@ -45,7 +45,7 @@ _GENERIC_ACTORS = set((
 
 # Instructions supplement a code boundary; they are not treated as validation.
 DRAFT_RULES = """\nANSVAR OG OPPFØLGING: Ikke skriv oppgaveliste, ansvarstabell eller tilordninger i friteksten.
-Programmet legger ved uendrede kildeutsagn om oppfølging separat. Ikke gjett navn, roller eller taleridentiteter.
+Ikke gjett navn, roller eller taleridentiteter.
 Beskriv temaer og uavklarte forhold uten å gi personer oppgaver. Ikke gjenta tilordninger i konklusjonen.
 Kildeutsagn er ikke en bekreftelse på at oppgaven er vedtatt, fortsatt gjelder eller er gjennomført."""
 
@@ -118,7 +118,7 @@ def _paragraphs(draft):
         yield " ".join(pending)
 
 
-def guard_assignments(source, draft, *, comprehensive):
+def guard_assignments(source, draft, *, comprehensive, include_source_quotes=True):
     kept, removed, blocked = [], 0, None
     for line in _paragraphs(draft):
         heading = _heading(line)
@@ -145,8 +145,8 @@ def guard_assignments(source, draft, *, comprehensive):
     body = "\n".join(kept).strip()
     if not any(line.strip() and _heading(line) is None for line in kept):
         body = ""
-    quotes = source_follow_up(source) if comprehensive else []
-    if not body and not comprehensive:
+    quotes = source_follow_up(source) if comprehensive and include_source_quotes else []
+    if not body and not comprehensive and include_source_quotes:
         quotes = [quote for quote in source_follow_up(source) if len(quote.split()) <= 60][:1]
     if quotes:
         if comprehensive:

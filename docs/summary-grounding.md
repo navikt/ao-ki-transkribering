@@ -40,6 +40,79 @@ and an independent review of the result when assessing the tradeoff.
 
 ## Source-Only Follow-Up
 
+### Adviser Formats
+
+`veiledermote` now defaults to a source-only vi/du conversation referat. It can
+include relevant health/function, housing, finances, language and practical
+constraints when spoken, without importing case background or inferring benefits,
+diagnoses, employers' views, decisions, responsibilities or deadlines. The general
+meeting template remains the application's initial selection; this change affects
+the adviser template, not internal meetings or transcription.
+
+The shared `SYSTEM_VEILEDER_BASIS` defines source faithfulness, vi/du language,
+uncertainty, attribution, conditional agreements and adaptive detail. A separate
+scope layer selects normal or restricted content. One server-defined purpose
+overlay is then added:
+
+- `kartlegging`: situation, experience/education, interests, resources, wishes,
+  barriers and further exploration. It must not invent a job goal, diagnosis or
+  the assumption that this is a first meeting.
+- `oppfolging`: status, experiences, progress/obstacles and agreed next steps.
+  Comparisons and previous plans require explicit source support. Complex
+  follow-ups may need more detail than a simple initial assessment.
+
+The optional request field `veileder_variant` selects the purpose. Omission keeps
+`oppfolging` as the adviser default and preserves old job fingerprints. Invalid
+values and purposes supplied for other templates/actions are rejected, not
+silently ignored. An explicit change of purpose changes the job fingerprint.
+The existing scenario-list endpoint publishes variant IDs, titles, descriptions
+and the default, not prompt instructions. Response/job metadata identifies the
+effective purpose and restriction setting for comparison and review.
+
+In the UI choose **Veilederreferat**, then **Møteformål: Kartlegging / Oppfølging**.
+The restricted-format switch is independent and available for either purpose.
+The result heading captures both choices; neither changes audio transcription,
+recording acknowledgement or manually edited notes. Purpose settings are locked
+while generation is running. Other meeting templates remain unchanged.
+
+The optional `begrenset_referat: true` request field selects the previous restricted
+adviser format. It defaults to false, accepts only JSON booleans and is rejected
+for other templates/actions. Final, rolling and background-job paths share this
+choice. The existing checkbox is now next to the adviser template, unchecked by
+default, rather than a recording confirmation. Changing it does not revoke the
+separate recording acknowledgement. Output settings are locked during generation,
+and the generated output's title identifies the selected restricted format.
+
+In restricted format the guard never appends raw-source follow-up excerpts,
+including its brief-summary fallback. This prevents a code-added quotation from
+bypassing the selected exclusions. The prompt's exclusions themselves remain
+fallible model instructions, not a verified personal-data redactor or an access
+control. Neither format changes authentication, processing permission, transcript
+capture, retention, disclosure or the permitted destination for a document.
+Human review of relevance, accuracy and the intended recipient remains necessary.
+
+### Adviser Evaluation
+
+Treat the six supplied situations as evaluation cases, not six canned histories
+embedded in prompts. Start with scenario 3 for Kartlegging and the remaining
+cases for Oppfølging, but let actual conversation purpose determine the choice.
+For comparison, generate both variants from the same spoken transcript using
+the same scope setting and model. Background, agenda and expected findings are
+reviewer material, not extra meeting facts fed to the generator.
+
+Advisers should record missing relevant topics, unsupported statements, changed
+proposals/agreements, lost qualifications, usefulness of detail and editing effort.
+In particular, distinguish an agreed course from a proposed measure awaiting a
+doctor's view, and a participant's impression of an employer from the employer's
+own assessment. Do not reward filling in background that was never spoken.
+
+Record case ID, selected purpose, scope, generation time, findings and approximate
+editing time. Prefer anonymized/synthetic pilot material; retain real transcripts
+only in approved storage, not Git or application logs. Unit tests check prompt
+composition, routing and isolation; they do not establish semantic accuracy.
+No adviser quality study, cloud benchmark or production rollout is implied by
+implementing these variants.
+
 The compact path now applies `frontend/summary_assignments.py` before review and
 after any sentence filtering. Generated task/ownership sections are discarded.
 Norwegian assignment-like sentences and common invented job-role forms outside

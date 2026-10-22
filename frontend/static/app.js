@@ -32,15 +32,14 @@ if (samtykkeHake) {
   });
 }
 
-function oppdaterMoteBekreftelse(nullstill = false) {
-  const veiledermote = document.getElementById("paragraf14-hake").checked;
+function oppdaterMoteBekreftelse() {
+  const veiledermote = _valgtReferatScenario() === "veiledermote" && document.getElementById("paragraf14-hake").checked;
   const gjennomgang = veiledermote
     ? "Gjennomgå transkripsjonen før bruk og fjern informasjon om kommunale tjenester (§15) før eventuell lagring i NAV-statlige systemer."
     : "Gjennomgå transkripsjonen og fjern opplysninger som ikke skal brukes eller lagres videre.";
   document.getElementById("paragraf15-advarsel").textContent = gjennomgang;
   document.getElementById("sanntid-gjennomgang").textContent = gjennomgang;
   document.getElementById("sanntid-gjennomgang").hidden = !veiledermote;
-  if (nullstill) samtykkeHake.checked = false;
   settLydInngangAktivert(samtykkeHake.checked);
 }
 
@@ -70,7 +69,6 @@ async function startOpptak() {
       sendTilServer(blob, "opptak.webm");
     };
     mediaRecorder.start(1000);
-    document.getElementById("paragraf14-hake").disabled = true;
   document.getElementById("lydkilde").disabled = true;
 
     document.getElementById("knapp-start").disabled = true;
@@ -85,7 +83,6 @@ async function startOpptak() {
 }
 
 function stoppOpptak() {
-  document.getElementById("paragraf14-hake").disabled = false;
   document.getElementById("lydkilde").disabled = false;
   clearInterval(timerIntervall);
   document.getElementById("knapp-start").disabled = false;
@@ -667,6 +664,22 @@ async function lastReferatScenarier() {
       option.selected = scenario.id === valgt || (!valgt && scenario.standard);
       velger.appendChild(option);
     }
+    const varianter = _referatScenarier.find(scenario => scenario.id === "veiledermote")?.varianter;
+    const variantVelger = document.getElementById("veileder-variant");
+    if (varianter?.length && variantVelger) {
+      const tidligereValg = variantVelger.value;
+      const valgtVariant = varianter.some(variant => variant.id === tidligereValg)
+        ? tidligereValg : varianter.find(variant => variant.standard)?.id;
+      variantVelger.innerHTML = "";
+      for (const variant of varianter) {
+        const option = document.createElement("option");
+        option.value = variant.id;
+        option.textContent = variant.tittel;
+        option.title = variant.beskrivelse;
+        option.selected = variant.id === valgtVariant;
+        variantVelger.appendChild(option);
+      }
+    }
     oppdaterReferatMal();
   } catch {
     /* Bruk statiske fallback-valg i HTML. */
@@ -679,6 +692,7 @@ async function _triggerLiveReferat(transkripsjon) {
   if (!valg) return;
   if (_liveReferatOppdaterer) return; // allerede pågår
   _liveReferatOppdaterer = true;
+  _oppdaterReferatValgLaas();
   _liveReferatOrdTalt = _telSanntidOrd();
 
   const wrap = document.getElementById("live-referat-wrap");
@@ -694,7 +708,7 @@ async function _triggerLiveReferat(transkripsjon) {
   const controller = new AbortController();
   _liveReferatReader = {cancel: () => controller.abort()};
   try {
-    document.getElementById("live-utkast-tittel").textContent = "Utkast: " + _referatScenarioTittel(valg.scenario);
+    document.getElementById("live-utkast-tittel").textContent = "Utkast: " + _referatValgTittel(valg);
     const data = await _genererLlmJobb(
       valg.scenario === "sammendrag" ? "sammendrag" : "rullerende_referat",
       {transkripsjon, ...(valg.scenario === "sammendrag" ? {} : valg)},
@@ -711,6 +725,7 @@ async function _triggerLiveReferat(transkripsjon) {
     }
   } finally {
     _liveReferatOppdaterer = false;
+    _oppdaterReferatValgLaas();
     _liveReferatReader = null;
   }
 }
@@ -770,7 +785,6 @@ async function startSanntid(restored = []) {
   oppdaterLyddiagnostikk();
   sanntidStoppgrunn = "";
   nullstillMikrofonNiva(true);
-  document.getElementById("paragraf14-hake").disabled = true;
   document.getElementById("lydkilde").disabled = true;
   sanntidSegmenter = [];
   sanntidSekunder  = 0;
@@ -936,7 +950,6 @@ async function startSanntid(restored = []) {
   if (restored.length) {
     sanntidAktivt = false;
     nullstillMikrofonNiva();
-    document.getElementById("paragraf14-hake").disabled = false;
     document.getElementById("lydkilde").disabled = false;
     clearInterval(sanntidTimer);
     document.getElementById("sanntid-stopp-knapp").disabled = true;
@@ -978,7 +991,6 @@ function stoppSanntid(grunn = "") {
   if (grunn) sanntidStoppgrunn = grunn;
   sanntidAktivt = false;
   nullstillMikrofonNiva();
-  document.getElementById("paragraf14-hake").disabled = false;
   document.getElementById("lydkilde").disabled = false;
   clearInterval(sanntidTimer);
 
@@ -1258,11 +1270,19 @@ function _valgtReferatScenario() {
 
 function oppdaterReferatMal() {
   document.getElementById("referat-egne-instruksjoner").hidden = _valgtReferatScenario() !== "egendefinert";
+  document.getElementById("referat-avgrensning").hidden = _valgtReferatScenario() !== "veiledermote";
+  document.getElementById("veileder-variant-valg").hidden = _valgtReferatScenario() !== "veiledermote";
+  oppdaterMoteBekreftelse();
   document.getElementById("referat-mal-status").textContent = "";
 }
 
 function _referatValg() {
   const scenario = _valgtReferatScenario();
+  if (scenario === "veiledermote") return {
+    scenario,
+    veileder_variant: document.getElementById("veileder-variant").value || "oppfolging",
+    begrenset_referat: document.getElementById("paragraf14-hake").checked,
+  };
   if (scenario !== "egendefinert") return { scenario };
   const instruksjoner = document.getElementById("referat-instruksjoner").value.trim();
   if (!instruksjoner) {
@@ -1271,6 +1291,20 @@ function _referatValg() {
   }
   document.getElementById("referat-mal-status").textContent = "";
   return { scenario, instruksjoner };
+}
+
+function _referatValgTittel(valg) {
+  const tittel = valg.begrenset_referat ? "Begrenset §14a-referat" : _referatScenarioTittel(valg.scenario);
+  if (valg.scenario !== "veiledermote") return tittel;
+  const variant = valg.veileder_variant === "kartlegging" ? "Kartlegging" : "Oppfølging";
+  return tittel + " – " + variant;
+}
+
+function _oppdaterReferatValgLaas() {
+  const laast = _referatGenererer || _liveReferatOppdaterer;
+  document.getElementById("referat-scenario").disabled = laast;
+  document.getElementById("paragraf14-hake").disabled = laast;
+  document.getElementById("veileder-variant").disabled = laast;
 }
 
 function hentReferatFraArbeidsflate() {
@@ -1337,6 +1371,7 @@ let _referatGenererer = false;
 
 async function _streamReferat(endepunkt, tekst, tittel, ekstra = {}) {
   _referatGenererer = true;
+  _oppdaterReferatValgLaas();
   try {
     const action = endepunkt === "/sammendrag/stream" ? "sammendrag" : "referat";
     const data = await _genererLlmJobb(action, {transkripsjon: tekst, ...ekstra}, melding => {
@@ -1348,6 +1383,7 @@ async function _streamReferat(endepunkt, tekst, tittel, ekstra = {}) {
     _visReferatResultat(data.tekst, data.modell);
   } finally {
     _referatGenererer = false;
+    _oppdaterReferatValgLaas();
   }
 }
 
@@ -1371,7 +1407,7 @@ async function hentReferat(kilde) {
   const valg = _referatValg();
   if (!valg) return;
   const scenario = valg.scenario;
-  const tittel = "📝 " + _referatScenarioTittel(scenario);
+  const tittel = "📝 " + _referatValgTittel(valg);
   _visReferatPanel(tittel);
   document.getElementById("referat-panel").scrollIntoView({ behavior: "smooth", block: "start" });
   try {

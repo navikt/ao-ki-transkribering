@@ -1,8 +1,9 @@
 import json
 import os
+from typing import Literal
 
 import httpx
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, StrictBool
 
 from shared.core.settings import AI_PROXY_API_KEY, AI_PROXY_URL, LLM_BACKEND, LLM_MODELL, OLLAMA_URL
 from worker.prompts.normalisering import normaliser_til_bokmal
@@ -33,6 +34,8 @@ class LlmForesporsel(BaseModel):
     modell: str | None = None
     scenario: str | None = None
     instruksjoner: str | None = Field(default=None, max_length=4000)
+    begrenset_referat: StrictBool = False
+    veileder_variant: Literal["kartlegging", "oppfolging"] | None = None
 
 
 class LlmModell(BaseModel):

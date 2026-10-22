@@ -232,12 +232,13 @@ def test_live_referat_bruker_motetype(monkeypatch, scenario):
     assert response.status_code == 200
     assert f'"scenario": "{expected}"' in response.text
     assert "Vi avtaler mandag." in calls[0][1]
-    assert calls[0][2] == ({"max_tokens": 3072} if scenario == "utfyllende_sammendrag" else {})
-    if expected == "veiledermote":
-        assert calls[0][0].startswith(hent_handling("rullerende_referat").system_prompt + GROUNDING_RULES)
-    else:
-        assert calls[0][0].startswith(hent_referat_scenario(expected).system_prompt + GROUNDING_RULES)
-        assert "Møtet pågår" in calls[0][1]
+    limit = hent_referat_scenario(expected).max_tokens
+    assert calls[0][2] == ({"max_tokens": limit} if limit else {})
+    expected_system, _, _ = referat_routes._bygg_referat_prompt(
+        referat_routes.LlmForesporsel(transkripsjon="Vi avtaler mandag.", scenario=scenario), rullerende=True,
+    )
+    assert calls[0][0].startswith(expected_system + GROUNDING_RULES)
+    assert "Møtet pågår" in calls[0][1]
 
 
 def test_live_referat_avviser_ukjent_scenario():

@@ -31,7 +31,8 @@ from worker.prompts import (
     list_referat_scenarier,
     normaliser_til_bokmal,
 )
-from worker.prompts.handlinger import LlmHandling
+from worker.prompts.handlinger import LlmHandling, STANDARD_VEILEDER_VARIANT, VEILEDER_VARIANTER
+from worker.prompts.motereferat import SYSTEM_REFERAT, BRUKER_REFERAT, SYSTEM_VEILEDER_BASIS
 
 router = APIRouter()
 log = logging.getLogger(__name__)
@@ -62,7 +63,27 @@ def _bygg_referat_prompt(foresporsel: LlmForesporsel, *, rullerende: bool = Fals
     scenario = hent_referat_scenario(foresporsel.scenario)
     if scenario is None:
         raise HTTPException(status_code=400, detail=f"Ukjent referat-scenario: {foresporsel.scenario}")
+    if foresporsel.begrenset_referat and scenario.id != "veiledermote":
+        raise HTTPException(status_code=400, detail="Begrenset referat krever veiledermalen")
+    if foresporsel.veileder_variant is not None and scenario.id != "veiledermote":
+        raise HTTPException(status_code=400, detail="Møteformål krever veiledermalen")
     tekst = foresporsel.transkripsjon
+    if scenario.id == "veiledermote":
+        if foresporsel.instruksjoner:
+            raise HTTPException(status_code=400, detail="Egne instruksjoner krever egendefinert referat-mal")
+        variant = VEILEDER_VARIANTER[foresporsel.veileder_variant or STANDARD_VEILEDER_VARIANT]
+        if foresporsel.begrenset_referat:
+            if rullerende:
+                handling = _hent_eller_404("rullerende_referat")
+                system, user = handling.system_prompt, handling.bygg_bruker_prompt(tekst)
+            else:
+                system, user = SYSTEM_REFERAT, BRUKER_REFERAT.format(transkripsjon=tekst)
+            system = SYSTEM_VEILEDER_BASIS + "\n\n" + system
+        else:
+            system, user = scenario.system_prompt, scenario.bygg_bruker_prompt(tekst)
+        if rullerende:
+            user += "\n\nMøtet pågår. Skriv et foreløpig referat fra det som er sagt hittil. Ikke anta at møtet er avsluttet."
+        return system + "\n\n" + variant["instruksjoner"], user, scenario.id
     if scenario.id == "egendefinert":
         instruksjoner = (foresporsel.instruksjoner or "").strip()
         if not instruksjoner:
@@ -86,9 +107,6 @@ def _bygg_referat_prompt(foresporsel: LlmForesporsel, *, rullerende: bool = Fals
     if foresporsel.instruksjoner:
         raise HTTPException(status_code=400, detail="Egne instruksjoner krever egendefinert referat-mal")
     if rullerende:
-        if scenario.id == "veiledermote":
-            handling = _hent_eller_404("rullerende_referat")
-            return handling.system_prompt, handling.bygg_bruker_prompt(tekst), scenario.id
         bruker_prompt = scenario.bygg_bruker_prompt(tekst) + (
             "\n\nMøtet pågår. Skriv et foreløpig referat basert bare på det som er sagt hittil. "
             "Ikke fyll inn manglende opplysninger eller anta at møtet er avsluttet."
@@ -131,6 +149,13 @@ def _sse_melding_for_llm(exc: httpx.HTTPStatusError) -> str:
     return f"AI-proxy svarte med feil: {exc.response.status_code}"
 
 
+def _veileder_valg(foresporsel: LlmForesporsel, scenario: str | None) -> dict:
+    if scenario != "veiledermote":
+        return {}
+    return {"veileder_variant": foresporsel.veileder_variant or STANDARD_VEILEDER_VARIANT,
+            "begrenset_referat": foresporsel.begrenset_referat}
+
+
 async def _kjor_handling(handling_id: str, foresporsel: LlmForesporsel):
     if not foresporsel.transkripsjon.strip():
         raise HTTPException(status_code=400, detail="Transkripsjon mangler")
@@ -157,12 +182,17 @@ async def _kjor_handling(handling_id: str, foresporsel: LlmForesporsel):
     svar = {"tekst": tekst, "modell": foresporsel.modell or LLM_MODELL, "handling": handling.id}
     if scenario_id:
         svar["scenario"] = scenario_id
+    svar.update(_veileder_valg(foresporsel, scenario_id))
     return svar
 
 
 def _bygg_handling_prompt(handling: LlmHandling, foresporsel: LlmForesporsel) -> tuple[str, str, str | None]:
     if handling.id in {"referat", "rullerende_referat"}:
         return _bygg_referat_prompt(foresporsel, rullerende=handling.id == "rullerende_referat")
+    if foresporsel.begrenset_referat:
+        raise HTTPException(status_code=400, detail="Begrenset referat krever veiledermalen")
+    if foresporsel.veileder_variant is not None:
+        raise HTTPException(status_code=400, detail="Møteformål krever veiledermalen")
     if handling.id == "sammendrag":
         return handling.system_prompt, handling.bygg_bruker_prompt(foresporsel.transkripsjon), None
     return handling.system_prompt, _bygg_prompt(handling, foresporsel.transkripsjon), None
@@ -172,6 +202,8 @@ def _handling_events(handling, foresporsel, *, stream=None):
     grounded = handling.id in {"referat", "rullerende_referat", "sammendrag"}
     engine = generate_grounded if grounded else generate
     options = {"comprehensive": handling.id != "sammendrag" and foresporsel.scenario != "minimalt_sammendrag"} if grounded else {"stream": stream}
+    if grounded and foresporsel.begrenset_referat:
+        options["source_quotes"] = False
     return engine(
         foresporsel.transkripsjon,
         lambda text: _bygg_handling_prompt(handling, foresporsel.model_copy(update={"transkripsjon": text}))[:2],
@@ -216,8 +248,14 @@ async def start_llm_job(handling_id: str, jobb_id: UUID, foresporsel: LlmForespo
         raise HTTPException(400, "Transkripsjon mangler")
     handling = _hent_eller_404(handling_id)
     _system, _user, scenario = _bygg_handling_prompt(handling, foresporsel)
+    fingerprint_input = foresporsel.model_dump()
+    if not foresporsel.begrenset_referat:
+        # Preserve fingerprints of requests submitted before this optional field existed.
+        fingerprint_input.pop("begrenset_referat")
+    if foresporsel.veileder_variant is None:
+        fingerprint_input.pop("veileder_variant")
     fingerprint = hashlib.sha256(json.dumps(
-        [handling.id, foresporsel.model_dump()], sort_keys=True, ensure_ascii=False,
+        [handling.id, fingerprint_input], sort_keys=True, ensure_ascii=False,
     ).encode()).hexdigest()
 
     async def run():
@@ -228,6 +266,7 @@ async def start_llm_job(handling_id: str, jobb_id: UUID, foresporsel: LlmForespo
 
     return summary_jobs.submit(str(jobb_id), _job_owner(request), fingerprint, {
         "modell": foresporsel.modell or LLM_MODELL, "handling": handling.id, "scenario": scenario,
+        **_veileder_valg(foresporsel, scenario),
     }, run, _job_error)
 
 
@@ -254,6 +293,7 @@ def _stream_handling(handling_id: str, foresporsel: LlmForesporsel):
             "modell": valgt_modell,
             "handling": handling.id,
             "scenario": scenario_id,
+            **_veileder_valg(foresporsel, scenario_id),
         })
         try:
             events = _handling_events(handling, foresporsel, stream=stream_llm_tokens)
@@ -265,6 +305,7 @@ def _stream_handling(handling_id: str, foresporsel: LlmForesporsel):
                         if handling.normaliser_output:
                             event["tekst"] = normaliser_til_bokmal(event["tekst"])
                         event.update(modell=valgt_modell, handling=handling.id, scenario=scenario_id)
+                        event.update(_veileder_valg(foresporsel, scenario_id))
                     yield sse(event)
         except httpx.ConnectError:
             yield sse({"type": "feil", "melding": "Kan ikke nå AI-proxyen"})

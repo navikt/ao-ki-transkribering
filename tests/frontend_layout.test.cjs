@@ -13,7 +13,8 @@ test("header and page title do not contain NAV branding", () => {
 test("top bar places confirmation before recording controls and keeps a compact header", () => {
   const html = fs.readFileSync(path.join(__dirname, "../frontend/static/index.html"), "utf8");
   assert.ok(html.indexOf('id="lydkilde"') < html.indexOf('id="samtykke-hake"'));
-  assert.ok(html.indexOf('id="paragraf14-hake"') < html.indexOf('id="sanntid-start-knapp"'));
+  assert.ok(html.indexOf('id="samtykke-hake"') < html.indexOf('id="sanntid-start-knapp"'));
+  assert.ok(html.indexOf('id="paragraf14-hake"') > html.indexOf('id="referat-scenario"'));
   assert.doesNotMatch(html.match(/<header[\s\S]*?<\/header>/)[0], /class="ingress"/);
 });
 
@@ -382,17 +383,18 @@ test("general and collaboration meetings do not require the adviser wording", ()
   }
 });
 
-test("changing paragraph confirmation clears general acknowledgement and disables audio", () => {
+test("restricted output is optional and does not revoke recording acknowledgement", () => {
   const { element, run } = workspace();
   element("samtykke-hake").checked = true;
   run("oppdaterMoteBekreftelse()");
   assert.equal(element("fil-input").disabled, false);
   element("paragraf14-hake").checked = true;
-  run("oppdaterMoteBekreftelse(true)");
+  element("referat-scenario").value = "veiledermote";
+  run("oppdaterReferatMal()");
   assert.match(element("paragraf15-advarsel").textContent, /§15/);
-  assert.equal(element("samtykke-hake").checked, false);
-  assert.equal(element("fil-input").disabled, true);
-  assert.equal(element("sanntid-start-knapp").disabled, true);
+  assert.equal(element("samtykke-hake").checked, true);
+  assert.equal(element("fil-input").disabled, false);
+  assert.equal(element("sanntid-start-knapp").disabled, false);
 });
 
 test("acknowledgement cannot bypass model unavailability", () => {
@@ -448,8 +450,61 @@ test("template changes do not alter recording confirmation or edited notes", () 
   element("referat-scenario").value = "egendefinert";
   run("oppdaterReferatMal()");
   assert.equal(element("samtykke-hake").checked, true);
-  assert.match(element("paragraf15-advarsel").textContent, /§15/);
+  assert.doesNotMatch(element("paragraf15-advarsel").textContent, /§15/);
   assert.equal(element("referat-egne-instruksjoner").hidden, false);
+  assert.equal(element("referat-redigert").value, "Reviewed notes");
+});
+
+test("adviser template defaults to the new format and sends restriction only for that template", () => {
+  const {element, run} = workspace();
+  element("referat-scenario").value = "veiledermote";
+  element("paragraf14-hake").checked = false;
+  run("oppdaterReferatMal()");
+  assert.equal(element("referat-avgrensning").hidden, false);
+  assert.equal(run("_referatValg().begrenset_referat"), false);
+  assert.equal(run("_referatValg().veileder_variant"), "oppfolging");
+  assert.equal(element("veileder-variant-valg").hidden, false);
+  element("paragraf14-hake").checked = true;
+  assert.equal(run("_referatValg().begrenset_referat"), true);
+  assert.match(run("_referatValgTittel(_referatValg())"), /Begrenset/);
+  element("referat-scenario").value = "generelt_mote";
+  run("oppdaterReferatMal()");
+  assert.equal(element("referat-avgrensning").hidden, true);
+  assert.equal(run("_referatValg().begrenset_referat"), undefined);
+  assert.equal(run("_referatValg().veileder_variant"), undefined);
+  assert.equal(element("veileder-variant-valg").hidden, true);
+});
+
+test("output format is locked while a final or live draft is in flight", () => {
+  const {element, run} = workspace();
+  run("_referatGenererer = true; _oppdaterReferatValgLaas()");
+  assert.equal(element("paragraf14-hake").disabled, true);
+  assert.equal(element("referat-scenario").disabled, true);
+  assert.equal(element("veileder-variant").disabled, true);
+  run("_referatGenererer = false; _liveReferatOppdaterer = true; _oppdaterReferatValgLaas()");
+  assert.equal(element("paragraf14-hake").disabled, true);
+  run("_liveReferatOppdaterer = false; _oppdaterReferatValgLaas()");
+  assert.equal(element("paragraf14-hake").disabled, false);
+  assert.equal(element("veileder-variant").disabled, false);
+});
+
+test("adviser purpose changes payload and result title without touching notes or recording", () => {
+  const {element, run} = workspace();
+  element("referat-scenario").value = "veiledermote";
+  element("veileder-variant").value = "kartlegging";
+  element("paragraf14-hake").checked = false;
+  element("samtykke-hake").checked = true;
+  element("referat-redigert").value = "Reviewed notes";
+  run("oppdaterReferatMal()");
+  assert.equal(run("_referatValg().veileder_variant"), "kartlegging");
+  assert.match(run("_referatValgTittel(_referatValg())"), /Kartlegging/);
+  element("paragraf14-hake").checked = true;
+  assert.match(run("_referatValgTittel(_referatValg())"), /Begrenset.*Kartlegging/);
+  element("veileder-variant").value = "oppfolging";
+  run("oppdaterReferatMal()");
+  assert.equal(run("_referatValg().veileder_variant"), "oppfolging");
+  assert.match(run("_referatValgTittel(_referatValg())"), /Oppfølging/);
+  assert.equal(element("samtykke-hake").checked, true);
   assert.equal(element("referat-redigert").value, "Reviewed notes");
 });
 
