@@ -35,9 +35,16 @@ them in `X-Serverless-Authorization`. The separate application key stays in
   remain unauthenticated and should bind only to localhost. WebSockets are
   validated at connection establishment; this does not add session revocation
   checks during an already established recording.
-- The ingress remains internal-only and `allowAllUsers` still permits all users
-  in NAV's Entra tenant. No phone, network or group permissions are broadened.
-  Per-user result ownership and narrower group authorization remain follow-ups.
+- Production configures both `ao-ki-transkribering.intern.nav.no` for internal
+  network access and `ao-ki-transkribering.ansatt.nav.no` for internet access by
+  authenticated employees on compliant devices. Dev retains only
+  `ao-ki-transkribering.intern.dev.nav.no`. The employee-facing ingress broadens
+  network reachability, not application authorization: Entra autologin and token
+  validation remain enabled. An unmanaged phone is not guaranteed access.
+  `allowAllUsers` permits users in each environment's Entra tenant; dev requires
+  a Preprod account, while production uses the production tenant. Per-user result
+  ownership and narrower group authorization remain follow-ups.
+  See [NAIS ingress environments](https://doc.nais.io/workloads/reference/environments/).
   See [NAIS employee token validation](https://docs.nais.io/auth/entra-id/how-to/login/).
 
 - `nais-dev-model-key` and `nais-prod-model-key` are independent inference-only

@@ -11,6 +11,7 @@ spec:
 
   ingresses:
     - https://ao-ki-transkribering.intern.nav.no
+    - https://ao-ki-transkribering.ansatt.nav.no
 
   replicas:
     min: 1
