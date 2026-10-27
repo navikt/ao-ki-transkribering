@@ -11,7 +11,6 @@ spec:
 
   ingresses:
     - https://ao-ki-transkribering.intern.dev.nav.no
-    - https://ao-ki-transkribering.ansatt.dev.nav.no
 
   # Single replica — real-time WebSocket state (Whisper model + VAD buffer)
   # is process-local. Scale horizontally only after session affinity is solved.
