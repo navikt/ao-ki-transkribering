@@ -2,7 +2,6 @@ import json
 import os
 
 import httpx
-from pydantic import BaseModel
 
 from worker.prompts.normalisering import normaliser_til_bokmal
 
@@ -11,15 +10,6 @@ MODELL    = os.getenv("OLLAMA_MODELL", os.getenv("LLM_MODELL", "qwen3:8b"))
 NUM_CTX   = int(os.getenv("LLM_CONTEXT_TOKENS", os.getenv("LLM_NUM_CTX", os.getenv("OLLAMA_NUM_CTX", "32768"))))
 
 _OPTIONS = {"temperature": 0.25, "num_ctx": NUM_CTX, "repeat_penalty": 1.3, "num_predict": 600}
-
-
-class OllamaForesporsel(BaseModel):
-    transkripsjon: str
-    modell: str | None = None
-
-
-def sse(data: dict) -> str:
-    return f"data: {json.dumps(data, ensure_ascii=False)}\n\n"
 
 
 async def stream_tokens(system: str, bruker: str, modell: str | None = None, *, max_tokens: int | None = None):
@@ -32,7 +22,6 @@ async def stream_tokens(system: str, bruker: str, modell: str | None = None, *, 
       - ANSWERING: forbi tenking, tokens vert yieldta direkte
     """
     valgt_modell = modell or MODELL
-    alle_deler: list[str] = []  # rådata for sluttekst
     svar_deler: list[str] = []  # berre svar-tokens (utan thinking)
 
     # Tilstandsmaskin
@@ -62,7 +51,6 @@ async def stream_tokens(system: str, bruker: str, modell: str | None = None, *, 
                     continue
                 token = chunk.get("response", "")
                 if token:
-                    alle_deler.append(token)
                     if tilstand == "undecided":
                         buf += token
                         if "<think>" in buf:

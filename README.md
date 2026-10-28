@@ -1,15 +1,28 @@
-# ao-ki-transkribering
+# Transkriberit
 
-Lokalt transkriberings- og referatverktøy for NAV §14a-brukermøter.
+Transkriberings- og referatverktøy for møter og veiledersamtaler.
 
-Bruker [nb-whisper](https://huggingface.co/NbAiLab/nb-whisper-medium) for norsk tale-til-tekst,
-høyttalerdiarisering (identifiserer hvem som sier hva), og
-[Ollama](https://ollama.com) med [qwen3:32b](https://ollama.com/library/qwen3.6) for automatisk
-møtereferat og sammendrag etter NAVs §14a-mal.
+NAIS-oppsettet bruker NB-Whisper Large for transkripsjon, Nemotron Diarization
+for estimert talerskille og Borealis-12b Q8 via llama.cpp for referater. Modellene
+kjører i et separat GKE-cluster bak en autentisert Cloud Run-gateway.
+Lokal modus bruker som standard NB-Whisper Medium, ECAPA-talerskille og kan
+kobles til [Ollama](https://ollama.com) for referatgenerering.
 
 I lokal modus kjøres modellene på maskinen. NAIS/remote-modus sender lyd og tekst
 til modell-API-et i GCloud. Se [sikkerhetsoppsett og overgang](docs/model-api-security.md)
 før behandling av sensitivt møteinnhold.
+
+## Deployede adresser
+
+- Prod, ansatte på kompatible enheter: https://ao-ki-transkribering.ansatt.nav.no
+- Prod, internt nett: https://ao-ki-transkribering.intern.nav.no
+- Dev, internt nett: https://ao-ki-transkribering.intern.dev.nav.no
+
+Dev krever en konto i NAV Preprod, ikke den vanlige produksjonskontoen.
+`intern`-adressene krever intern nettverkstilgang; `ansatt`-adressen beholder
+innlogging og plattformens krav til enhet. Personlige telefoner er ikke garantert
+tilgang. GitHub Actions bygger appen og deployer til dev før prod. Modellclusteret
+oppdateres separat; se [drift](docs/operations.md).
 
 ---
 
@@ -90,8 +103,10 @@ pip install -r requirements.txt
 python last_ned_modeller.py
 ```
 
-Dette laster ned `nb-whisper-medium` (~2,8 GB) til lokal Hugging Face-cache.
-Kjøres kun én gang – alt fungerer offline etterpå.
+Skriptet laster ned alle fem størrelsene nedenfor til lokal Hugging Face-cache.
+Det hopper over modeller som allerede finnes. Rediger `MODELLER`-listen først
+hvis du bare trenger medium, som er standard for lokal kjøring. Talerskille kan
+også hente ECAPA-modellen første gang; cache denne før eventuell offline-bruk.
 
 Vil du laste ned andre størrelser:
 
@@ -144,18 +159,20 @@ ollama serve
 
 Kjør dette i et eget terminalvindu, eller som bakgrunnsprosess. Ollama lytter på `http://localhost:11434`.
 
-### Last ned qwen3:32b
+### Last ned lokal LLM
 
 ```bash
-ollama pull qwen3:32b
+ollama pull qwen3:8b
 ```
 
-Modellen er ~23 GB. Nedlasting tar tid avhengig av internettforbindelsen.
+`qwen3:8b` er standard når `LLM_BACKEND=ollama`. Velg en annen installert modell
+med `LLM_MODELL`, for eksempel `borealis:12b`. Hastighet og minnebehov avhenger av
+modell, kvantisering og kontekstvindu.
 
-> **Mindre maskin?** Bruk en mindre modell og sett miljøvariabelen:
+> **En annen modell?** Last den ned og angi navnet ved oppstart:
 > ```bash
-> export OLLAMA_MODELL=qwen3:8b    # ~5 GB, raskere men mer nynorsk
-> ollama pull qwen3:8b
+> ollama pull qwen3:32b
+> export LLM_MODELL=qwen3:32b
 > ```
 > Se [ollama.com/library](https://ollama.com/library) for tilgjengelige modeller.
 
@@ -165,7 +182,7 @@ Modellen er ~23 GB. Nedlasting tar tid avhengig av internettforbindelsen.
 
 ```bash
 source .venv/bin/activate   # hvis ikke allerede aktivert
-python -m uvicorn frontend.app:app --host 127.0.0.1 --port 8765
+LLM_BACKEND=ollama python -m uvicorn frontend.app:app --host 127.0.0.1 --port 8765
 ```
 
 Åpne nettleser på [http://127.0.0.1:8765](http://127.0.0.1:8765).
@@ -280,50 +297,65 @@ konvertert lyd ryddes ved avslutning. Gjeldende varighetsgrense er to timer.
 
 ### Container
 
-Bygg image:
+Bygg et API-image uten lokale modellavhengigheter:
 
 ```bash
-docker build -t ao-ki-transkribering .
+docker build --build-arg REQUIREMENTS=requirements/api.txt \
+  --target runtime -t transkriberit-api .
 ```
 
-Kjør API-et:
+Kjør med en egen, ikke versjonert miljøfil for modelltilkoblingen:
 
 ```bash
-docker run --rm -p 8765:8765 ao-ki-transkribering
+docker run --rm -p 127.0.0.1:8765:8765 \
+  --env-file /path/to/runtime.env transkriberit-api
 ```
 
-Kjør samme image som HTTP-basert modellarbeider:
+Miljøfilen må angi `TRANSKRIPSJON_BACKEND=remote`, modellarbeiderens URL og
+LLM-backend med nødvendige tilganger. Adresser på vertsmaskinen er ikke
+containerens `localhost`. Se miljøvariablene over og sikkerhetsoppsettet for GCP.
+
+Bygg og kjør lokal CPU-modellarbeider som et separat image:
 
 ```bash
-docker run --rm -p 9000:9000 ao-ki-transkribering \
-  python -m uvicorn apps.model_worker.app:app --host 0.0.0.0 --port 9000
+docker build --build-arg REQUIREMENTS=requirements/worker-cpu.txt \
+  --target model-worker -t transkriberit-worker .
+docker run --rm -p 127.0.0.1:9000:9000 \
+  -v "$HOME/.cache/huggingface:/app/.cache/huggingface:ro" transkriberit-worker
 ```
 
-Image-et inkluderer ikke lokale modellfiler fra `modeller/` eller testdata. De bør
-monteres eller håndteres som eget modellvolum når API og modellarbeider splittes i
-separate containere.
+Whisper-modellen må være lastet ned i den monterte Hugging Face-cachen først.
+ECAPA bruker en separat `ECAPA_CACHE`, som bør cachelagres ved behov for offline
+talerskille. Image-ene inkluderer ikke lokale modellfiler, opptak, rapporter eller
+testdata. GCP bruker egne speech- og llama-adapterimages, ikke CPU-arbeideren.
 
 ---
 
 ## Bruk
 
 ### Batch-transkripsjon
-Last opp en lydfil (wav, mp3, m4a, webm). Applikasjonen transkriberer og identifiserer talere. Klikk **Skriv møtereferat** for å generere referat etter §14a-malen.
+Velg **Lydfil** under **Lydkilde** og last opp wav, mp3, m4a eller webm.
+Gjennomgå transkripsjon og estimerte talere. Velg **Tekstmal** og **Generer**
+for å lage et utkast fra transkripsjonen.
 
 ### Sanntidsmodus
 Klikk **Start opptak** for å transkribere direkte fra mikrofon. Referatutkastet oppdateres automatisk underveis (~hvert 150. nye ord) slik at det er ferdig når møtet avsluttes.
 
 Velg **Lydkilde** for lydfil eller mikrofon (sanntid). Bekreftelsen gjelder opptak og databehandling;
-§14 a/§15-bekreftelsen vises som en separat avkryssing og brukes når den er relevant.
+**Begrenset §14a-referat** er et separat, valgfritt formatvalg for Veiledermøte,
+ikke en samtykke- eller tilgangstillatelse. Møteformål kan være Kartlegging eller
+Oppfølging (standard innenfor denne malen).
 Velg **Tekstmal** og **Generer** i utkastkolonnen for sammendrag eller ulike referater fra samme transkripsjon.
 **Egendefinert** tar egne instruksjoner om struktur og vektlegging (maks 4000 tegn);
 systemreglene om faktabasert innhold beholdes. Valgt tekstmal gjelder også live-utkast.
 **Bearbeidet referat** er et separat tekstfelt og overskrives ikke ved ny generering.
 
-Lyden sendes til transkripsjon etter 1,5 sekunder stillhet eller senest etter
-10 sekunder. Ved tvungne kutt beholdes 1 sekund overlapp som kontekst;
-matchende ord ved grensene fjernes fra visningen. Modellens prosesseringstid
-kommer i tillegg til buffertiden.
+Nettleseren sender 15-sekunders lyddeler over HTTP, med ett sekund overlapp.
+Stille lyd beholdes, og mislykkede forespørsler prøves igjen uten å stoppe
+mikrofonen. **Stopp** avslutter opptaket, mens ventende deler fortsatt behandles.
+Modellens prosesseringstid og eventuell kø kommer i tillegg til buffertiden.
+Det eldre WebSocket-endepunktet bruker pausegrenser etter 1,5 sekunder stillhet,
+med maksimalt 15 sekunders buffer. Se [opptak og gjenoppretting](docs/operations.md#recoverable-browser-recordings).
 
 ### Rollemerking
 Etter transkripsjon kan du klikke **Veileder / Bruker / Tolk**-knappene for å merke hvem som er hvem. LLM-en bruker dette for mer presise referater.
@@ -332,17 +364,24 @@ Etter transkripsjon kan du klikke **Veileder / Bruker / Tolk**-knappene for å m
 
 ## Testlyd
 
-`testdata/`-mappen inneholder to NRK-opptak for testing:
-- `king.mp3` – én stemme
-- `tre_stemmer_test.wav` – podcast med tre stemmer (tester diarisering)
+Se [testdatakatalogen](testdata/README.md) for lydfiler, bruksområder og manglende
+proveniensavklaringer. De tidligere unøyaktige referansetranskripsjonene er
+fjernet fra arbeidstreet og brukes ikke som fasit. Lokale opptak og modellcacher
+er ikke slettet. Sletting av en fil her fjerner den ikke fra Git-historikken.
 
 ---
 
 ## Etterlevelse og personvern
 
-- **Ingen data forlater maskinen.** Alle modeller kjøres lokalt.
-- Lydfilen slettes automatisk etter transkripsjon.
-- Transkripsjonen eksisterer kun i nettleserøkten – ingenting lagres på server.
+- **Databehandling følger backend-valget.** Lokal kjøring kan holde inferens på
+  maskinen; NAIS/remote sender lyd og tekst til den konfigurerte modellgatewayen.
+- Opplastede lydfiler lagres midlertidig og slettes etter behandlingsforsøket.
+  Transkripsjons- og referatjobber lagres på API-serveren, med standard
+  oppbevaring på seks timer (`JOB_RETENTION_SECONDS`) og periodisk opprydding.
+- Mikrofonopptak lagres midlertidig i nettleserens IndexedDB for gjenoppretting.
+  Bruk **Slett lokal lyd** når opptaket ikke skal beholdes. Opptak utløper etter
+  åtte timer; når nettleseren er lukket, skjer sletting først ved et senere besøk.
+  Nedlastede filer er utenfor appens sletterutiner.
 - Møtereferater skal gjennomgås av veileder før bruk, jf. §15-vurdering (kommunale vs. statlige opplysninger).
 - Se [møtereferat_prompt.md](møtereferat_prompt.md) for LLM-prompt-dokumentasjon.
 
@@ -360,52 +399,38 @@ python -m uvicorn frontend.app:app --host 127.0.0.1 --port 8765 --reload
 Kodestruktur:
 
 ```
-server.py                    # Bakoverkompatibel ASGI-entrypoint (server:app)
-app_api.py                   # Bakoverkompatibel API-entrypoint (app_api:app)
-app_factory.py               # Bakoverkompatibel import for create_app
-settings.py                  # Bakoverkompatibel import for core.settings
-runtime.py                   # Bakoverkompatibel import for core.runtime
-worker_transkripsjon.py      # Eksplisitt entrypoint for transkripsjonsarbeider
-model_worker_app.py          # Bakoverkompatibel modellarbeider-entrypoint
-apps/
-  api/app.py                 # API-app: statiske filer, lifespan og router-registrering
-  model_worker/app.py        # HTTP-basert modellarbeider
-api/                         # HTTP/WebSocket-endepunkter
-core/
-  settings.py                # Miljøvariabler og runtime-konfigurasjon
-  runtime.py                 # Arbeiderprosess, kø og delt JobStore
-contracts/
-  transcription.py           # Delte HTTP-kontrakter mellom API og modellarbeider
-services/
-  jobs.py                    # Filbasert jobbtilstand og atomiske statusoppdateringer
-  transkripsjon_backend.py   # Kontrakt for transkripsjonsbackends
-workers/
-  transkripsjon.py           # Køarbeider for transkripsjonsjobber og jobbstatus
-static/
-  index.html                 # Frontend-markup
-  styles.css                 # Frontend-stiler
-  app.js                     # Frontend-logikk
-  audio-processor.js         # AudioWorklet for sanntids-PCM-prosessering
-transkribering/
-  batch.py                   # Lokal batchmodell: nb-whisper + diarisering
-  sanntid.py                 # Sanntidstranskripsjon med faster-whisper
-  diarisering.py             # Høyttalerdiarisering (pyannote)
-  hallusinasjon.py           # Filtrering av hallusinerte segmenter
-  konstanter.py              # Felles konstanter
-ollama/
-  klient.py                  # Ollama HTTP-klient
-prompts/
-  motereferat.py             # §14a-møtereferat-prompt
-  normalisering.py           # Normaliseringsprompt
-  estimat.py                 # Tidsestimat-prompt
-benchmarks/
-  sammendrag.py              # Benchmark av /sammendrag/stream mot server
-  optimalisering.py          # Matrise-benchmark av LLM-konfigurasjonar mot Ollama
-last_ned_modeller.py         # Nedlasting av nb-whisper-modeller
-konverter_modeller.py        # Konvertering til CTranslate2-format (sanntidsmodus)
-møtereferat_prompt.md        # Dokumentasjon av LLM-prompts
-benchmarks.md                # Benchmark-resultater
-testdata/                    # Testlydfiler (NRK, offentlig)
+frontend/
+  app.py                     # FastAPI-entrypoint, statiske filer og lifespan
+  routes/                    # HTTP/WebSocket-endepunkter og opptaksflyt
+  static/                    # HTML, CSS, JavaScript og AudioWorklet
+  compact_summary.py         # Standard kildekontroll av referater
+  grounded_summary.py        # Delte kildeverktøy og uttømmende evalueringsflyt
+  summary_jobs.py            # Bakgrunnsjobber for referater
+worker/
+  app.py                     # HTTP-basert lokal modellarbeider
+  nemotron_api.py            # Cloud speech-API: Whisper og Nemotron-talerskille
+  llama_api.py               # Autentisert adapter foran llama.cpp
+  workers/                   # Lokal køarbeider, startet av API-et
+  transkribering/            # ASR, lyddeler, talerskille og modellkø
+  ollama/                    # Lokal LLM-klient
+  prompts/                   # Tekstmaler, møteformål og normalisering
+shared/
+  core/                      # Miljøvariabler og prosess-runtime
+  contracts/                 # Delte transkripsjonskontrakter
+  services/                  # JobStore, modellklienter og modellautentisering
+  diagnostics.py             # Strukturert logging
+scripts/                     # Deploy, modellstaging, smoke- og belastningstester
+images/                      # Speech-, llama-adapter- og gatewayfiler
+k8s/                         # Modellmanifester, sikkerhet og administrasjon
+terraform/                   # GKE, gateway, IAM og modellbucket
+.nais/                       # Dev/prod-manifester for frontend/API
+tests/                       # Python- og JavaScript-tester
+benchmarks/                  # Lokale modell- og datasettbenchmarker
+docs/                        # Drift, sikkerhet, kildekontroll og måleresultater
+adr/                         # Arkitekturvalg og kostnadsgrunnlag
+testdata/                    # Testlyd og samtalefiksturer; se egen README
+last_ned_modeller.py          # Nedlasting av nb-whisper-modeller
+konverter_modeller.py        # Konvertering til CTranslate2-format
 ```
 
 ### API og transkripsjonsarbeider
@@ -417,20 +442,13 @@ Dette holder lokal utvikling enkel:
 python -m uvicorn frontend.app:app --host 127.0.0.1 --port 8765 --reload
 ```
 
-For å kjøre API og transkripsjonsarbeider som separate prosesser:
+For å kjøre API og modellarbeider som separate tjenester uten delt filsystem,
+start disse kommandoene i hvert sitt terminalvindu:
 
 ```bash
-START_LOKAL_WORKER=false python -m uvicorn frontend.app:app --host 127.0.0.1 --port 8765
-python -m worker_transkripsjon
-```
-
-Dette er forberedelse til å flytte modellene til en egen prosess eller container.
-
-Alternativt kan API-et bruke en HTTP-basert modellarbeider uten delt filsystem:
-
-```bash
-python -m uvicorn apps.model_worker.app:app --host 127.0.0.1 --port 9000
+python -m uvicorn worker.app:app --host 127.0.0.1 --port 9000
 TRANSKRIPSJON_BACKEND=remote TRANSKRIPSJON_SERVICE_URL=http://127.0.0.1:9000 \
+  LLM_BACKEND=ollama \
   python -m uvicorn frontend.app:app --host 127.0.0.1 --port 8765
 ```
 
@@ -560,7 +578,8 @@ PYTHONPATH="$PWD/.cache/speech-runtime" .venv/bin/python -m benchmarks.speech \
 ```
 
 This explicitly selected corpus has human-corrected, second-person-reviewed
-references. It does not use `testdata/transcriptions`. The manifest records the
+references. It does not use the removed user-supplied reference transcripts.
+The manifest records the
 dataset revision, source metadata, transcript variant and audio checksums.
 The report scores orthographic references with pooled word-error and deletion
 rates, separately for Bokmal and Nynorsk. Normalization ignores case and
@@ -614,11 +633,12 @@ with upload results. This stock model performed substantially worse than
 NB-Whisper on our podcast subset, so review its output before using it for minutes
 or summaries. The Transformers runtime remains experimental.
 
-### GCP speech model
+### GCP-modeller
 
-The speech GPU serves `nb-whisper-large` with word timestamps using Transformers,
-alongside `nvidia/Nemotron-3-Diarization` for speaker labels. Borealis uses vLLM on
-the other GPU. Both retain their authenticated TLS endpoints and allocated L4s.
+The speech GPU serves `nb-whisper-large` with CTranslate2 FP16 and word timestamps,
+alongside `nvidia/Nemotron-3-Diarization` for speaker labels. Transformers remains
+an alternative ASR backend. Borealis Q8_0 uses llama.cpp and an authenticated API
+adapter on the other GPU. Both retain their TLS endpoints and allocated L4s.
 The NAIS model setting, gateway routing and gateway model allowlist must agree.
 
 Nemotron ASR was rolled back on 2026-10-13 after Norwegian audio produced

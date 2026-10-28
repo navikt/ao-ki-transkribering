@@ -1,6 +1,8 @@
 # Norwegian Conversational Speech Test Data
 
-Primary sources checked: 2026-10-11. Existing `testdata/transcriptions` are known inaccurate and must not be used as references; they were not read for this research.
+Primary sources checked: 2026-10-11. The former user-supplied reference transcripts
+were inaccurate, were not read for this research, and have since been removed
+from the working tree. They must not be used as ground truth.
 
 ## Candidate: NB Samtale
 
@@ -30,7 +32,7 @@ their published SHA-256 checksums verified. Dataset revision:
 The cached subset contains 30 non-overlapping podcast clips (328.744 seconds),
 16 speakers and all five dialect groups: 24 Bokmal and six Nynorsk clips.
 The corpus references were used without independently listening to validate
-them. Existing `testdata/transcriptions` were not used.
+them. The former user-supplied reference transcripts were not used.
 
 CPU results, four Torch threads, orthographic references with case/punctuation
 normalization; elapsed inference excludes model loading:

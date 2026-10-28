@@ -291,7 +291,7 @@ def main():
     if args.manifest:
         manifest = json.loads(args.manifest.read_text(encoding="utf-8"))
         report["dataset"] = {k: v for k, v in manifest.items() if k != "samples"}
-        report["notes"][0] = "Only explicit NB Samtale references are scored; existing testdata/transcriptions are never read."
+        report["notes"][0] = "Only explicit NB Samtale references are scored; former user-supplied references are not used."
         report["notes"] += ["Pooled WER by written norm; numbers are not verbalized and dialect word forms are not equated.",
                             "Nynorsk is a separate written-norm challenge: Whisper keeps language=no; Nemotron is prompted for Bokmal (nb-NO).",
                             "Short non-overlapping clips are not a continuous conversation or streaming benchmark.",

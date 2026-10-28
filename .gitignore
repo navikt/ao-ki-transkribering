@@ -17,6 +17,12 @@ nohup.out
 !k8s/borealis-q8.json
 !docs/benchmarks/2026-10-14/*.json
 .env
+.env.*
+!.env.example
+# Local reports are not source data.
+output/
+/*.pdf
+/*.docx
 # Terraform — state is in GCS, never commit locally
 terraform/**/.terraform/
 terraform/**/.terraform.lock.hcl

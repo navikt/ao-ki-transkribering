@@ -7,12 +7,24 @@ __pycache__/
 *.pyc
 
 .env
+.env.*
+.cache/
+.agents/
+.codex/
 .DS_Store
 nohup.out
 
 modeller/
 transkribering_*/
 testdata/
+output/
+terraform/
+docs/
+adr/
+benchmarks/
+tests/
+.github/
+.nais/
 
 *.wav
 *.mp3
@@ -20,3 +32,7 @@ testdata/
 *.m4a
 *.json
 *.gguf
+*.pdf
+*.docx
+*.tfstate
+*.tfstate.*

@@ -22,7 +22,7 @@ gcloud container clusters get-credentials ao-ki-gpu \
 
 ## Deploy
 
-Deploy infrastructure, Kubernetes resources, and working-hours scaling:
+Deploy infrastructure, Kubernetes resources, and GPU administration:
 
 ```bash
 ./scripts/deploy-gpu-stack.sh
@@ -66,7 +66,7 @@ committing the files alone does not update the gateway. The 120 requests/minute
 per-key limit and model/route authorization remain unchanged.
 
 This allows more in-flight requests, not more simultaneous GPU inference.
-Borealis Q8_0 runs four llama.cpp slots, so additional accepted requests
+Borealis Q8_0 runs two llama.cpp slots, so additional accepted requests
 can wait and may exceed gateway or application timeouts. The speech service
 admits up to 32 outstanding requests and returns HTTP 429 with `Retry-After`
 when full. The deployed speech runtime is `SPEECH_ASR_BACKEND=faster-whisper`,
@@ -115,8 +115,10 @@ overwrite an existing weights object. Pods download from GCS and verify the hash
 again. Do not delete the existing BF16 model files; they remain the rollback path.
 
 Inspect inference logs with `kubectl -n vllm logs deployment/vllm-borealis -c llama`;
-adapter logs use `-c vllm`. Inference content logging is disabled. Four slots share
-32768 context tokens, preserving 8192 per slot; context shifting is disabled.
+adapter logs use `-c vllm`. Inference content logging is disabled. Two slots share
+65536 context tokens, preserving 32768 per slot; context shifting is disabled.
+Earlier four-slot/8K benchmark results describe the previous configuration and
+are not capacity measurements of the current context allocation.
 
 To roll back on the currently allocated `gpu-l4-c` node pool:
 
@@ -241,7 +243,7 @@ Init container logs for model copy:
 kubectl logs -n vllm deployment/vllm-borealis -c last-ned-modell --tail=100
 kubectl logs -n vllm deployment/vllm-whisper -c last-ned-modell --tail=100
 ```
-# Recording Connection Diagnostics
+## Recording Connection Diagnostics
 
 ### Recoverable browser recordings
 

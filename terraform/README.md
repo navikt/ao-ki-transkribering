@@ -1,7 +1,8 @@
 # GKE GPU cluster — ao-ki-taskforce
 
 Regional GKE Standard cluster in `europe-west4` with NVIDIA L4 GPUs for running
-nb-whisper (transcription) and Borealis-12b (meeting summaries) via vLLM.
+NB-Whisper/CTranslate2 with Nemotron diarization and Borealis-12b Q8 via llama.cpp.
+The established deployment names still use the `vllm-` prefix.
 
 ## Prerequisites
 
@@ -53,7 +54,7 @@ Verify GPU nodes scale up:
 kubectl get nodes -l cloud.google.com/gke-accelerator=nvidia-l4 -w
 ```
 
-Deploy the Kubernetes vLLM resources and GPU retry scaler:
+Deploy the Kubernetes model resources and suspended GPU administration jobs:
 
 ```bash
 ./scripts/apply-k8s.sh
@@ -66,34 +67,35 @@ Day-to-day operation commands live in [`../docs/operations.md`](../docs/operatio
 Follow [the ordered security cutover](../docs/model-api-security.md) before
 using sensitive meeting data. It adds scoped dev/prod application credentials,
 Cloud Run IAM invocation, and verified TLS to the GPU servers. The security
-switches default to false until credentials, certificates, and the new API
-clients are ready. Do not put the gateway master key in NAIS secrets.
+variable defaults are false for initial bootstrap, while the checked-in
+`gke/security.auto.tfvars` enables both controls for the current environment.
+Follow the ordered bootstrap for a new environment. Do not put the gateway master
+key in NAIS secrets.
 
 ## Upload model weights
 
 ```bash
-MODEL_BUCKET=$(tofu output -raw model_bucket)
-
-# nb-whisper-large (~3 GB, ~5 sec download at GKE startup)
-gsutil -m cp -r /path/to/NbAiLab/nb-whisper-large gs://$MODEL_BUCKET/whisper/
-
-# Borealis-12b (~24 GB BF16, ~36 sec download at GKE startup)
-# Download from HuggingFace first: huggingface-cli download NbAiLab/borealis-12b
-gsutil -m cp -r ~/.cache/huggingface/hub/models--NbAiLab--borealis-12b \
-  gs://$MODEL_BUCKET/borealis-12b/
+# From the repository root; downloads and uploads large model artifacts.
+./scripts/upload-modeller.sh --kun-whisper
+.venv/bin/python scripts/stage-borealis-gguf.py
 ```
+
+The speech manifest also requires the separate Nemotron diarization checkpoint.
+`scripts/upload-nemotron.sh` stages it together with the experimental Nemotron ASR
+checkpoint; that ASR model is not selected in the current cloud deployment.
+BF16 Borealis artifacts are retained for the explicit rollback procedure in
+[operations](../docs/operations.md#borealis-q8-runtime).
 
 ## Cost control
 
-Both vLLM deployments start with `replicas: 1`, requesting one GPU per model.
-`k8s/working-hours-scaler.yaml` retries L4 zones hourly, 24 hours a day, including
-weekends. Pending pods remain active between retries so the cluster autoscaler
-can keep trying. Pods already assigned to a node are preserved, including those
-still loading. The `vllm-scale-down` CronJob is suspended: there is no scheduled
-17:00 shutdown.
+Both model deployments start with `replicas: 1`, requesting one GPU per model.
+The scale-up/zone-rotation and scale-down CronJobs in
+`k8s/working-hours-scaler.yaml` are both suspended. There is no scheduled hourly
+rotation or 17:00 shutdown. Pending pods can still trigger the cluster autoscaler;
+suspending the CronJobs does not suspend that autoscaler.
 
-Once both GPUs are assigned, hourly checks preserve them rather than requesting
-additional GPUs. Allocation is not guaranteed, and a scheduled pod does not
+The fallback starter preserves assigned pods rather than requesting additional
+GPUs. Allocation is not guaranteed, and a scheduled pod does not
 necessarily mean its model API is ready. GPU nodes can still disappear due to
 maintenance or failures.
 
@@ -109,15 +111,15 @@ kubectl -n vllm scale deployment/vllm-whisper deployment/vllm-borealis --replica
 ```
 
 Cold starts still need a fresh GPU node when the pools are scaled to zero. The
-custom vLLM images are stored in Artifact Registry, and model artifacts are
-stored in the GCS model bucket; new nodes still need to fetch or stream those
+custom speech and adapter images are stored in Artifact Registry, and model
+artifacts are stored in the GCS model bucket; new nodes still need to fetch or stream those
 remote artifacts because their local container cache disappears with the node.
 GPU node pools enable GKE Image Streaming (`gcfs_config`) to reduce container
-image pull latency for Artifact Registry images. Continuous retries give
-Whisper and Borealis more opportunities to obtain GPU capacity.
+image pull latency for Artifact Registry images. Applying the model manifests
+can invoke fallback once; automatic scheduled zone rotation remains suspended.
 
-The scaler logs UTC timestamps, deployment, pool, scheduling outcome, and elapsed
-seconds. Later hourly checks also report readiness for preserved pods. Scheduling
+The fallback script logs UTC timestamps, deployment, pool, scheduling outcome,
+and elapsed seconds. It also reports readiness for preserved pods. Scheduling
 success means a node was assigned, not that the model API is ready. Timeout logs
 include pod events explaining capacity failures. The last 75 successful scaler
 Jobs are retained for comparison:
@@ -127,8 +129,8 @@ kubectl -n vllm get jobs --sort-by=.metadata.creationTimestamp
 kubectl -n vllm logs job/<vllm-scale-up-job-name>
 ```
 
-Autoscaler retries between hourly zone rotations remain visible in GKE events
-and cluster autoscaler logs. Zone retries now run outside office hours as well.
+Autoscaler attempts remain visible in GKE events and cluster autoscaler logs.
+There are no scheduled zone retries while the CronJob is suspended.
 
 The default regional `gpu-l4` pool is still used for normal GPU workloads.
 Additional zero-min fallback pools (`gpu-l4-a`, `gpu-l4-b`, `gpu-l4-c`) allow
@@ -148,7 +150,8 @@ Continuous operation permits up to 168 GPU-node hours per model each week.
 Allocated GPUs are billed outside office hours as well. Actual cost depends on
 provisioning success, GPU/node type, and scale-down delay; the system pool remains
 active even without GPUs. Suspending the retry CronJob alone does not stop model
-pods or deallocate GPUs. Reapplying the manifests restores continuous retries.
+pods or deallocate GPUs. Reapplying the manifests keeps the scheduled jobs
+suspended and restores one requested replica per model.
 
 The cluster is regional and may place default GPU nodes in `europe-west4-a`,
 `europe-west4-b`, or `europe-west4-c`. The per-zone fallback pools make the
@@ -156,12 +159,9 @@ zone retry order explicit for Borealis.
 
 ## VPC peering
 
-Request from NAIS team in `#nais` on Slack:
-> Vi trenger VPC peering fra `ao-ki-taskforce-prod-2472` til dev-gcp og prod-gcp.
-> Team project VPC: `default` i `europe-west4`.
-
-Peering is not required for the current HTTPS gateway path. Direct model access
-would need a separate security review and is not the configured NAIS route.
+Peering is not required for the current HTTPS gateway path. Do not request it as
+part of normal setup. Direct model access would need a separate security review
+and is not the configured NAIS route.
 
 ## Architecture
 
@@ -171,7 +171,7 @@ NAIS prod-gcp (nais-prod-020f)
         └── HTTPS → LiteLLM gateway (Cloud Run, public URL)
                       └── Direct VPC egress → model internal load balancers
                             └── GKE ao-ki-gpu (europe-west4, zones a/b/c)
-                                  ├── vLLM: nb-whisper-large  (gpu-l4 nodepool)
-                                  └── vLLM: Borealis-12b      (gpu-l4-* fallback nodepools)
+                                  ├── NB-Whisper/CTranslate2 + Nemotron diarization
+                                  └── Borealis Q8: llama.cpp + authenticated adapter
                             └── GCS: ao-ki-taskforce-prod-2472-modeller
 ```
