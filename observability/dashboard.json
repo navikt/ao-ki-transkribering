@@ -43,7 +43,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "sum(up{namespace=\"ao-ki-taskforce\",job=\"ao-ki-transkribering\"})",
+          "expr": "sum(up{namespace=\"ao-ki-taskforce\",app=\"ao-ki-transkribering\"})",
           "datasource": {
             "type": "prometheus",
             "uid": "${DS_PROMETHEUS}"

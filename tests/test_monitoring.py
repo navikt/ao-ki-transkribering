@@ -272,6 +272,18 @@ def test_dashboard_and_deploy_workflow_are_consistent():
         assert deployment["env"]["RESOURCE"] == f".nais/{env}.yaml,.nais/alerts.yaml"
 
 
+def test_scrape_availability_uses_app_label_not_the_shared_nais_job():
+    selector = 'up{namespace="ao-ki-taskforce",app="ao-ki-transkribering"}'
+    dashboard = json.loads((ROOT / "observability/dashboard.json").read_text())
+    panel = next(panel for panel in dashboard["panels"] if panel["title"] == "Metrics Targets")
+    assert panel["targets"][0]["expr"] == f"sum({selector})"
+    rules = yaml.safe_load((ROOT / ".nais/alerts.yaml").read_text())["spec"]["groups"][0]["rules"]
+    availability = next(rule for rule in rules if rule["alert"] == "TranskriberitMetricsUnavailable")
+    assert availability["expr"].strip() == f"absent({selector})\nor max({selector}) == 0"
+    # The job is shared by unrelated apps; filtering by job alone would hide our outage.
+    assert 'job=' not in availability["expr"]
+
+
 async def test_real_speech_retry_path_counts_once_and_preserves_privacy(telemetry, monkeypatch, caplog):
     from shared.services import transkripsjon_client as speech
     from shared import diagnostics

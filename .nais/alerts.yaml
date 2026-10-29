@@ -11,8 +11,8 @@ spec:
       rules:
         - alert: TranskriberitMetricsUnavailable
           expr: |
-            absent(up{namespace="ao-ki-taskforce",job="ao-ki-transkribering"})
-            or max(up{namespace="ao-ki-taskforce",job="ao-ki-transkribering"}) == 0
+            absent(up{namespace="ao-ki-taskforce",app="ao-ki-transkribering"})
+            or max(up{namespace="ao-ki-taskforce",app="ao-ki-transkribering"}) == 0
           for: 5m
           labels:
             namespace: ao-ki-taskforce

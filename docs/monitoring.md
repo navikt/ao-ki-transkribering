@@ -85,9 +85,11 @@ also need operational/model failure signals, not HTTP percentages alone.
 
 1. Check both API pods are ready and each generated scrape target uses port 9091.
 2. In Grafana Explore, select the correct environment datasource and query
-   `up{namespace="ao-ki-taskforce",job="ao-ki-transkribering"}`. Confirm the actual
-   target labels before trusting alerts; adjust selectors if NAIS uses a different
-   job label. Missing metrics are a rollout failure, not proof of a model outage.
+   `up{namespace="ao-ki-taskforce",app="ao-ki-transkribering"}`. NAIS uses the
+   shared scrape job `nais-system/monitoring-apps-tenant`, not the application
+   name. Scope targets by namespace and app so another application's healthy
+   scrape cannot hide our outage. Confirm the target labels before trusting
+   alerts. Missing metrics are a rollout failure, not proof of a model outage.
 3. Generate normal API traffic and inspect `transkriberit_http_requests_total`.
    Confirm IDs, request contents and credentials never appear in labels or logs.
 4. Check queue/failure panels during a synthetic dev job. Cancellation must return
