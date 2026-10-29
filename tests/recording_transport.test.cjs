@@ -96,3 +96,29 @@ test("late response after discard cannot append transcript", async () => {
   await tick();
   assert.equal(results.filter(r => r.type === "segment").length, 0);
 });
+
+test("capture gaps survive reload without becoming uploaded audio or WAV silence", async () => {
+  const archive = new Archive();
+  const first = new RecordingTransport({archive, request: async (url, options) => reply(url, options)});
+  let second;
+  try {
+    await first.initialized;
+    first.send(new Float32Array(16000).buffer);
+    const gaps = [{sample_offset: 8000, elapsed_start_s: 0.5, duration_s: 60, reason: "clock_gap"}];
+    first.setGaps(gaps);
+    first.stop();
+    await until(() => first.readyState === 3);
+    const wav = await first.wav();
+    assert.equal(wav.size, 44 + 16000 * 2);
+    second = new RecordingTransport({archive, restored: [...archive.rows.values()],
+      request: async () => { assert.fail("processed audio must not upload again"); }});
+    await second.initialized;
+    assert.deepEqual(second.gaps, gaps);
+    assert.equal(second.rows.length, 1);
+    assert.equal(second.captured, 16000);
+    assert.equal((await second.wav()).size, wav.size);
+  } finally {
+    if (second) await second.dispose();
+    await first.dispose();
+  }
+});

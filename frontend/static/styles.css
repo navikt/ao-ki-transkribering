@@ -233,6 +233,50 @@ h1 {
 .knapp-utilgjengelig { border-color: var(--color-orange-400); }
 .knapp-xs { font-size: var(--font-sm); padding: .3rem .8rem; }
 
+button { position: relative; }
+button:focus-visible { outline: 3px solid var(--color-blue-600); outline-offset: 3px; }
+button:hover:not(:disabled) { box-shadow: inset 0 0 0 2px currentColor; }
+button:active:not(:disabled), button[data-interacted="true"]:not(:disabled) {
+  box-shadow: inset 0 0 0 3px currentColor;
+  filter: brightness(.86);
+}
+button:disabled { cursor: not-allowed; }
+button[data-feedback="success"] { outline: 3px solid #16804a; outline-offset: 2px; }
+button[data-feedback="error"] { outline: 3px solid var(--color-red-600); outline-offset: 2px; }
+button[aria-busy="true"] { cursor: progress; }
+button[aria-busy="true"]::after {
+  content: "";
+  position: absolute;
+  right: .2rem;
+  top: .2rem;
+  width: .5rem;
+  height: .5rem;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  animation: knapp-venter .7s linear infinite;
+}
+@keyframes knapp-venter { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) {
+  button[aria-busy="true"]::after { animation: none; }
+}
+.handling-status {
+  position: fixed;
+  z-index: 100;
+  right: 1rem;
+  bottom: 4rem;
+  max-width: min(26rem, calc(100% - 2rem));
+  padding: .75rem 1rem;
+  background: var(--color-white);
+  color: var(--color-gray-900);
+  border: 2px solid var(--color-gray-300);
+  border-radius: 4px;
+  box-shadow: 0 2px 8px #0002;
+  overflow-wrap: anywhere;
+}
+.handling-status[data-outcome="success"] { border-color: #16804a; }
+.handling-status[data-outcome="error"] { border-color: var(--color-red-600); }
+
 /* ── Opptaksseksjon ─────────────────────────────────────────── */
 .opptaks-rad { display: flex; gap: .75rem; align-items: center; flex-wrap: wrap; margin-bottom: 1rem; }
 .opplast-rad { display: flex; gap: 1rem; align-items: center; flex-wrap: wrap; }
@@ -394,6 +438,17 @@ h1 {
 }
 
 /* ── Sanntid-status ─────────────────────────────────────────── */
+.opptak-helse {
+  margin-top: .5rem;
+  font-size: .875rem;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: .5rem;
+}
+.opptak-helse[hidden] { display: none; }
+.opptak-helse[data-paused="true"], .opptak-avbrudd { color: #8a3300; }
+.opptak-avbrudd { font-size: .875rem; margin: .5rem 0 0; max-width: 65ch; }
 .sanntid-status {
   display: flex; align-items: center; gap: .4rem;
   font-size: var(--font-sm); color: var(--color-gray-700);

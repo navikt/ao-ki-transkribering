@@ -47,6 +47,27 @@ async def recording_close_report(report: RecordingCloseReport):
     event("recording.browser_closed", **report.model_dump(mode="json"))
 
 
+class RecordingCaptureReport(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    recording_id: UUID
+    kind: Literal["visibility_changed", "audio_state_changed", "track_changed",
+                  "wake_lock_changed", "capture_interrupted", "capture_recovered",
+                  "resume_failed", "capture_stopped"]
+    elapsed_s: float = Field(ge=0, le=604800, allow_inf_nan=False)
+    duration_s: float = Field(ge=0, le=604800, allow_inf_nan=False)
+    visibility: Literal["visible", "hidden"]
+    audio_state: Literal["running", "suspended", "closed", "interrupted", "unknown"]
+    wake_lock: Literal["held", "released", "unavailable", "unsupported"]
+    track_state: Literal["live", "muted", "ended"]
+    reason: Literal["track_ended", "track_muted", "audio_suspended", "clock_gap", "no_frames"] | None
+
+
+@router.post("/diagnostics/recording-capture", status_code=204)
+async def recording_capture_report(report: RecordingCaptureReport):
+    # Browser evidence cannot prove that missing audio was actually spoken.
+    event("recording.browser_capture", **report.model_dump(mode="json"))
+
+
 async def _heartbeat(websocket):
     while True:
         expected = time.monotonic() + 15

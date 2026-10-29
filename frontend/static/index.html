@@ -119,6 +119,11 @@
           <span id="sanntid-status-tekst">Kobler til …</span>
         </div>
         <output id="sanntid-dekning"></output>
+        <div id="opptak-helse" class="opptak-helse" role="status" hidden>
+          <span id="opptak-helse-tekst"></span>
+          <button type="button" id="opptak-fortsett" class="knapp knapp-sekundær" onclick="fortsettOpptak()" hidden>Fortsett opptak</button>
+        </div>
+        <p id="opptak-avbrudd" class="opptak-avbrudd" role="status" hidden></p>
         <details id="mikrofon-diagnostikk" class="utviklermodus" hidden>
           <summary>Utviklermodus</summary>
           <h3>Lyddiagnostikk</h3>
@@ -149,7 +154,7 @@
       <!-- ── Etter opptak ── -->
       <div id="sanntid-knapper" style="display:none">
         <div class="knapper-rad">
-          <button class="knapp knapp-primær" onclick="kopierSanntidTekst()">Kopier transkripsjon</button>
+          <button class="knapp knapp-primær" onclick="kopierSanntidTekst(this)">Kopier transkripsjon</button>
           <button class="knapp knapp-sekundær" onclick="nullstillSanntid()">Nullstill</button>
         </div>
       </div>
@@ -189,7 +194,7 @@
     </div>
 
     <div class="knapper-rad">
-      <button class="knapp knapp-primær" onclick="kopierDialog()">Kopier transkripsjon</button>
+      <button class="knapp knapp-primær" onclick="kopierDialog(this)">Kopier transkripsjon</button>
       <button class="knapp knapp-sekundær" onclick="nyttOpptak()">Nytt opptak</button>
     </div>
     <p class="fotnote">
@@ -254,7 +259,7 @@
                     id="live-referat-auto-knapp"
                     onclick="toggleLiveReferatAuto()">⏸ Pause auto</button>
             <button class="knapp knapp-sekundær knapp-xs"
-                    onclick="kopierLiveReferat()">Kopier</button>
+                    onclick="kopierLiveReferat(this)">Kopier</button>
             <span id="live-referat-tid" class="fotnote" style="margin-left:auto"></span>
           </div>
         </div>
@@ -279,7 +284,7 @@
     </div>
     <div class="referat-footer" style="display:none" id="referat-footer">
       <button class="knapp knapp-sekundær knapp-xs"
-              onclick="kopierReferat()">Kopier</button>
+              onclick="kopierReferat(this)">Kopier</button>
       <span id="referat-modell-info"></span>
       <span style="margin-left:auto" class="fotnote">
         Gjennomgå innhold og mottaker før du deler eller lagrer referatet
@@ -294,7 +299,7 @@
               oninput="oppdaterReferatEditor()"></textarea>
     <div class="referat-editor-handlinger">
       <button class="knapp knapp-sekundær knapp-xs" id="referat-redigert-kopier"
-              onclick="kopierRedigertReferat()" disabled>Kopier bearbeidet referat</button>
+              onclick="kopierRedigertReferat(this)" disabled>Kopier bearbeidet referat</button>
       <span id="referat-editor-status" class="fotnote" role="status"></span>
     </div>
     <p class="fotnote">Teksten lagres ikke og forsvinner når du lukker eller laster siden på nytt.</p>
@@ -303,6 +308,7 @@
   </div><!-- /app-main-hoyre -->
   </div><!-- /app-main-grid -->
 </main>
+<div id="handling-status" class="handling-status" role="status" aria-live="polite" aria-atomic="true" hidden></div>
 
 <!-- Teknisk info – footer -->
 <footer class="app-footer">
@@ -314,6 +320,7 @@
 </footer>
 
 <script src="/static/recording.js"></script>
+<script src="/static/recording-lifecycle.js"></script>
 <script src="/static/app.js"></script>
 </body>
 </html>

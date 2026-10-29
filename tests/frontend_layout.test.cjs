@@ -42,12 +42,15 @@ function workspace() {
       querySelector: element,
       querySelectorAll: () => [],
       createElement: () => element("created"),
+      visibilityState: "visible",
+      addEventListener() {}, removeEventListener() {},
     },
     fetch: () => new Promise(() => {}),
     setInterval() {},
     clearInterval() {},
     navigator: { clipboard: { writeText: async () => {} } },
   });
+  vm.runInContext(fs.readFileSync(path.join(__dirname, "../frontend/static/recording-lifecycle.js"), "utf8"), context);
   vm.runInContext(fs.readFileSync(path.join(__dirname, "../frontend/static/app.js"), "utf8"), context);
   vm.runInContext('globalThis.RecordingTransport = class { constructor() { return new WebSocket("/recordings"); } };', context);
   return { element, run: code => vm.runInContext(code, context) };
@@ -82,6 +85,49 @@ function transcriptWorkspace() {
   `);
   return w;
 }
+
+test("copy buttons show pending and confirmed feedback without changing their labels", async () => {
+  const {element, run} = workspace();
+  run(`
+    setTimeout = () => 0;
+    globalThis.finishCopy = null;
+    navigator.clipboard.writeText = () => new Promise(resolve => { finishCopy = resolve; });
+  `);
+  const button = element("copy-test");
+  button.textContent = "Kopier";
+  const copy = run('kopierTilUtklippstavle("Testtekst", document.getElementById("copy-test"))');
+  assert.equal(button["aria-busy"], "true");
+  assert.equal(element("handling-status").textContent, "Kopierer …");
+  run('finishCopy()');
+  assert.equal(await copy, true);
+  assert.equal(button["aria-busy"], "false");
+  assert.equal(button.dataset.feedback, "success");
+  assert.equal(button.textContent, "Kopier");
+  assert.match(element("handling-status").textContent, /Kopiert til/);
+});
+
+test("clipboard denial and empty text are not reported as success", async () => {
+  const {element, run} = workspace();
+  run('setTimeout = () => 0; navigator.clipboard.writeText = async () => { throw new Error("denied"); };');
+  assert.equal(await run('kopierTilUtklippstavle("Testtekst", document.getElementById("copy-test"))'), false);
+  assert.equal(element("copy-test").dataset.feedback, "error");
+  assert.match(element("handling-status").textContent, /Kunne ikke kopiere/);
+  assert.equal(await run('kopierTilUtklippstavle(" ")'), false);
+  assert.match(element("handling-status").textContent, /Ingen tekst/);
+});
+
+test("a late clipboard failure cannot overwrite feedback from a newer action", async () => {
+  const {element, run} = workspace();
+  run(`setTimeout = () => 0;
+    navigator.clipboard.writeText = () => new Promise((resolve, reject) => { globalThis.rejectOldCopy = reject; });`);
+  const first = run('kopierTilUtklippstavle("Første", document.getElementById("first-copy"))');
+  run('navigator.clipboard.writeText = async () => {};');
+  assert.equal(await run('kopierTilUtklippstavle("Andre", document.getElementById("second-copy"))'), true);
+  run('rejectOldCopy(new Error("denied"))');
+  assert.equal(await first, false);
+  assert.equal(element("handling-status").dataset.outcome, "success");
+  assert.match(element("handling-status").textContent, /Kopiert til/);
+});
 
 test("live sentence continues across audio chunks and keeps its original start time", async () => {
   const {run} = transcriptWorkspace();
@@ -138,7 +184,7 @@ test("audio actions sit below recording controls and copy sits below the transcr
   const html = fs.readFileSync(path.join(__dirname, "../frontend/static/index.html"), "utf8");
   assert.ok(html.indexOf('id="opptak-handlinger"') > html.indexOf('id="sanntid-stopp-knapp"'));
   assert.ok(html.indexOf('id="opptak-handlinger"') < html.indexOf('id="sanntid-status"'));
-  assert.ok(html.indexOf('onclick="kopierSanntidTekst()"') > html.indexOf('id="sanntid-tekst"'));
+  assert.ok(html.indexOf('onclick="kopierSanntidTekst(this)"') > html.indexOf('id="sanntid-tekst"'));
   const {element, run} = workspace();
   let attached = false;
   element('opptak-handlinger').appendChild = () => { attached = true; };
@@ -315,12 +361,15 @@ test("audio worklet updates the meter without changing audio sent for transcript
   const { element, run } = workspace();
   run(`
     globalThis.AudioContext = class {
+      state = "running"; currentTime = 0;
+      addEventListener() {} removeEventListener() {}
       audioWorklet = { addModule: async () => {} };
       createMediaStreamSource() { return { connect() {} }; }
     };
     globalThis.AudioWorkletNode = class { port = {}; connect() {} };
     globalThis.WebSocket = { OPEN: 1 };
     sanntidAktivt = true;
+    sanntidStream = {getAudioTracks: () => []};
     sanntidWs = { readyState: 1, send(data) { globalThis.sentAudio = new Float32Array(data); } };
   `);
   await run("startAudioWorklet()");
@@ -330,6 +379,33 @@ test("audio worklet updates the meter without changing audio sent for transcript
   assert.equal(run("sentAudio.every(sample => sample === 0.125)"), true);
   run("sanntidAktivt = false; nullstillMikrofonNiva(); workletNode.port.onmessage({data: new Float32Array(1600).fill(1)})");
   assert.equal(element("mikrofonniva").dataset.tilstand, "av");
+});
+
+test("capture warnings survive ordinary upload status and stay outside developer mode", () => {
+  const {element, run} = workspace();
+  run('visOpptakHelse({active:true, paused:true, ended:false, wake:"released"})');
+  run('visOpptakAvbrudd([{elapsed_start_s:60, duration_s:30}]); settSanntidStatus("Tar opp …")');
+  assert.equal(element("opptak-helse").hidden, false);
+  assert.equal(element("opptak-fortsett").hidden, false);
+  assert.equal(element("opptak-avbrudd").hidden, false);
+  assert.match(element("opptak-avbrudd").textContent, /1:00.*30 s/);
+  run('visOpptakHelse({active:false, paused:false, ended:false, wake:"released"})');
+  assert.equal(element("opptak-fortsett").hidden, true);
+  assert.equal(element("opptak-avbrudd").hidden, false);
+});
+
+test("sentence fragments are not joined across a possible capture interruption", async () => {
+  const {run} = transcriptWorkspace();
+  run('navigator.mediaDevices = {getUserMedia: async () => ({getTracks: () => []})}; globalThis.WebSocket = class {};');
+  await run('startSanntid()');
+  run(`
+    sanntidWs.gaps = [{sample_offset: 15 * 16000}];
+    for (const [start, tekst] of [[12, 'Før avbrudd'], [16, 'etter avbrudd.']]) {
+      sanntidWs.onmessage({data: JSON.stringify({type:'segment', tekst,
+        segmenter:[{start, tekst, taler:'SPEAKER_00'}]})});
+    }
+  `);
+  assert.equal(run('transcript.children.length'), 2);
 });
 
 test("audio modes toggle input and output together without clearing content", () => {

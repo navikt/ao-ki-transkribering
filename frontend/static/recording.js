@@ -40,7 +40,9 @@ class RecordingTransport {
     this.retryMs = retryMs;
     this.recordingId = restored[0]?.session || crypto.randomUUID();
     this.readyState = 1;
-    this.rows = restored.map(({pcm, ...row}) => row).sort((a, b) => a.sequence - b.sequence);
+    this.gaps = restored.find(row => row.kind === "capture-health")?.gaps || [];
+    this.rows = restored.filter(row => Number.isInteger(row.sequence))
+      .map(({pcm, ...row}) => row).sort((a, b) => a.sequence - b.sequence);
     this.buffer = new Float32Array(0);
     this.start = 0;
     this.captured = this.rows.at(-1)?.end || 0;
@@ -55,7 +57,8 @@ class RecordingTransport {
       this.onmessage?.({data: JSON.stringify({type: "session", recording_id: this.recordingId})});
       if (this.stopped) {
         while (this.rows[this.next]?.result) {
-          this.onmessage?.({data: JSON.stringify(this.rows[this.next++].result)});
+          const result = this.rows[this.next++].result;
+          this.onmessage?.({data: JSON.stringify(result)});
         }
         this.oncoverage?.(this.rows[this.next - 1]?.end || 0, this.captured);
         return this.pump();
@@ -84,6 +87,15 @@ class RecordingTransport {
     if (this.captured * 4 >= 512 * 1024 * 1024) {
       this.onfatal?.("Grensen for lokal lydlagring er nadd. Last ned opptaket.");
     }
+  }
+  setGaps(gaps) {
+    if (this.disposed) return;
+    this.gaps = gaps.map(gap => ({...gap}));
+    const row = {key: `${this.recordingId}:health`, session: this.recordingId,
+      kind: "capture-health", gaps: this.gaps, expires: this.expires};
+    this.writing = this.writing.then(() => this.archive.put(row)).catch(() => {
+      this.onstate?.("Avbruddsloggen kunne ikke lagres lokalt. Last ned avbruddsloggen.");
+    });
   }
   enqueue(pcm) {
     const sequence = this.rows.length;

@@ -287,6 +287,52 @@ failure stops capture with a visible warning rather than silently dropping audio
 Downloaded files are outside this retention policy. Review browser-local sensitive
 audio retention with the deployment owner before production rollout.
 
+### Browser sleep and capture interruptions
+
+During microphone recording the browser requests a **screen wake lock**. It is
+released on Stop, and requested again when the page becomes visible. Unsupported
+browsers, denied requests and system releases are shown as warnings; these do not
+stop recording. The lock prevents automatic screen sleep where supported, not
+manual screen locking, closing a laptop lid or operating-system suspension.
+Reliable locked-screen/background recording on iOS cannot be guaranteed by a web
+application; that requirement would need a native capture application.
+
+AudioContext state changes and microphone mute/end events are observed separately
+from HTTP uploads. Returning to the page attempts to resume an interrupted audio
+context; **Fortsett opptak** allows a user-gesture retry. A disconnected microphone
+requires Stop and a new recording; it is never silently reopened. Existing captured
+audio remains available while processing retries continue.
+
+The timer measures elapsed wall time rather than counting JavaScript callbacks.
+A stalled audio clock, muted/ended track or missing frames can create a **possible
+audio interruption** marker. Page visibility alone does not prove audio loss.
+Markers are estimates, not proof that speech was lost, and cannot recover audio
+that the operating system never delivered. They are retained with the local
+recording under its existing eight-hour expiry and can be downloaded separately
+as an interruption log. The WAV contains captured samples only: no artificial
+silence is inserted. Transcript timestamps remain offsets in that captured audio,
+not wall-clock meeting times; a persistent warning makes this explicit after a gap.
+Sentence fragments are not joined across known interruption offsets.
+
+`POST /diagnostics/recording-capture` emits best-effort `recording.browser_capture`
+events with recording ID, a fixed event kind/reason, elapsed/interruption durations,
+page visibility, AudioContext state, track state and wake-lock state. No device
+labels, user identifiers, audio, transcript or arbitrary exception messages are
+sent. Existing application authentication applies; the strict schema rejects extra
+fields. Reports may be delayed or absent during suspension/network failure.
+
+Real-device acceptance checks (iOS Safari and the affected laptop browser):
+
+1. Start recording and check that the screen remains awake past its usual timeout.
+2. Manually lock/unlock the device; verify the timer, interruption warning and
+   automatic recovery or visible Resume action. Check what actually reached WAV.
+3. Switch apps and return; verify that continuous capture does not create a gap
+   merely because the page was hidden.
+4. Stop; verify the wake lock is released, uploads drain, and the interruption log
+   and audio can be downloaded. Reload and verify local recovery retains markers.
+
+These hardware/OS behaviours cannot be established by the mocked lifecycle tests.
+
 ### Legacy WebSocket diagnostics
 
 The API emits JSON events through the dedicated `transkriberit.diagnostics`

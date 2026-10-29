@@ -113,6 +113,22 @@ def test_browser_report_is_strict_and_content_free(events):
     assert "PRIVATE" not in json.dumps(events())
 
 
+def test_capture_report_rejects_content_and_unbounded_metadata(events):
+    app = FastAPI()
+    app.include_router(sanntid.router)
+    client = TestClient(app)
+    report = dict(recording_id="00000000-0000-4000-8000-000000000000",
+                  kind="capture_recovered", elapsed_s=180, duration_s=60,
+                  visibility="visible", audio_state="running", wake_lock="held",
+                  track_state="live", reason="audio_suspended")
+    assert client.post("/diagnostics/recording-capture", json=report).status_code == 204
+    assert events()[-1]["event"] == "recording.browser_capture"
+    for invalid in [{"transcript": "PRIVATE"}, {"device_label": "PRIVATE"},
+                    {"kind": "PRIVATE"}, {"duration_s": -1}, {"elapsed_s": 604801}]:
+        assert client.post("/diagnostics/recording-capture", json={**report, **invalid}).status_code == 422
+    assert "PRIVATE" not in json.dumps(events())
+
+
 @pytest.mark.asyncio
 async def test_heartbeat_send_failure_is_recorded(events):
     async def send(data):

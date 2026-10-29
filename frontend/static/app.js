@@ -440,7 +440,7 @@ function oppdaterTalerNavn() {
   });
 }
 
-function kopierDialog() {
+function kopierDialog(knapp) {
   const container = document.getElementById("dialog-container");
   const linjer = [];
   container.querySelectorAll(".dialog-linje").forEach(div => {
@@ -451,10 +451,9 @@ function kopierDialog() {
   });
   // Sjekk sanntid om batch-container er tom
   if (!linjer.length) {
-    navigator.clipboard.writeText(kopierSanntidTekstRaw());
-    return;
+    return kopierTilUtklippstavle(kopierSanntidTekstRaw(), knapp);
   }
-  navigator.clipboard.writeText(linjer.join("\n"));
+  return kopierTilUtklippstavle(linjer.join("\n"), knapp);
 }
 
 function formaterTid(sek) {
@@ -525,6 +524,8 @@ let sanntidSekunder  = 0;
 let audioCtx         = null;
 let workletNode      = null;
 let pcmBuffer        = [];
+let opptakLivssyklus = null;
+let opptakStartet = 0;
 const PCM_SEND_SAMPLES = 2560;
 let mikrofonNivaEnergi = 0;
 let mikrofonNivaAntall = 0;
@@ -613,8 +614,8 @@ function toggleLiveReferatAuto() {
   knapp.textContent = _liveReferatAktivt ? "⏸ Pause auto" : "▶ Start auto";
 }
 
-function kopierLiveReferat() {
-  if (_liveReferatTekst) navigator.clipboard.writeText(_liveReferatTekst);
+function kopierLiveReferat(knapp) {
+  return kopierTilUtklippstavle(_liveReferatTekst, knapp);
 }
 
 function oppdaterLiveReferatNaa() {
@@ -788,7 +789,10 @@ async function startSanntid(restored = []) {
   document.getElementById("lydkilde").disabled = true;
   sanntidSegmenter = [];
   sanntidSekunder  = 0;
+  opptakStartet = Date.now();
   pcmBuffer        = [];
+  document.getElementById("opptak-helse").hidden = true;
+  document.getElementById("opptak-avbrudd").hidden = true;
 
   // Fjern eventuell tidligere nedlastingslenke
   const gammelLenke = document.getElementById("sanntid-nedlasting");
@@ -807,7 +811,8 @@ async function startSanntid(restored = []) {
 
   sanntidTimer = setInterval(() => {
     oppdaterLyddiagnostikk();
-    sanntidSekunder++;
+    opptakLivssyklus?.check();
+    sanntidSekunder = Math.floor((Date.now() - opptakStartet) / 1000);
     const m = Math.floor(sanntidSekunder / 60);
     const s = String(sanntidSekunder % 60).padStart(2, "0");
     document.getElementById("sanntid-timer-tekst").textContent = m + ":" + s;
@@ -817,6 +822,7 @@ async function startSanntid(restored = []) {
   sanntidWs = new RecordingTransport({restored});
   recordingArchive = sanntidWs;
   const socket = sanntidWs;
+  visOpptakAvbrudd(socket.gaps || []);
   socket.onstate = message => settSanntidStatus(message);
   socket.oncoverage = (processed, captured) => {
     document.getElementById("sanntid-dekning").textContent =
@@ -844,7 +850,10 @@ async function startSanntid(restored = []) {
   sanntidWs.onopen = async () => {
     if (sanntidWs !== socket || !sanntidAktivt) return;
     settSanntidStatus("Tar opp …");
-    await startAudioWorklet();
+    try { await startAudioWorklet(); }
+    catch {
+      if (sanntidWs === socket && sanntidAktivt) stoppSanntid("Lydopptaket kunne ikke startes. Lagret lyd beholdes.");
+    }
 
   };
 
@@ -880,7 +889,9 @@ async function startSanntid(restored = []) {
 
         const siste = boks.lastElementChild;
         const sisteTekst = siste?.querySelector(".dialog-tekst");
-        if (sisteTekst && siste.dataset.taler === taler && !erSetningsslutt(sisteTekst.textContent)) {
+        const overAvbrudd = (socket.gaps || []).some(gap =>
+          gap.sample_offset / 16000 > Number(siste?.dataset.start) && gap.sample_offset / 16000 <= seg.start);
+        if (sisteTekst && !overAvbrudd && siste.dataset.taler === taler && !erSetningsslutt(sisteTekst.textContent)) {
           sisteTekst.textContent += " " + innhold;
         } else {
           const div = document.createElement("div");
@@ -961,9 +972,32 @@ async function startSanntid(restored = []) {
 async function startAudioWorklet() {
   // The browser converts the input track to this context's sample rate.
   audioCtx = new AudioContext({ sampleRate: 16000 });
+  const context = audioCtx;
+  const socket = sanntidWs;
+  let lastGapKey = "";
+  opptakLivssyklus = new RecordingLifecycle({
+    onstate: visOpptakHelse,
+    ongaps: gaps => {
+      const key = JSON.stringify(gaps.map(gap => ({...gap, duration_s: Math.floor(gap.duration_s)})));
+      if (key === lastGapKey) return;
+      lastGapKey = key;
+      socket.setGaps(gaps);
+      visOpptakAvbrudd(gaps);
+    },
+    report: report => {
+      fetch("/diagnostics/recording-capture", {
+        method: "POST", headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({recording_id: socket.recordingId, ...report}), keepalive: true,
+      }).catch(() => {});
+    },
+  });
+  opptakLivssyklus.start(context, sanntidStream.getAudioTracks());
+  // Resume before waiting for module loading, while the user gesture may still be available.
+  opptakLivssyklus.resume();
   oppdaterLyddiagnostikk();
 
-  await audioCtx.audioWorklet.addModule("/static/audio-processor.js");
+  await context.audioWorklet.addModule("/static/audio-processor.js");
+  if (!sanntidAktivt || audioCtx !== context || sanntidWs !== socket) return;
 
   const kilde = audioCtx.createMediaStreamSource(sanntidStream);
   workletNode = new AudioWorkletNode(audioCtx, "audio-processor");
@@ -971,6 +1005,7 @@ async function startAudioWorklet() {
   workletNode.port.onmessage = (evt) => {
     if (!sanntidAktivt) return;
     const samples = evt.data;  // Float32Array
+    opptakLivssyklus?.samples(samples.length);
     oppdaterMikrofonNiva(samples);
     for (let i = 0; i < samples.length; i++) pcmBuffer.push(samples[i]);
 
@@ -987,9 +1022,36 @@ async function startAudioWorklet() {
   workletNode.connect(audioCtx.destination);
 }
 
+function visOpptakHelse(state) {
+  const box = document.getElementById("opptak-helse");
+  box.hidden = !state.active;
+  box.dataset.paused = String(state.paused);
+  document.getElementById("opptak-helse-tekst").textContent = state.ended
+    ? "Mikrofonen er frakoblet. Stopp og start et nytt opptak."
+    : state.paused ? "Lydopptaket er avbrutt. Venter på lyd."
+    : state.wake === "held" ? "Skjermen holdes våken under opptak."
+    : "Skjermen kan gå i dvale. Hold siden synlig og enheten ulåst under opptak.";
+  document.getElementById("opptak-fortsett").hidden = !state.active || !state.paused || state.ended;
+}
+
+function visOpptakAvbrudd(gaps) {
+  const box = document.getElementById("opptak-avbrudd");
+  box.hidden = !gaps.length;
+  if (!gaps.length) return;
+  const last = gaps.at(-1);
+  box.textContent = `${gaps.length} mulige lydavbrudd. Siste ved ${opptakTid(last.elapsed_start_s)} (ca. ${Math.ceil(last.duration_s)} s). ` +
+    "Lyd kan mangle. Tidsstempler og lydfil følger fanget lyd, ikke medgått møtetid.";
+}
+
+async function fortsettOpptak() {
+  if (sanntidAktivt) await opptakLivssyklus?.resume(true);
+}
+
 function stoppSanntid(grunn = "") {
   if (grunn) sanntidStoppgrunn = grunn;
   sanntidAktivt = false;
+  opptakLivssyklus?.stop();
+  opptakLivssyklus = null;
   nullstillMikrofonNiva();
   document.getElementById("lydkilde").disabled = false;
   clearInterval(sanntidTimer);
@@ -1031,9 +1093,22 @@ function _tilbyNedlasting() {
   div.innerHTML = `
     <button type="button" class="knapp knapp-sekundær" onclick="lastNedOpptak()">Last ned lyd</button>
     <button type="button" class="knapp knapp-sekundær" onclick="slettOpptak()">Slett lokal lyd</button>
+    <button type="button" class="knapp knapp-sekundær" onclick="lastNedAvbruddslogg()" ${recordingArchive?.gaps?.length ? "" : "hidden"}>Last ned avbruddslogg</button>
     <span style="flex-basis:100%">Utløper etter 8 timer; opprydding ved neste besøk hvis siden er lukket. Nedlastede filer beholdes.</span>
   `;
   document.getElementById("opptak-handlinger").appendChild(div);
+}
+
+function lastNedAvbruddslogg() {
+  if (!recordingArchive?.gaps?.length) return;
+  const url = URL.createObjectURL(new Blob([JSON.stringify({
+    timeline: "captured_audio", possible_gaps: recordingArchive.gaps,
+  }, null, 2)], {type: "application/json"}));
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = "opptak-avbrudd.json";
+  link.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
 async function lastNedOpptak() {
@@ -1061,6 +1136,7 @@ async function slettOpptak() {
     if (recordingDownloadUrl) URL.revokeObjectURL(recordingDownloadUrl);
     recordingDownloadUrl = null;
     document.getElementById("sanntid-nedlasting")?.remove();
+    document.getElementById("opptak-avbrudd").hidden = true;
     settLydInngangAktivert(_lydInngangBekreftet);
     settSanntidStatus("Lokal lyd slettet");
   } catch { settSanntidStatus("Kunne ikke slette lokal lyd. Prov igjen."); }
@@ -1107,8 +1183,8 @@ function kopierSanntidTekstRaw() {
   return linjer.join("\n");
 }
 
-function kopierSanntidTekst() {
-  navigator.clipboard.writeText(kopierSanntidTekstRaw());
+function kopierSanntidTekst(knapp) {
+  return kopierTilUtklippstavle(kopierSanntidTekstRaw(), knapp);
 }
 
 function nullstillSanntid() {
@@ -1182,16 +1258,12 @@ function oppdaterReferatEditor() {
   document.getElementById("referat-editor-status").textContent = "";
 }
 
-async function kopierRedigertReferat() {
+async function kopierRedigertReferat(knapp) {
   const tekst = document.getElementById("referat-redigert").value;
   if (!tekst.trim()) return;
   const status = document.getElementById("referat-editor-status");
-  try {
-    await navigator.clipboard.writeText(tekst);
-    status.textContent = "Kopiert";
-  } catch {
-    status.textContent = "Kunne ikke kopiere. Marker teksten og kopier manuelt.";
-  }
+  const copied = await kopierTilUtklippstavle(tekst, knapp);
+  status.textContent = copied ? "Kopiert" : "Kunne ikke kopiere. Marker teksten og kopier manuelt.";
 }
 
 let _referatProgressTimer = null;
@@ -1417,10 +1489,62 @@ async function hentReferat(kilde) {
   }
 }
 
-function kopierReferat() {
+function kopierReferat(knapp) {
   const boks = document.getElementById("referat-tekst");
   // Hent ren tekst (uten HTML-tagger)
-  navigator.clipboard.writeText(boks.innerText || boks.textContent);
+  return kopierTilUtklippstavle(boks.innerText || boks.textContent, knapp);
+}
+
+let handlingStatusTimer = null;
+let kopieringSekvens = 0;
+const knappFeedbackTimers = new WeakMap();
+const kopiFeedbackTimers = new WeakMap();
+
+document.addEventListener("click", event => {
+  const knapp = event.target.closest?.("button");
+  if (!knapp || knapp.disabled) return;
+  clearTimeout(knappFeedbackTimers.get(knapp));
+  knapp.dataset.interacted = "true";
+  knappFeedbackTimers.set(knapp, setTimeout(() => { delete knapp.dataset.interacted; }, 700));
+});
+
+async function kopierTilUtklippstavle(tekst, knapp) {
+  const sequence = ++kopieringSekvens;
+  const status = document.getElementById("handling-status");
+  clearTimeout(handlingStatusTimer);
+  status.hidden = false;
+  status.dataset.outcome = "pending";
+  status.textContent = "Kopierer …";
+  if (knapp) {
+    clearTimeout(kopiFeedbackTimers.get(knapp));
+    knapp.setAttribute("aria-busy", "true");
+    delete knapp.dataset.feedback;
+  }
+  let copied = false;
+  let message;
+  try {
+    if (!tekst?.trim()) {
+      message = "Ingen tekst å kopiere.";
+    } else {
+      await navigator.clipboard.writeText(tekst);
+      copied = true;
+      message = "Kopiert til utklippstavlen";
+    }
+  } catch {
+    message = "Kunne ikke kopiere. Marker teksten og kopier manuelt.";
+  } finally {
+    if (sequence === kopieringSekvens) {
+      status.textContent = message;
+      status.dataset.outcome = copied ? "success" : "error";
+      handlingStatusTimer = setTimeout(() => { status.hidden = true; }, 5000);
+    }
+    if (knapp) {
+      knapp.setAttribute("aria-busy", "false");
+      knapp.dataset.feedback = copied ? "success" : "error";
+      kopiFeedbackTimers.set(knapp, setTimeout(() => { delete knapp.dataset.feedback; }, 5000));
+    }
+  }
+  return copied;
 }
 
 // ── Systemstatus (lastes ved sideoppstart) ───────────────────────────────────
