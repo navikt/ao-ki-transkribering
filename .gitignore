@@ -16,6 +16,7 @@ nohup.out
 *.json
 !k8s/borealis-q8.json
 !docs/benchmarks/2026-10-14/*.json
+!observability/*.json
 .env
 .env.*
 !.env.example

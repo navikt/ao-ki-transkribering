@@ -23,6 +23,8 @@ Dev krever en konto i NAV Preprod, ikke den vanlige produksjonskontoen.
 innlogging og plattformens krav til enhet. Personlige telefoner er ikke garantert
 tilgang. GitHub Actions bygger appen og deployer til dev før prod. Modellclusteret
 oppdateres separat; se [drift](docs/operations.md).
+Operasjonelle logger, målinger, dashboard og alarmer er beskrevet i
+[monitorering](docs/monitoring.md), uten opptak, transkripsjoner eller referatinnhold.
 
 ---
 

@@ -9,6 +9,7 @@ from shared.core.settings import AI_PROXY_API_KEY, AI_PROXY_URL, LLM_BACKEND, LL
 from worker.prompts.normalisering import normaliser_til_bokmal
 from shared.services.model_auth import authenticated_headers
 from shared.diagnostics import event
+from shared.metrics import metrics, observe, observe_stream
 
 
 def _int_env(name: str, default: int) -> int:
@@ -131,6 +132,14 @@ class IncompleteModelResponse(RuntimeError):
 async def count_tokens(system: str, bruker: str, modell: str | None = None) -> int | None:
     if LLM_BACKEND != "openai" or (modell or LLM_MODELL) != "borealis-12b":
         return None
+    with metrics.track("token_count") as state:
+        result = await _count_tokens(system, bruker, modell)
+        if result is None:
+            state["outcome"] = "unavailable"
+        return result
+
+
+async def _count_tokens(system: str, bruker: str, modell: str | None) -> int | None:
     payload = _build_payload(system, bruker, modell, stream=False, max_tokens=1)
     payload["extra_body"] = {"transkriberit_count_tokens": True}
     try:
@@ -150,6 +159,7 @@ async def count_tokens(system: str, bruker: str, modell: str | None = None) -> i
         return None
 
 
+@observe("llm_generate")
 async def kall(system: str, bruker: str, modell: str | None = None, *, max_tokens: int | None = None,
                raw: bool = False, json_mode: bool = False, response_schema: dict | None = None) -> str:
     if LLM_BACKEND == "ollama":
@@ -178,6 +188,7 @@ async def kall(system: str, bruker: str, modell: str | None = None, *, max_token
         return text if raw else normaliser_til_bokmal(text)
 
 
+@observe("model_listing")
 async def hent_status() -> LlmStatus:
     if LLM_BACKEND == "ollama":
         async with httpx.AsyncClient(timeout=httpx.Timeout(5.0, read=15.0)) as klient:
@@ -215,6 +226,7 @@ async def hent_status() -> LlmStatus:
     )
 
 
+@observe_stream("llm_stream")
 async def stream_tokens(system: str, bruker: str, modell: str | None = None, *, max_tokens: int | None = None):
     """Async generator som gir (token, er_ferdig, full_normalisert_tekst)."""
     if LLM_BACKEND == "ollama":

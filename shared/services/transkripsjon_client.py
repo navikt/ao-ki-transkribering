@@ -13,6 +13,7 @@ from shared.services.model_auth import authenticated_headers
 from shared.core.settings import TRANSKRIPSJON_API_KEY, TRANSKRIPSJON_API_PATH, TRANSKRIPSJON_MODELL, TRANSKRIPSJON_SERVICE_URL
 from shared.core.settings import REMOTE_DIARIZATION_MODEL
 from shared.diagnostics import event, failure
+from shared.metrics import metrics, observe
 from shared.services.transkripsjon_backend import StatusCallback
 from shared.services.uploaded_audio import SAMPLE_RATE, decoded_audio
 
@@ -81,6 +82,7 @@ def _pcm_to_wav_bytes(pcm: np.ndarray, sample_rate: int = 16_000) -> bytes:
     return buf.getvalue()
 
 
+@observe("speech_request")
 async def _call_transkripsjon_service(
     *,
     filename: str,
@@ -128,6 +130,7 @@ async def _call_transkripsjon_service(
                     raise
                 if attempt == 2:
                     raise
+                metrics.retries.inc()
                 await asyncio.sleep(2 ** attempt)
             except Exception as exc:
                 failure("model.transcription_failed", exc, attempt=attempt + 1,

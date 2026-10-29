@@ -1,12 +1,12 @@
 import hashlib
 import json
-import logging
 import os
 from uuid import UUID
 
 import httpx
 from fastapi import APIRouter, HTTPException, Request, Response
 from fastapi.responses import StreamingResponse
+from shared.diagnostics import failure
 
 from frontend.long_transcript import TranscriptProcessingError, generate, with_heartbeats
 from frontend.compact_summary import generate as generate_grounded
@@ -35,7 +35,6 @@ from worker.prompts.handlinger import LlmHandling, STANDARD_VEILEDER_VARIANT, VE
 from worker.prompts.motereferat import SYSTEM_REFERAT, BRUKER_REFERAT, SYSTEM_VEILEDER_BASIS
 
 router = APIRouter()
-log = logging.getLogger(__name__)
 summary_jobs = SummaryJobs(JobStore(job_store.work_dir / "summaries"))
 
 
@@ -177,7 +176,7 @@ async def _kjor_handling(handling_id: str, foresporsel: LlmForesporsel):
     except HTTPException:
         raise
     except Exception as exc:
-        log.exception("Feil ved generering av LLM-handling %s", handling.id)
+        failure("llm.action_failed", exc)
         raise HTTPException(status_code=500, detail=f"Feil ved generering av {handling.tittel}") from exc
     svar = {"tekst": tekst, "modell": foresporsel.modell or LLM_MODELL, "handling": handling.id}
     if scenario_id:
@@ -313,8 +312,8 @@ def _stream_handling(handling_id: str, foresporsel: LlmForesporsel):
             yield sse({"type": "feil", "melding": _sse_melding_for_llm(e)})
         except TranscriptProcessingError as exc:
             yield sse({"type": "feil", "melding": str(exc)})
-        except Exception:
-            log.exception("Feil ved streaming av LLM-handling %s", handling.id)
+        except Exception as exc:
+            failure("llm.stream_failed", exc)
             yield sse({"type": "feil", "melding": f"Feil ved generering av {handling.tittel}"})
 
     return StreamingResponse(

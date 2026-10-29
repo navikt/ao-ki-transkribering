@@ -8,6 +8,10 @@ metadata:
 spec:
   image: {{image}}
   port: 8765
+  prometheus:
+    enabled: true
+    path: /metrics
+    port: "9091"
 
   ingresses:
     - https://ao-ki-transkribering.intern.nav.no
@@ -54,6 +58,12 @@ spec:
     - secret: ao-ki-model-api
 
   env:
+    - name: METRICS_ENABLED
+      value: "true"
+    - name: METRICS_PORT
+      value: "9091"
+    - name: METRICS_HOST
+      value: "0.0.0.0"
     - name: AUTH_REQUIRED
       value: "true"
     - name: MODEL_API_IAM_AUTH

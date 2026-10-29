@@ -63,7 +63,7 @@ jobs:
         uses: nais/deploy/actions/deploy@v2
         env:
           CLUSTER: dev-gcp
-          RESOURCE: .nais/dev.yaml
+          RESOURCE: .nais/dev.yaml,.nais/alerts.yaml
           VAR: image=${{ needs.build-frontend.outputs.image }}
 
   deploy-prod:
@@ -81,5 +81,5 @@ jobs:
         uses: nais/deploy/actions/deploy@v2
         env:
           CLUSTER: prod-gcp
-          RESOURCE: .nais/prod.yaml
+          RESOURCE: .nais/prod.yaml,.nais/alerts.yaml
           VAR: image=${{ needs.build-frontend.outputs.image }}

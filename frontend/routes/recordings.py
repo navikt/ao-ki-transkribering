@@ -11,6 +11,7 @@ from fastapi import APIRouter, HTTPException, Query, Request
 
 from shared.core.settings import TRANSKRIPSJON_BACKEND
 from shared.diagnostics import event, failure, recording_id
+from shared.metrics import observe
 from shared.services.transkripsjon_client import transkriber_remote_pcm
 from worker.transkribering.sanntid import LydChunk, SegmentSamler, transkriber_pcm
 
@@ -42,6 +43,7 @@ def cleanup_sessions():
             del sessions[key]
 
 
+@observe("recording_chunk")
 async def process(session, key, sequence, start, raw):
     token = recording_id.set(key)
     try:

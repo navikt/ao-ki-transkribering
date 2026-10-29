@@ -22,6 +22,7 @@ terraform/
 docs/
 adr/
 benchmarks/
+observability/
 tests/
 .github/
 .nais/

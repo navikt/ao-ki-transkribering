@@ -8,14 +8,25 @@ from fastapi import HTTPException
 
 from shared.diagnostics import event, failure
 from shared.services.jobs import JobStore
+from shared.metrics import metrics
 
 
 class SummaryJobs:
-    def __init__(self, store: JobStore, concurrency: int = 2, capacity: int = 16):
+    def __init__(self, store: JobStore, concurrency: int = 2, capacity: int = 16, telemetry=metrics):
         self.store = store
         self.semaphore = asyncio.Semaphore(concurrency)
         self.capacity = capacity
         self.tasks: dict[str, asyncio.Task] = {}
+        self.telemetry = telemetry
+        self.waiting: dict[str, tuple[float, float]] = {}
+
+    def _dequeue(self, key):
+        queued = self.waiting.pop(key, None)
+        if queued is not None:
+            self.telemetry.queued.dec()
+            self.telemetry.queue_wait.observe(time.monotonic() - queued[0])
+        self.telemetry.oldest_queued.set(min((stamp[1] for stamp in self.waiting.values()), default=0))
+        return queued is not None
 
     def _read(self, key: str, owner: str) -> dict:
         if not self.store.exists(key):
@@ -42,6 +53,7 @@ class SummaryJobs:
                 raise HTTPException(409, "Jobb-ID er allerede brukt for en annen forespørsel")
             return self.status(key, owner)
         if len(self.tasks) >= self.capacity:
+            self.telemetry.rejected.inc()
             raise HTTPException(429, "Køen for referater er full. Prøv igjen om litt.")
         self.store.write_path(self.store.result_path(key), {
             **metadata, "kind": "llm", "owner": owner, "fingerprint": fingerprint,
@@ -49,9 +61,20 @@ class SummaryJobs:
         })
         task = asyncio.create_task(self._run(key, generate, error_message))
         self.tasks[key] = task
+        self.waiting[key] = (time.monotonic(), time.time())
+        self.telemetry.queued.inc()
+        self.telemetry.oldest_queued.set(min(stamp[1] for stamp in self.waiting.values()))
 
         def finished(task):
             self.tasks.pop(key, None)
+            if self._dequeue(key):
+                # A task cancelled before its first scheduling turn never enters _run.
+                result = "cancelled" if task.cancelled() else "error"
+                self.telemetry.record("summary_job", result, 0)
+                if task.cancelled():
+                    self.store.update_path(self.store.result_path(key), {
+                        "status": "feil", "melding": "Genereringen ble avbrutt ved en omstart.",
+                    })
             if not task.cancelled() and task.exception() is not None:
                 failure("llm.job_task_failed", task.exception(), job_id=key)
 
@@ -70,18 +93,20 @@ class SummaryJobs:
         started = time.monotonic()
         try:
             async with self.semaphore:
-                self.store.update_path(path, {"status": "genererer", "melding": "Genererer …"})
-                event("llm.job_started", job_id=key)
-                async for result in generate():
-                    if result["type"] == "progress":
-                        self.store.update_path(path, {"melding": result["melding"]})
-                        event("llm.job_progress", job_id=key)
-                    elif result["type"] == "ferdig":
-                        self.store.update_path(path, {"status": "ferdig", "tekst": result["tekst"], "melding": "Ferdig"})
-                        event("llm.job_completed", job_id=key, characters=len(result["tekst"]),
-                              elapsed_s=round(time.monotonic() - started, 3))
-                        return
-                raise RuntimeError("Generation ended without a result")
+                self._dequeue(key)
+                with self.telemetry.track("summary_job"):
+                    self.store.update_path(path, {"status": "genererer", "melding": "Genererer …"})
+                    event("llm.job_started", job_id=key)
+                    async for result in generate():
+                        if result["type"] == "progress":
+                            self.store.update_path(path, {"melding": result["melding"]})
+                            event("llm.job_progress", job_id=key)
+                        elif result["type"] == "ferdig":
+                            self.store.update_path(path, {"status": "ferdig", "tekst": result["tekst"], "melding": "Ferdig"})
+                            event("llm.job_completed", job_id=key, characters=len(result["tekst"]),
+                                  elapsed_s=round(time.monotonic() - started, 3))
+                            return
+                    raise RuntimeError("Generation ended without a result")
         except asyncio.CancelledError:
             self.store.update_path(path, {"status": "feil", "melding": "Genereringen ble avbrutt ved en omstart."})
             event("llm.job_cancelled", job_id=key)

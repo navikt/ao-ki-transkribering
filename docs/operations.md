@@ -2,6 +2,10 @@
 
 Operational commands for the GKE GPU model stack.
 
+API logging, metrics, dashboards, alerts and incident checks are documented in
+[operational monitoring](monitoring.md). NAIS API telemetry and GCP GPU telemetry
+are separate; an API readiness probe is not an inference availability test.
+
 ## Prerequisites
 
 Authenticate and select the project:

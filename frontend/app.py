@@ -17,6 +17,7 @@ from frontend.routes.transkripsjon import router as transkripsjon_router
 from shared.core.runtime import job_store, start_arbeider, stopp_arbeider
 from shared.core.settings import JOB_RETENTION_SECONDS
 from shared.diagnostics import configure_diagnostics
+from frontend.monitoring import HttpMetricsMiddleware, start_metrics_server, stop_metrics_server
 
 logging.getLogger("transformers").setLevel(logging.ERROR)
 logging.getLogger("faster_whisper").setLevel(logging.ERROR)
@@ -26,7 +27,9 @@ log = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    prosess = start_arbeider()
+    metrics_server = start_metrics_server()
+    prosess = None
+    cleanup = None
     async def expire_results():
         while True:
             await asyncio.to_thread(job_store.cleanup_completed, JOB_RETENTION_SECONDS)
@@ -34,15 +37,20 @@ async def lifespan(app: FastAPI):
             cleanup_sessions()
             await asyncio.sleep(300)
 
-    cleanup = asyncio.create_task(expire_results())
     try:
+        prosess = start_arbeider()
+        cleanup = asyncio.create_task(expire_results())
         yield
     finally:
-        await summary_jobs.shutdown()
-        cleanup.cancel()
-        with suppress(asyncio.CancelledError):
-            await cleanup
-        stopp_arbeider(prosess)
+        try:
+            await summary_jobs.shutdown()
+            if cleanup is not None:
+                cleanup.cancel()
+                with suppress(asyncio.CancelledError):
+                    await cleanup
+            stopp_arbeider(prosess)
+        finally:
+            await stop_metrics_server(metrics_server)
 
 
 def create_app() -> FastAPI:
@@ -57,11 +65,12 @@ def create_app() -> FastAPI:
     def rot():
         return FileResponse(str(_STATIC / "index.html"))
 
-    app.include_router(helse_router)
-    app.include_router(transkripsjon_router)
-    app.include_router(referat_router)
-    app.include_router(sanntid_router)
-    app.include_router(recordings_router)
+    routers = (helse_router, transkripsjon_router, referat_router, sanntid_router, recordings_router)
+    for router in routers:
+        app.include_router(router)
+
+    paths = [route.path for router in (app, *routers) for route in router.routes if hasattr(route, "path")]
+    app.add_middleware(HttpMetricsMiddleware, routes=paths)
 
     return app
 

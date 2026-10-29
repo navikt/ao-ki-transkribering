@@ -1,0 +1,95 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: ao-ki-transkribering
+  namespace: ao-ki-taskforce
+  labels:
+    team: ao-ki-taskforce
+spec:
+  groups:
+    - name: transkriberit
+      rules:
+        - alert: TranskriberitMetricsUnavailable
+          expr: |
+            absent(up{namespace="ao-ki-taskforce",job="ao-ki-transkribering"})
+            or max(up{namespace="ao-ki-taskforce",job="ao-ki-transkribering"}) == 0
+          for: 5m
+          labels:
+            namespace: ao-ki-taskforce
+            app: ao-ki-transkribering
+            severity: critical
+          annotations:
+            summary: Transkriberit has no healthy metrics target
+            consequence: The API may be unavailable or its metrics listener is not reachable.
+            action: Check pod readiness, restarts, metrics port and NAIS scrape targets.
+            runbook_url: https://github.com/navikt/ao-ki-transkribering/blob/main/docs/monitoring.md
+        - alert: TranskriberitServerErrors
+          expr: |
+            (
+              sum(rate(transkriberit_http_requests_total{namespace="ao-ki-taskforce",route!~"/isAlive|/isReady",status=~"5.."}[5m]))
+              / clamp_min(sum(rate(transkriberit_http_requests_total{namespace="ao-ki-taskforce",route!~"/isAlive|/isReady"}[5m])), 0.001)
+            ) > 0.05
+            and sum(increase(transkriberit_http_requests_total{namespace="ao-ki-taskforce",route!~"/isAlive|/isReady"}[5m])) >= 20
+          for: 5m
+          labels:
+            namespace: ao-ki-taskforce
+            app: ao-ki-transkribering
+            severity: warning
+          annotations:
+            summary: Transkriberit has sustained HTTP server errors
+            consequence: Users may be unable to upload audio or use the API.
+            action: Check operational logs and model-call outcomes; do not inspect request bodies.
+            runbook_url: https://github.com/navikt/ao-ki-transkribering/blob/main/docs/monitoring.md
+        - alert: TranskriberitModelAccessDenied
+          expr: |
+            sum(increase(transkriberit_operations_total{namespace="ao-ki-taskforce",operation=~"speech_request|llm_generate|llm_stream|model_listing",outcome="auth"}[5m])) > 0
+          for: 1m
+          labels:
+            namespace: ao-ki-taskforce
+            app: ao-ki-transkribering
+            severity: warning
+          annotations:
+            summary: The model gateway denied an application request
+            consequence: Transcription or summary generation may fail.
+            action: Check scoped keys, Cloud Run invoker identity and gateway allowlists without logging credentials.
+            runbook_url: https://github.com/navikt/ao-ki-transkribering/blob/main/docs/monitoring.md
+        - alert: TranskriberitModelFailures
+          expr: |
+            sum(increase(transkriberit_operations_total{namespace="ao-ki-taskforce",operation=~"speech_request|llm_generate|llm_stream",outcome=~"timeout|unavailable|busy|error"}[5m])) >= 3
+          for: 2m
+          labels:
+            namespace: ao-ki-taskforce
+            app: ao-ki-transkribering
+            severity: warning
+          annotations:
+            summary: Repeated model requests are failing
+            consequence: Work may be delayed or fail despite a healthy API pod.
+            action: Check gateway errors, GPU pod readiness, queue pressure and model logs.
+            runbook_url: https://github.com/navikt/ao-ki-transkribering/blob/main/docs/monitoring.md
+        - alert: TranskriberitSummaryQueueStalled
+          expr: |
+            (time() - min(transkriberit_summary_oldest_queued_timestamp_seconds{namespace="ao-ki-taskforce"} > 0)) > 120
+            and sum(transkriberit_summary_queued{namespace="ao-ki-taskforce"}) > 0
+          for: 2m
+          labels:
+            namespace: ao-ki-taskforce
+            app: ao-ki-transkribering
+            severity: warning
+          annotations:
+            summary: A summary has waited more than two minutes for capacity
+            consequence: Users are waiting before summary processing can start.
+            action: Check active jobs and model latency; raising queue capacity does not add GPU capacity.
+            runbook_url: https://github.com/navikt/ao-ki-transkribering/blob/main/docs/monitoring.md
+        - alert: TranskriberitSummaryFailures
+          expr: |
+            sum(increase(transkriberit_operations_total{namespace="ao-ki-taskforce",operation="summary_job",outcome!~"ok|cancelled"}[10m])) >= 3
+          for: 2m
+          labels:
+            namespace: ao-ki-taskforce
+            app: ao-ki-transkribering
+            severity: warning
+          annotations:
+            summary: Several summary jobs have failed
+            consequence: Users may receive no final summary, including after an HTTP 202 response.
+            action: Check job failure categories, model outcomes and processing duration.
+            runbook_url: https://github.com/navikt/ao-ki-transkribering/blob/main/docs/monitoring.md

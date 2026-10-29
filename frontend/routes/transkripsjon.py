@@ -10,6 +10,7 @@ from shared.core.settings import MODELL_ID, TRANSKRIPSJON_BACKEND, TRANSKRIPSJON
 from shared.diagnostics import event, failure, recording_id
 from shared.services.transkripsjon_client import transkriber_remote
 from shared.services.uploaded_audio import AudioFileError
+from shared.metrics import metrics
 from worker.transkribering.batch import estimert_total_s
 
 router = APIRouter()
@@ -86,10 +87,11 @@ async def _kjor_remote_transkribering(
     token = recording_id.set(result_path.stem)
     try:
         event("upload.transcription_started", job_id=result_path.stem, bytes=audio_path.stat().st_size)
-        resultat = await transkriber_remote(
-            audio_path, n_talere=n_talere,
-            status_callback=lambda values: job_store.update_path(result_path, values),
-        )
+        with metrics.track("transcription_upload"):
+            resultat = await transkriber_remote(
+                audio_path, n_talere=n_talere,
+                status_callback=lambda values: job_store.update_path(result_path, values),
+            )
         job_store.write_done(
             result_path,
             text=resultat.tekst,

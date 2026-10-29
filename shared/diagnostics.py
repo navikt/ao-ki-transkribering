@@ -22,12 +22,12 @@ def configure_diagnostics():
 
 def event(name, *, level=logging.INFO, **fields):
     try:
-        message = json.dumps({"event": name, "timestamp": time.time(),
+        message = json.dumps({"event": name, "level": logging.getLevelName(level).lower(), "timestamp": time.time(),
                               "recording_id": recording_id.get(), **fields},
                              allow_nan=False, default=lambda value: None)
     except (TypeError, ValueError):
         # Diagnostics must not terminate a recording or stringify unknown objects.
-        message = json.dumps({"event": "diagnostics.invalid_metadata", "timestamp": time.time()})
+        message = json.dumps({"event": "diagnostics.invalid_metadata", "level": "warning", "timestamp": time.time()})
     logger.log(level, message)
 
 
