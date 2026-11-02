@@ -1,0 +1,116 @@
+name: Langfuse dev pilot
+
+on:
+  workflow_dispatch:
+    inputs:
+      deploy:
+        description: Deploy dev applications (creates billable CPU workloads and bucket)
+        type: boolean
+        default: false
+      prerequisites_verified:
+        description: Cost review, CNPG TLS/migrations, secrets and private ClickHouse routing verified
+        type: boolean
+        default: false
+      clickhouse_host:
+        description: Existing private ClickHouse TLS DNS name, ports 8443 and 9440
+        type: string
+      bucket_name:
+        description: Globally unique dev bucket name, owned by the web application
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: langfuse-dev
+  cancel-in-progress: false
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require explicit prerequisite and cost review
+        env:
+          DEPLOY: ${{ inputs.deploy }}
+          VERIFIED: ${{ inputs.prerequisites_verified }}
+          CLICKHOUSE_HOST: ${{ inputs.clickhouse_host }}
+          BUCKET: ${{ inputs.bucket_name }}
+        run: |
+          if [ "$DEPLOY" = true ]; then
+            test "$VERIFIED" = true
+            test -n "$CLICKHOUSE_HOST"
+            test -n "$BUCKET"
+          fi
+
+  build:
+    needs: check
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    outputs:
+      web: ${{ steps.web.outputs.image }}
+      worker: ${{ steps.worker.outputs.image }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: nais/docker-build-push@v0
+        id: web
+        with:
+          team: ao-ki-taskforce
+          identity_provider: ${{ secrets.NAIS_WORKLOAD_IDENTITY_PROVIDER }}
+          project_id: ${{ vars.NAIS_MANAGEMENT_PROJECT_ID }}
+          docker_context: images/langfuse
+          dockerfile: images/langfuse/Dockerfile
+          target: web
+          image_suffix: -langfuse-web
+      - uses: nais/docker-build-push@v0
+        id: worker
+        with:
+          team: ao-ki-taskforce
+          identity_provider: ${{ secrets.NAIS_WORKLOAD_IDENTITY_PROVIDER }}
+          project_id: ${{ vars.NAIS_MANAGEMENT_PROJECT_ID }}
+          docker_context: images/langfuse
+          dockerfile: images/langfuse/Dockerfile
+          target: worker
+          image_suffix: -langfuse-worker
+      - name: Smoke-test both vendor entrypoints without network services
+        env:
+          WEB_IMAGE: ${{ steps.web.outputs.image }}
+          WORKER_IMAGE: ${{ steps.worker.outputs.image }}
+        run: |
+          docker run --rm --mount "type=bind,source=$GITHUB_WORKSPACE/tests,target=/smoke,readonly" --entrypoint node "$WEB_IMAGE" /smoke/langfuse_container_smoke.mjs web
+          docker run --rm --mount "type=bind,source=$GITHUB_WORKSPACE/tests,target=/smoke,readonly" --entrypoint node "$WORKER_IMAGE" /smoke/langfuse_container_smoke.mjs worker
+
+  deploy:
+    if: ${{ inputs.deploy && inputs.prerequisites_verified }}
+    needs: build
+    runs-on: ubuntu-latest
+    environment: langfuse-dev
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install 'PyYAML>=6,<7'
+      - name: Render dev applications
+        env:
+          WEB_IMAGE: ${{ needs.build.outputs.web }}
+          WORKER_IMAGE: ${{ needs.build.outputs.worker }}
+          CLICKHOUSE_HOST: ${{ inputs.clickhouse_host }}
+          BUCKET: ${{ inputs.bucket_name }}
+        run: |
+          python scripts/render-langfuse-nais.py --web-image "$WEB_IMAGE" --worker-image "$WORKER_IMAGE" --bucket "$BUCKET" --clickhouse-host "$CLICKHOUSE_HOST" --component web > /tmp/langfuse-web.yaml
+          python scripts/render-langfuse-nais.py --web-image "$WEB_IMAGE" --worker-image "$WORKER_IMAGE" --bucket "$BUCKET" --clickhouse-host "$CLICKHOUSE_HOST" --component worker > /tmp/langfuse-worker.yaml
+      - name: Deploy web and complete migrations first
+        uses: nais/deploy/actions/deploy@v2
+        env:
+          CLUSTER: dev-gcp
+          RESOURCE: /tmp/langfuse-web.yaml
+      - name: Deploy worker
+        uses: nais/deploy/actions/deploy@v2
+        env:
+          CLUSTER: dev-gcp
+          RESOURCE: /tmp/langfuse-worker.yaml

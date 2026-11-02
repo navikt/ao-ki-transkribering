@@ -1,0 +1,10 @@
+version: v1
+type: Valkey
+name: langfuse
+spec:
+  version: "8.1"
+  tier: SingleNode
+  memory: 1GB
+  maxMemoryPolicy: noeviction
+  persistence:
+    disabled: false

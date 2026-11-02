@@ -18,6 +18,7 @@ from shared.core.runtime import job_store, start_arbeider, stopp_arbeider
 from shared.core.settings import JOB_RETENTION_SECONDS
 from shared.diagnostics import configure_diagnostics
 from frontend.monitoring import HttpMetricsMiddleware, start_metrics_server, stop_metrics_server
+from shared.services import llm_observability
 
 logging.getLogger("transformers").setLevel(logging.ERROR)
 logging.getLogger("faster_whisper").setLevel(logging.ERROR)
@@ -27,6 +28,7 @@ log = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    llm_observability.start()
     metrics_server = start_metrics_server()
     prosess = None
     cleanup = None
@@ -51,6 +53,7 @@ async def lifespan(app: FastAPI):
             stopp_arbeider(prosess)
         finally:
             await stop_metrics_server(metrics_server)
+            await asyncio.to_thread(llm_observability.shutdown)
 
 
 def create_app() -> FastAPI:

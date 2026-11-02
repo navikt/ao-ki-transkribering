@@ -1,0 +1,10 @@
+version: v1
+type: Postgres
+name: langfuse
+spec:
+  majorVersion: "18"
+  highAvailability: false
+  resources:
+    cpu: 250m
+    memory: 1Gi
+    diskSize: 20Gi

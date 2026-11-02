@@ -12,6 +12,11 @@ I lokal modus kjøres modellene på maskinen. NAIS/remote-modus sender lyd og te
 til modell-API-et i GCloud. Se [sikkerhetsoppsett og overgang](docs/model-api-security.md)
 før behandling av sensitivt møteinnhold.
 
+Forberedt [Langfuse-oppsett i NAIS dev](docs/langfuse-nais.md) og valgfri lokal
+[Langfuse-pilot](docs/langfuse.md) for metadata om referatgenerering:
+`python3 scripts/langfuse-pilot.py up`. Ingen møteinnhold eksporteres, og
+integrasjonen er av som standard.
+
 ## Deployede adresser
 
 - Prod, ansatte på kompatible enheter: https://ao-ki-transkribering.ansatt.nav.no
