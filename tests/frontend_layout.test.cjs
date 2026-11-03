@@ -683,6 +683,23 @@ test("summary recovers a lost submission response and a disconnected status requ
   assert.equal(run('submissions[0] === submissions[1]'), true);
 });
 
+test("summary completeness warnings are visible, safely rendered and cleared by a complete result", async () => {
+  const {run, element} = workspace();
+  run('_genererLlmJobb = async () => ({tekst: "PVK er uavklart.", modell: "borealis-12b", advarsler: ["Referatet kan være ufullstendig. <img>"]})');
+  await run('_streamReferat("/referat/stream", "Kilde", "Referat")');
+  assert.equal(element('referat-tekst').style.display, 'block');
+  assert.equal(element('referat-advarsler').hidden, false);
+  assert.equal(element('referat-advarsler').textContent, 'Referatet kan være ufullstendig. <img>');
+  assert.equal(element('referat-advarsler').innerHTML, '');
+  run('_visReferatResultat("Komplett referat.", "borealis-12b")');
+  assert.equal(element('referat-advarsler').hidden, true);
+  await run('_triggerLiveReferat("Kilde")');
+  assert.equal(element('live-referat-advarsler').hidden, false);
+  assert.match(element('live-referat-advarsler').textContent, /ufullstendig/);
+  run('nullstillSanntid()');
+  assert.equal(element('live-referat-advarsler').hidden, true);
+});
+
 test("completed summary remains visible and copyable during regeneration and after failure", () => {
   const {run, element} = workspace();
   element('referat-panel').scrollIntoView = () => {};

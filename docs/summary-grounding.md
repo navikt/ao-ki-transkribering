@@ -14,6 +14,15 @@ and missing substantive topics, rather than a row for every sentence/source pair
 This is less exhaustive than the reference pipeline below, with the latency
 tradeoff explicitly accepted for the two-minute response target.
 
+The follow-up excerpt selector requires a concrete action and an object; a modal
+verb such as "must/will" or an unfinished utterance alone does not qualify.
+This excludes the reported stray fragments, but remains a heuristic rather than
+proof that a task was agreed. Retained numbered sections are renumbered after the
+assignment guard removes a generated task section. The detailed template asks for
+coverage across the beginning, middle and end of the source and concrete detail
+per substantive theme; its 800-1200-word guidance is not a minimum or permission
+to invent content. The 3072-token output budget is unchanged.
+
 An unsupported sentence can be removed and rechecked. Missing topics or remaining
 errors allow one rewrite, followed by another review. Contradictions anywhere in
 the original take precedence over support elsewhere. Larger inputs are grouped
@@ -21,6 +30,19 @@ by the actual context budget; every source part is reviewed. Evidence extraction
 is reserved for sources that do not fit the writer. All output remains provisional
 until the review completes; partial JSON and unreviewed revisions are not shown.
 The compact job has a ceiling of 16 inference calls, not a latency guarantee.
+
+Factual-support and coverage failures are distinct. If coverage still fails after
+the bounded rewrite, a draft with zero unsupported claims in its review is returned
+with a visible completeness warning (`advarsler`), rather than an empty result.
+If a repair fails, is truncated or introduces unsupported claims, the last draft
+that passed the claim check is retained with the warning. A draft that never passed
+the claim check is not published; existing UI results remain visible on failure.
+Warnings survive background-job polling, direct responses and streaming, and are
+shown separately from the clean text in live and manual views. They clear when a
+later result passes both checks, or when the corresponding recording is reset.
+`llm.summary_incomplete` and `llm.summary_rejected` record fixed reason codes and
+counts only, never the topics, claims or source text. The same model checks its
+own draft, so a zero-issue audit is not an independent guarantee of correctness.
 
 The review reserves 768 output tokens and uses contiguous source-ID ranges in its
 schema rather than large enums. Membership is still validated against the actual

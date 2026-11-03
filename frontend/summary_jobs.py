@@ -43,7 +43,7 @@ class SummaryJobs:
                 "status": "feil", "melding": "Genereringen ble avbrutt ved en omstart. Start den på nytt.",
             })
         return {name: value for name, value in data.items()
-                if name in {"jobb_id", "status", "melding", "tekst", "modell", "handling", "scenario"}}
+                if name in {"jobb_id", "status", "melding", "tekst", "modell", "handling", "scenario", "advarsler"}}
 
     def submit(self, key: str, owner: str, fingerprint: str, metadata: dict,
                generate: Callable[[], AsyncIterator[dict]], error_message: Callable[[Exception], str]) -> dict:
@@ -102,7 +102,8 @@ class SummaryJobs:
                             self.store.update_path(path, {"melding": result["melding"]})
                             event("llm.job_progress", job_id=key)
                         elif result["type"] == "ferdig":
-                            self.store.update_path(path, {"status": "ferdig", "tekst": result["tekst"], "melding": "Ferdig"})
+                            self.store.update_path(path, {"status": "ferdig", "tekst": result["tekst"],
+                                                        "melding": "Ferdig", "advarsler": result.get("advarsler", [])})
                             event("llm.job_completed", job_id=key, characters=len(result["tekst"]),
                                   elapsed_s=round(time.monotonic() - started, 3))
                             return

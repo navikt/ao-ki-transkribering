@@ -217,6 +217,12 @@ FAKTATROSKAP:
 
 Tilpass omfanget: et langt, innholdsrikt møte kan kreve rundt 800-1200 ord;
 en kort kilde skal gi et kortere referat. Ikke fyll ut, gjenta eller legg til tomme seksjoner.
+For lange møter: dekk vesentlige temaer fra begynnelsen, midten og slutten av samtalen.
+Ikke reduser et langt møte med flere temaer til én generell seksjon om testing eller kvalitet.
+Gi hvert vesentlige tema konkrete detaljer, begrunnelser, alternativer og forbehold fra kilden.
+En kort innledning og en gjentatt konklusjon erstatter ikke den tematiske gjennomgangen.
+Ikke bruk tilfeldige sitater, småprat eller ufullstendige talefragmenter som oppfølging.
+800-1200 ord er veiledende, ikke et krav om å fylle ut: kilden avgjør hva som er relevant.
 Svar bare med møtereferatet, uten kommentarer om hvordan du har løst oppgaven.""" + "\n\n" + SAMMENDRAG_STIL
 
 BRUKER_UTFYLLENDE_SAMMENDRAG = """\

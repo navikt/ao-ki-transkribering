@@ -127,6 +127,16 @@ async def review(summary, source, draft):
 async def generate(text, build, model, *, call, count=None, max_tokens=None, comprehensive=True, source_quotes=True):
     summary = Summary(build, model, call, count, max_tokens, comprehensive,
                       max_calls=MAX_CALLS, draft_rules=DRAFT_RULES)
+    supported_draft = None
+
+    def incomplete_result(reason):
+        draft, gaps = supported_draft
+        event("llm.summary_incomplete", mode="compact", reason=reason, missing_topics=gaps)
+        return {"type": "ferdig", "tekst": draft, "advarsler": [
+            "Referatet kan være ufullstendig. Viser siste utkast som besto påstandskontrollen. "
+            "Kontroller at viktige temaer er med ved å sammenligne med transkripsjonen før bruk."
+        ]}
+
     for attempt in range(4):
         try:
             system, user = build(text)
@@ -157,12 +167,35 @@ async def generate(text, build, model, *, call, count=None, max_tokens=None, com
                 if not corrections["issues"] and not corrections["missing_topics"]:
                     yield {"type": "ferdig", "tekst": draft}
                     return
+                if not corrections["issues"]:
+                    supported_draft = draft, len(corrections["missing_topics"])
                 previous = draft
-            raise TranscriptProcessingError("Referatet besto ikke kildekontrollen. Prøv igjen.")
+            if supported_draft:
+                yield incomplete_result("coverage" if not corrections["issues"] else "repair_unsupported")
+                return
+            reason = "unsupported_claims" if corrections["issues"] else "missing_topics"
+            event("llm.summary_rejected", mode="compact", reason=reason,
+                  unsupported=len(corrections["issues"]), missing_topics=len(corrections["missing_topics"]))
+            if corrections["issues"]:
+                raise TranscriptProcessingError(
+                    "Referatet inneholder fortsatt påstander som ikke kunne bekreftes i samtalen, "
+                    "selv etter retting. Prøv igjen."
+                )
         except httpx.HTTPStatusError as exc:
+            if supported_draft:
+                yield incomplete_result("repair_model_error")
+                return
             if not er_kontekstfeil(exc) or attempt == 3:
                 raise
             summary.scale /= 2
             yield {"type": "progress", "melding": "Tilpasser kildedelene til modellens kontekst …"}
         except IncompleteModelResponse as exc:
+            if supported_draft:
+                yield incomplete_result("repair_truncated")
+                return
             raise TranscriptProcessingError("Modellen nådde svargrensen. Et ufullstendig referat vises ikke.") from exc
+        except (TranscriptProcessingError, httpx.RequestError):
+            if not supported_draft:
+                raise
+            yield incomplete_result("repair_failed")
+            return

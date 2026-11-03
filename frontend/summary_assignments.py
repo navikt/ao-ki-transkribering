@@ -69,6 +69,17 @@ def _assignment_like(text):
     return bool(_ASSIGNMENT.search(text) or _RESPONSIBILITY.search(text) or _ROLE.search(text))
 
 
+def _concrete_follow_up(utterance, match):
+    end = match.end()
+    if match["action"].casefold() in {"skal", "må", "bør", "vil"}:
+        verb = _TASK_VERB.match(utterance, end)
+        if verb is None:
+            return False
+        end = verb.end()
+    # An actor/modal, or an unfinished action without an object, is not a task.
+    return bool(re.match(r"\s+[\w\[]", utterance[end:]))
+
+
 def source_follow_up(source):
     """Return whole utterances, never inferred owners or paraphrased task text.
 
@@ -81,11 +92,11 @@ def source_follow_up(source):
         quote = line.strip()
         utterance = _SPEAKER.sub("", quote)
         matches = list(_ASSIGNMENT.finditer(utterance))
-        direct = [match for match in matches
-                  if any(word.casefold() not in _GENERIC_ACTORS for word in match["actor"].split())
+        direct = [match for match in matches if _concrete_follow_up(utterance, match)
+                  and (any(word.casefold() not in _GENERIC_ACTORS for word in match["actor"].split())
                   or ("jeg" in match["actor"].casefold().split()
                       and (match["action"].casefold() not in {"skal", "må", "bør", "vil"}
-                           or _TASK_VERB.match(utterance, match.end())))]
+                           or _TASK_VERB.match(utterance, match.end()))))]
         if quote and len(quote) <= 1200 and "?" not in quote and direct and quote not in seen:
             seen.add(quote)
             named = any(word.casefold() not in _GENERIC_ACTORS for match in direct for word in match["actor"].split())
@@ -118,6 +129,23 @@ def _paragraphs(draft):
         yield " ".join(pending)
 
 
+def _renumber_sections(body):
+    number, lines = 0, []
+    original = body.splitlines()
+    markdown_sections = any(re.match(r"^##\s+\d+[.)]\s+", line) for line in original)
+    for index, line in enumerate(original):
+        heading = _heading(line)
+        prefix = re.match(r"^(\s*(?:##\s+)?(?:\*\*)?)\d+[.)]\s+", line)
+        plain_list_item = not line.startswith("## ") and (
+            markdown_sections or index > 0 and bool(original[index - 1].strip())
+        )
+        if heading and heading[0] == 2 and prefix and not plain_list_item:
+            number += 1
+            line = prefix[1] + str(number) + ". " + line[prefix.end():]
+        lines.append(line)
+    return "\n".join(lines)
+
+
 def guard_assignments(source, draft, *, comprehensive, include_source_quotes=True):
     kept, removed, blocked = [], 0, None
     for line in _paragraphs(draft):
@@ -142,7 +170,7 @@ def guard_assignments(source, draft, *, comprehensive, include_source_quotes=Tru
         retained = [sentence for sentence in sentences if not _assignment_like(sentence)]
         removed += len(sentences) - len(retained)
         kept.append(" ".join(retained))
-    body = "\n".join(kept).strip()
+    body = _renumber_sections("\n".join(kept).strip())
     if not any(line.strip() and _heading(line) is None for line in kept):
         body = ""
     quotes = source_follow_up(source) if comprehensive and include_source_quotes else []

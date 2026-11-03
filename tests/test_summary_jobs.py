@@ -80,6 +80,36 @@ async def test_queue_limits_active_work_and_survives_client_waiter_cancellation(
     assert all(service.status(key, "owner")["status"] == "ferdig" for key in keys[:2])
 
 
+async def test_summary_job_preserves_completeness_warning_in_status(tmp_path):
+    service = SummaryJobs(JobStore(tmp_path))
+    warning = "Referatet kan være ufullstendig."
+
+    async def generate():
+        yield {"type": "ferdig", "tekst": "PVK er uavklart.", "advarsler": [warning]}
+
+    key = str(uuid4())
+    service.submit(key, "owner", "fingerprint", {}, generate, routes._job_error)
+    await asyncio.gather(*service.tasks.values())
+    state = service.status(key, "owner")
+    assert state["status"] == "ferdig"
+    assert state["tekst"] == "PVK er uavklart."
+    assert state["advarsler"] == [warning]
+
+
+@pytest.mark.parametrize("path", ["/referat", "/llm/handlinger/referat"])
+def test_direct_summary_endpoints_preserve_completeness_warning(monkeypatch, path):
+    async def generate(*args, **kwargs):
+        yield {"type": "ferdig", "tekst": "PVK er uavklart.", "advarsler": ["Referatet kan være ufullstendig."]}
+
+    monkeypatch.setattr(routes, "_handling_events", generate)
+    app = FastAPI()
+    app.include_router(routes.router)
+    with TestClient(app) as client:
+        response = client.post(path, json={"transkripsjon": "PVK er uavklart."})
+    assert response.status_code == 200
+    assert response.json()["advarsler"] == ["Referatet kan være ufullstendig."]
+
+
 async def test_owner_isolation_failure_redaction_and_restart(tmp_path):
     from fastapi import HTTPException
 

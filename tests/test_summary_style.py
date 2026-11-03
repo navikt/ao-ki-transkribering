@@ -28,6 +28,9 @@ def test_detailed_summary_requests_thematic_report_without_guessing_speakers():
     assert "Ikke gjett navn fra taler-ID" in scenario.system_prompt
     assert "Gjengi juridiske synspunkter som deltakernes vurderinger" in scenario.system_prompt
     assert "ikke korriger dem ved gjetning" in scenario.system_prompt
+    assert "begynnelsen, midten og slutten" in scenario.system_prompt
+    assert "tilfeldige sitater" in scenario.system_prompt
+    assert "800-1200 ord er veiledende" in scenario.system_prompt
     assert prompt.count("KILDE:") == 1
     assert scenario.max_tokens == 3072
     assert hent_referat_scenario("minimalt_sammendrag").max_tokens is None

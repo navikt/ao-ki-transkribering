@@ -90,6 +90,46 @@ def test_first_person_modals_require_a_concrete_follow_up_verb():
     assert source_follow_up(source) == [source]
 
 
+@pytest.mark.parametrize("utterance", [
+    "Må og må, sier jeg.", "Underveis skal ikke du ha noe ...",
+    "Samtalene vil vare fra en halvtime til tre kvadratmeter i en time.",
+    "Plutselig må han ha.", "Plutselig må man ha prikka.", "Bjørn vil.",
+    "Ada skal skrive.", "Cia, oppsummer ...",
+])
+def test_fragmentary_or_non_action_utterances_are_not_follow_up(utterance):
+    source = "Taler 1: " + utterance
+    assert source_follow_up(source) == []
+    result = guard_assignments(source, "## Status\nKvaliteten er uavklart.", comprehensive=True)
+    assert "kildeutsagn" not in result
+    assert source not in result
+
+
+@pytest.mark.parametrize("prefix", ["## ", ""])
+def test_removing_task_section_keeps_remaining_section_numbers_contiguous(prefix):
+    draft = (f"{prefix}1. Kvalitet\nKvaliteten varierer.\n\n"
+             f"{prefix}2. Oppgaver og oppfølging\nAda skal avklare alt.\n\n"
+             f"{prefix}3. Viktigste uavklarte spørsmål\nHvilken modell passer?\n\n"
+             f"{prefix}4. Overordnet konklusjon\nIngen modell er valgt.")
+    result = guard_assignments("Kvaliteten varierer.", draft, comprehensive=True)
+    assert f"{prefix}2. Viktigste uavklarte spørsmål" in result
+    assert f"{prefix}3. Overordnet konklusjon" in result
+    assert "4. Overordnet" not in result
+    assert "Ada skal" not in result
+
+
+def test_section_renumbering_does_not_renumber_lists_inside_markdown_sections():
+    draft = "## 1. Alternativer\n\n1. Alternativ A\n2. Alternativ B\n\n## 4. Konklusjon\nIngen modell er valgt."
+    result = guard_assignments("Ingen modell er valgt.", draft, comprehensive=True)
+    assert "1. Alternativ A\n2. Alternativ B" in result
+    assert "## 2. Konklusjon" in result
+
+
+@pytest.mark.parametrize("source", ["Ada skal skrive notatet.", "Bo vil oppdatere budsjettet.",
+                                    "Cia, oppsummer innsikt."])
+def test_concrete_named_follow_up_is_still_retained_verbatim(source):
+    assert source_follow_up("Taler 1: " + source) == ["Taler 1: " + source]
+
+
 def test_brief_assignment_only_summary_uses_a_short_source_quote():
     source = "Ada: Jeg lager notatet."
     assert guard_assignments(source, "Ada lager notatet.", comprehensive=False) == "> " + source

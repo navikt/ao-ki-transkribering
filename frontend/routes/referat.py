@@ -160,11 +160,13 @@ async def _kjor_handling(handling_id: str, foresporsel: LlmForesporsel):
         raise HTTPException(status_code=400, detail="Transkripsjon mangler")
     handling = _hent_eller_404(handling_id)
     scenario_id = None
+    warnings = []
     try:
         _system, _bruker, scenario_id = _bygg_handling_prompt(handling, foresporsel)
         async for event in _handling_events(handling, foresporsel):
             if event["type"] == "ferdig":
                 tekst = event["tekst"]
+                warnings = event.get("advarsler", [])
         if handling.normaliser_output:
             tekst = normaliser_til_bokmal(tekst)
     except httpx.ConnectError:
@@ -179,6 +181,8 @@ async def _kjor_handling(handling_id: str, foresporsel: LlmForesporsel):
         failure("llm.action_failed", exc)
         raise HTTPException(status_code=500, detail=f"Feil ved generering av {handling.tittel}") from exc
     svar = {"tekst": tekst, "modell": foresporsel.modell or LLM_MODELL, "handling": handling.id}
+    if warnings:
+        svar["advarsler"] = warnings
     if scenario_id:
         svar["scenario"] = scenario_id
     svar.update(_veileder_valg(foresporsel, scenario_id))

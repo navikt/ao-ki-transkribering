@@ -507,6 +507,7 @@ function nyttOpptak() {
   document.getElementById("referat-panel").style.display = "none";
   document.getElementById("referat-tekst").dataset.complete = "false";
   referatComparison.reset();
+  _visReferatAdvarsler("referat-advarsler");
   visSeksjon("opptak");
   resultatSeksjon.classList.add("aktiv");
 }
@@ -744,6 +745,7 @@ async function _triggerLiveReferat(transkripsjon) {
     _liveReferatTekst = data.tekst;
     liveReferatComparison.update(data.tekst);
     tekstEl.textContent = data.tekst;
+    _visReferatAdvarsler("live-referat-advarsler", data.advarsler);
     document.getElementById("live-utkast-tittel").textContent = "Utkast: " + _referatValgTittel(valg);
     _settLiveReferatStatus("sist oppdatert " + new Date().toLocaleTimeString("nb-NO", {hour:"2-digit", minute:"2-digit"}), false);
     document.getElementById("live-referat-tid").textContent = "Modell: " + (data.modell || "");
@@ -1235,6 +1237,8 @@ function nullstillSanntid() {
   // Avbryt evt. pågående live-referat og nullstill tilstand
   referatComparison.reset();
   liveReferatComparison.reset();
+  _visReferatAdvarsler("referat-advarsler");
+  _visReferatAdvarsler("live-referat-advarsler");
   if (_liveReferatReader) { try { _liveReferatReader.cancel(); } catch {} }
   _liveReferatOppdaterer = false;
   _liveReferatOrdTalt    = 0;
@@ -1339,8 +1343,16 @@ function _visReferatStream(tekst) {
   boks.style.display = "block";
 }
 
-function _visReferatResultat(tekst, modell) {
+function _visReferatAdvarsler(id, warnings = []) {
+  const box = document.getElementById(id);
+  const messages = Array.isArray(warnings) ? warnings.filter(value => typeof value === "string" && value.trim()) : [];
+  box.textContent = messages.join("\n");
+  box.hidden = messages.length === 0;
+}
+
+function _visReferatResultat(tekst, modell, warnings = []) {
   _stopReferatProgress();
+  _visReferatAdvarsler("referat-advarsler", warnings);
   referatComparison.update(tekst);
   const panel = document.getElementById("referat-panel");
   panel.setAttribute("aria-busy", "false");
@@ -1512,7 +1524,7 @@ async function _streamReferat(endepunkt, tekst, tittel, ekstra = {}) {
       document.getElementById("referat-progress-wrap").style.display = "none";
       document.getElementById("referat-laster-tekst").textContent = melding;
     });
-    _visReferatResultat(data.tekst, data.modell);
+    _visReferatResultat(data.tekst, data.modell, data.advarsler);
   } finally {
     _referatGenererer = false;
     _oppdaterReferatValgLaas();

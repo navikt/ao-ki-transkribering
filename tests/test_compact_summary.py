@@ -1,5 +1,6 @@
 import json
 
+import httpx
 import pytest
 
 from frontend import compact_summary as compact
@@ -125,6 +126,50 @@ async def test_missing_topic_is_repaired_without_claiming_a_complete_review():
     events = [item async for item in compact.generate(source, lambda text: ("Regler", text), None,
                                                      call=call, count=roomy, max_tokens=3072)]
     assert "KI-kompetanse" in events[-1]["tekst"]
+
+
+@pytest.mark.asyncio
+async def test_unsupported_claims_remain_blocked():
+    async def call(system, user, model, **options):
+        if system != compact.REVIEW_SYSTEM:
+            return "PVK er uavklart."
+        reply = json.loads(accepted(user))
+        reply["accepted"] = [False] * len(reply["accepted"])
+        return json.dumps(reply)
+
+    events = []
+    with pytest.raises(TranscriptProcessingError, match="påstander"):
+        async for item in compact.generate("Gro: PVK er uavklart.\nAda: KI-kompetanse er viktig.",
+                                          lambda text: ("Regler", text), None, call=call, count=roomy):
+            events.append(item)
+    assert not any(item["type"] == "ferdig" for item in events)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("repair", ["incomplete", "unsupported", "truncated", "timeout"])
+async def test_coverage_failure_returns_supported_draft_with_visible_warning(repair):
+    drafts = 0
+
+    async def call(system, user, model, **options):
+        nonlocal drafts
+        if system != compact.REVIEW_SYSTEM:
+            drafts += 1
+            if drafts == 2 and repair == "truncated":
+                raise IncompleteModelResponse("Synthetic truncation")
+            if drafts == 2 and repair == "timeout":
+                raise httpx.ReadTimeout("Synthetic timeout")
+            return "PVK er uavklart." if drafts == 1 else "Nytt utkast."
+        reply = json.loads(accepted(user))
+        if drafts == 2 and repair == "unsupported":
+            reply["accepted"] = [False] * len(reply["accepted"])
+        reply["missing_topics"] = [{"topic": "KI-kompetanse", "source_ids": [2]}]
+        return json.dumps(reply)
+
+    events = [item async for item in compact.generate("Gro: PVK er uavklart.\nAda: KI-kompetanse er viktig.",
+              lambda text: ("Regler", text), None, call=call, count=roomy)]
+    assert events[-1]["type"] == "ferdig"
+    assert events[-1]["tekst"] == ("Nytt utkast." if repair == "incomplete" else "PVK er uavklart.")
+    assert "ufullstendig" in events[-1]["advarsler"][0]
 
 
 @pytest.mark.asyncio
