@@ -50,6 +50,9 @@ function workspace() {
     clearInterval() {},
     navigator: { clipboard: { writeText: async () => {} } },
   });
+  vm.runInContext(fs.readFileSync(path.join(__dirname, "../frontend/static/vendor/jsdiff/dist/diff.min.js"), "utf8"), context);
+  vm.runInContext(fs.readFileSync(path.join(__dirname, "../frontend/static/summary-comparison.js"), "utf8"), context);
+  vm.runInContext(fs.readFileSync(path.join(__dirname, "../frontend/static/session-access.js"), "utf8"), context);
   vm.runInContext(fs.readFileSync(path.join(__dirname, "../frontend/static/recording-lifecycle.js"), "utf8"), context);
   vm.runInContext(fs.readFileSync(path.join(__dirname, "../frontend/static/app.js"), "utf8"), context);
   vm.runInContext('globalThis.RecordingTransport = class { constructor() { return new WebSocket("/recordings"); } };', context);
@@ -680,14 +683,81 @@ test("summary recovers a lost submission response and a disconnected status requ
   assert.equal(run('submissions[0] === submissions[1]'), true);
 });
 
-test("summary stops retrying when login expires", async () => {
-  const {run} = workspace();
+test("completed summary remains visible and copyable during regeneration and after failure", () => {
+  const {run, element} = workspace();
+  element('referat-panel').scrollIntoView = () => {};
+  run('_visReferatResultat("Tidligere referat", "borealis-12b")');
+  assert.equal(element('referat-diff').hidden, true);
+  const previous = element('referat-tekst').innerHTML;
+  run('_visReferatPanel("Ny variant")');
+  assert.equal(element('referat-tekst').innerHTML, previous);
+  assert.equal(element('referat-tekst').style.display, 'block');
+  assert.equal(element('referat-footer').style.display, 'flex');
+  assert.equal(element('referat-laster').style.display, 'flex');
+  run('_visReferatFeil("Modellen er utilgjengelig")');
+  assert.equal(run('referatComparison.current'), 'Tidligere referat');
+  assert.equal(element('referat-tekst').innerHTML, previous);
+  assert.equal(element('referat-feil').textContent, 'Modellen er utilgjengelig');
+  run('_visReferatResultat("Oppdatert referat", "borealis-12b")');
+  assert.equal(element('referat-diff').hidden, false);
+  assert.equal(run('referatComparison.previous'), 'Tidligere referat');
+  assert.equal(run('referatComparison.current'), 'Oppdatert referat');
+  assert.equal(element('referat-tekst').innerHTML, 'Oppdatert referat');
+  assert.equal(element('referat-feil').hidden, true);
+});
+
+test("live summary replaces the previous draft only when regeneration succeeds", async () => {
+  const {run, element} = workspace();
   run(`
-    globalThis.requests = 0;
-    fetch = async () => { requests++; return {ok: false, status: 401}; };
+    _liveReferatTekst = 'Tidligere utkast';
+    liveReferatComparison.update(_liveReferatTekst);
+    _genererLlmJobb = () => new Promise((resolve, reject) => {
+      globalThis.finishSummary = resolve;
+      globalThis.failSummary = reject;
+    });
   `);
-  await assert.rejects(run('_genererLlmJobb("referat", {}, () => {})'), /Innlogging kreves/);
-  assert.equal(run('requests'), 1);
+  element('live-referat-tekst').textContent = 'Tidligere utkast';
+  element('live-referat-tekst').innerHTML = 'Tidligere utkast';
+  const first = run('_triggerLiveReferat("Transkripsjon")');
+  assert.equal(element('live-referat-tekst').innerHTML, 'Tidligere utkast');
+  run('failSummary(new Error("Nettverksfeil"))');
+  await first;
+  assert.equal(run('liveReferatComparison.current'), 'Tidligere utkast');
+  assert.equal(element('live-referat-tekst').textContent, 'Tidligere utkast');
+  assert.match(element('live-referat-status').textContent, /Nettverksfeil/);
+  const second = run('_triggerLiveReferat("Transkripsjon")');
+  run('finishSummary({tekst: "Nytt utkast", modell: "borealis-12b"})');
+  await second;
+  assert.equal(element('live-referat-tekst').textContent, 'Nytt utkast');
+  assert.equal(element('live-referat-diff').hidden, false);
+  assert.equal(run('liveReferatComparison.previous'), 'Tidligere utkast');
+  run('nullstillSanntid()');
+  assert.equal(run('liveReferatComparison.current'), null);
+  assert.equal(element('live-referat-diff').hidden, true);
+});
+
+test("summary waits for login and resumes polling the same accepted job", async () => {
+  const {run, element} = workspace();
+  run(`
+    globalThis.requests = [];
+    globalThis.authorized = false;
+    fetch = async (url, options) => {
+      requests.push(url);
+      if (options?.method === 'POST') return {ok: true, json: async () => ({status: 'genererer'})};
+      if (!authorized) return {ok: false, status: 401};
+      return {ok: true, json: async () => ({status: 'ferdig', tekst: 'Resultat'})};
+    };
+  `);
+  const job = run('_genererLlmJobb("referat", {}, () => {})');
+  for (let i = 0; i < 30 && !run('sessionAccess.required'); i++) await Promise.resolve();
+  assert.equal(run('sessionAccess.required'), true);
+  assert.equal(element('session-warning').hidden, false);
+  assert.equal(run('requests.length'), 2);
+  run('authorized = true');
+  assert.equal(await run('sessionAccess.recover()'), true);
+  assert.equal((await job).tekst, 'Resultat');
+  assert.equal(run('requests[1] === requests.at(-1)'), true);
+  assert.equal(element('session-warning').hidden, true);
 });
 
 test("summary polls the same accepted job without resubmitting after a reset", async () => {

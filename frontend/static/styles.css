@@ -180,6 +180,29 @@ h1 {
   background: none;
   color: var(--color-red-600);
 }
+.summary-comparison { padding: 12px 16px; border-top: 1px solid #d4d9df; }
+.summary-comparison > summary { cursor: pointer; font-size: 14px; font-weight: 600; }
+.summary-comparison > summary:focus-visible { outline: 2px solid #146c94; outline-offset: 4px; }
+.summary-diff-legend { display: flex; gap: 16px; margin: 12px 0; font-size: 13px; }
+.summary-diff-body { white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.6; }
+.summary-comparison ins { color: #13552d; background: #dcf4e4; text-decoration: underline; }
+.summary-comparison del { color: #90242d; background: #ffe4e6; text-decoration: line-through; }
+
+.referat-feil { color: #ba3a26; padding: 0 16px; overflow-wrap: anywhere; }
+
+.session-warning {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 12px;
+  margin-bottom: 16px;
+  border: 1px solid #b25b00;
+  background: #fff4e5;
+}
+.session-warning[hidden] { display: none; }
+.session-warning > span:first-child { flex: 1 1 280px; }
+
 .kapabilitet-varsel {
   border-left: 3px solid var(--color-orange-400);
   color: var(--color-gray-700);

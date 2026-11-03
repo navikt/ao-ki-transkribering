@@ -2,6 +2,8 @@ import io
 import shutil
 import wave
 import math
+from types import SimpleNamespace
+from unittest.mock import MagicMock
 
 import httpx
 import numpy as np
@@ -9,6 +11,33 @@ import pytest
 
 from shared.contracts.transcription import TranskripsjonSvar
 from shared.services import transkripsjon_client as client
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("frames", [7201 * 16000, 9000 * 16000, 10800 * 16000, 10800 * 16000 + 1])
+async def test_uploaded_audio_three_hour_boundary_without_large_fixture(tmp_path, monkeypatch, frames):
+    from shared.services import uploaded_audio
+
+    assert uploaded_audio.MAX_AUDIO_SECONDS == 10800
+    audio = MagicMock()
+    audio.getnframes.return_value = frames
+    monkeypatch.setattr(uploaded_audio.wave, "open", lambda *args: audio)
+
+    async def wait():
+        return 0
+
+    async def convert(*args, **kwargs):
+        assert args[args.index("-t") + 1] == "10801"
+        return SimpleNamespace(returncode=0, wait=wait)
+
+    monkeypatch.setattr(uploaded_audio.asyncio, "create_subprocess_exec", convert)
+    if frames > 10800 * 16000:
+        with pytest.raises(uploaded_audio.AudioFileError, match="tre timer"):
+            async with uploaded_audio.decoded_audio(tmp_path / "meeting.wav"):
+                pytest.fail("Overlong recording must be rejected")
+    else:
+        async with uploaded_audio.decoded_audio(tmp_path / "meeting.wav") as result:
+            assert result is audio
 
 
 def write_audio(path, seconds=31.25):

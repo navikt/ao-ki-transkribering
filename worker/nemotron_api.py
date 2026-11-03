@@ -19,7 +19,7 @@ from worker.transkribering.request_queue import QueueFull, SpeechRequestQueue
 
 MODEL_NAME = os.getenv("SPEECH_MODEL_NAME", "nemotron-3.5-asr-streaming-0.6b")
 MAX_UPLOAD_BYTES = 200 * 1024 * 1024
-MAX_AUDIO_SECONDS = 7200
+MAX_AUDIO_SECONDS = 3 * 60 * 60
 
 
 def decode_audio(path: Path) -> np.ndarray:
@@ -33,7 +33,7 @@ def decode_audio(path: Path) -> np.ndarray:
         raise HTTPException(400, "Audio could not be decoded") from exc
     pcm = np.frombuffer(result.stdout, dtype="<f4")
     if len(pcm) > MAX_AUDIO_SECONDS * 16000:
-        raise HTTPException(413, "Audio exceeds the two-hour limit")
+        raise HTTPException(413, "Audio exceeds the three-hour limit")
     if not len(pcm) or not np.isfinite(pcm).all():
         raise HTTPException(400, "Audio is empty or invalid")
     return pcm
@@ -100,7 +100,7 @@ def models():
 @app.post("/v1/audio/transcriptions")
 async def transcribe(request: Request, file: UploadFile = File(...), model: str = Form(...),
                      language: str = Form("no"), response_format: str = Form("json"),
-                     session_id: str | None = Form(None), chunk_start: float = Form(0, ge=0, le=7200)):
+                     session_id: str | None = Form(None), chunk_start: float = Form(0, ge=0, le=MAX_AUDIO_SECONDS)):
     if model != MODEL_NAME:
         raise HTTPException(404, "Unknown speech model")
     if language not in {"no", "nb", "nb-NO"}:

@@ -110,6 +110,14 @@ def test_decode_duration_limit(monkeypatch, tmp_path):
     assert error.value.status_code == 413
 
 
+@pytest.mark.parametrize("offset,status", [(7201, 200), (9000, 200), (10799.9, 200),
+                                          (10800, 413), (10800.01, 422)])
+def test_three_hour_recording_limit_includes_final_chunk(client, offset, status):
+    assert api.MAX_AUDIO_SECONDS == 10800
+    response = request(client, session_id="00000000-0000-4000-8000-000000000000", chunk_start=str(offset))
+    assert response.status_code == status
+
+
 def test_no_silently_corrupted_audio(monkeypatch, tmp_path):
     monkeypatch.setattr(api.subprocess, "run", lambda *args, **kwargs: SimpleNamespace(stdout=np.array([np.nan], dtype="<f4").tobytes()))
     with pytest.raises(api.HTTPException) as error:

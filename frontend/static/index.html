@@ -15,6 +15,12 @@
   </div>
 </header>
 <main class="app-main">
+  <div id="session-warning" class="session-warning" hidden role="alert">
+    <span>Innloggingen er ikke lenger gyldig. Transkripsjon og referat venter. Et aktivt opptak fortsetter lokalt.</span>
+    <a class="knapp knapp-sekundær" href="/oauth2/login" target="_blank" rel="noopener noreferrer">Logg inn igjen</a>
+    <button class="knapp knapp-sekundær" onclick="gjenopprettInnlogging(this)">Jeg har logget inn</button>
+    <span id="session-recovery-status" role="status"></span>
+  </div>
   <div class="app-main-grid" data-lydkilde="sanntid">
   <div class="app-main-venstre">
 
@@ -262,6 +268,11 @@
                     onclick="kopierLiveReferat(this)">Kopier</button>
             <span id="live-referat-tid" class="fotnote" style="margin-left:auto"></span>
           </div>
+          <details id="live-referat-diff" class="summary-comparison" hidden>
+            <summary>Endringer fra forrige utkast</summary>
+            <div class="summary-diff-legend"><ins>Lagt til</ins> <del>Fjernet</del></div>
+            <div id="live-referat-diff-tekst" class="summary-diff-body"></div>
+          </details>
         </div>
       </div>
 
@@ -271,6 +282,7 @@
       <span id="referat-panel-tittel">Møtereferat</span>
     </div>
     <div id="referat-panel-innhold">
+      <p id="referat-feil" class="referat-feil" role="alert" hidden></p>
       <div class="referat-laster" id="referat-laster">
         <div class="spinner"></div>
         <span id="referat-laster-tekst">Genererer referat …</span>
@@ -290,6 +302,11 @@
         Gjennomgå innhold og mottaker før du deler eller lagrer referatet
       </span>
     </div>
+    <details id="referat-diff" class="summary-comparison" hidden>
+      <summary>Endringer fra forrige versjon</summary>
+      <div class="summary-diff-legend"><ins>Lagt til</ins> <del>Fjernet</del></div>
+      <div id="referat-diff-tekst" class="summary-diff-body"></div>
+    </details>
   </div><!-- /referat-panel -->
   <section class="referat-editor" aria-labelledby="referat-editor-tittel">
     <h2 class="seksjon-tittel" id="referat-editor-tittel">
@@ -319,6 +336,9 @@
   </div>
 </footer>
 
+<script src="/static/session-access.js"></script>
+<script src="/static/vendor/jsdiff/dist/diff.min.js"></script>
+<script src="/static/summary-comparison.js"></script>
 <script src="/static/recording.js"></script>
 <script src="/static/recording-lifecycle.js"></script>
 <script src="/static/app.js"></script>

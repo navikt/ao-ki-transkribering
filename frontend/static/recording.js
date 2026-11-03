@@ -1,4 +1,6 @@
 /* Sample-addressed audio archive and retryable uploads. No transcript in logs. */
+const MAX_RECORDING_SAMPLES = 3 * 60 * 60 * 16000;
+
 class RecordingArchive {
   async open() {
     this.db = await new Promise((resolve, reject) => {
@@ -73,7 +75,7 @@ class RecordingTransport {
       return;
     }
     if (this.stopped) return;
-    const samples = new Float32Array(value);
+    const samples = new Float32Array(value).subarray(0, Math.max(0, MAX_RECORDING_SAMPLES - this.captured));
     this.captured += samples.length;
     this.oncoverage?.(this.rows[this.next - 1]?.end || 0, this.captured);
     const joined = new Float32Array(this.buffer.length + samples.length);
@@ -84,8 +86,9 @@ class RecordingTransport {
       this.buffer = this.buffer.slice(224000);
       this.start += 224000;
     }
-    if (this.captured * 4 >= 512 * 1024 * 1024) {
-      this.onfatal?.("Grensen for lokal lydlagring er nadd. Last ned opptaket.");
+    if (this.captured >= MAX_RECORDING_SAMPLES) {
+      this.stop();
+      this.onfatal?.("Opptaket har nådd grensen på tre timer. Last ned opptaket.");
     }
   }
   setGaps(gaps) {
@@ -113,7 +116,7 @@ class RecordingTransport {
     this.writing.then(() => this.pump());
   }
   async pump() {
-    if (this.busy || this.disposed || this.retryTimer) return;
+    if (this.busy || this.disposed || this.retryTimer || this.authenticationRequired) return;
     this.busy = true;
     try {
       while (this.next < this.rows.length && !this.disposed) {
@@ -130,6 +133,12 @@ class RecordingTransport {
             body: pcm.buffer, signal: this.controller.signal,
           });
         } finally { clearTimeout(timeout); }
+        if (response.status === 401) {
+          row.state = "captured";
+          this.authenticationRequired = true;
+          this.onstate?.("Innlogging kreves. Opptaket fortsetter lokalt; transkripsjonen venter.");
+          return;
+        }
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         const result = await response.json();
         if (result.state !== "processed" || result.sequence !== row.sequence ||
@@ -155,6 +164,11 @@ class RecordingTransport {
         this.retryTimer = setTimeout(() => { this.retryTimer = null; this.pump(); }, this.retryMs);
       }
     } finally { this.busy = false; }
+  }
+  resumeAfterLogin() {
+    if (this.disposed || !this.authenticationRequired) return;
+    this.authenticationRequired = false;
+    this.pump();
   }
   stop() {
     if (this.stopped) return;
@@ -201,4 +215,4 @@ class RecordingTransport {
   }
 }
 
-if (typeof module !== "undefined") module.exports = {RecordingTransport, RecordingArchive};
+if (typeof module !== "undefined") module.exports = {RecordingTransport, RecordingArchive, MAX_RECORDING_SAMPLES};

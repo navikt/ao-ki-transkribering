@@ -6,6 +6,30 @@ let _lydInngangBekreftet = false;
 let _transkripsjonTilgjengelig = true;
 let recordingArchive = null;
 let diagnosticSampleRate = null;
+const referatComparison = new SummaryComparison(
+  document.getElementById("referat-diff"), document.getElementById("referat-diff-tekst"));
+const liveReferatComparison = new SummaryComparison(
+  document.getElementById("live-referat-diff"), document.getElementById("live-referat-diff-tekst"));
+const sessionAccess = new SessionAccess({onChange: required => {
+  document.getElementById("session-warning").hidden = !required;
+  if (!required) {
+    recordingArchive?.resumeAfterLogin();
+    lastSystemstatus();
+  }
+}});
+const appFetch = (...args) => sessionAccess.fetch(...args);
+
+async function gjenopprettInnlogging(button) {
+  if (button) button.disabled = true;
+  const status = document.getElementById("session-recovery-status");
+  status.textContent = "Sjekker innlogging …";
+  const restored = await sessionAccess.recover();
+  status.textContent = restored ? "Innlogging gjenopprettet" : "Innlogging mangler fortsatt. Bruk Logg inn igjen.";
+  if (button) button.disabled = false;
+}
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "visible" && sessionAccess.required) sessionAccess.recover();
+});
 
 function settLydInngangAktivert(aktivert) {
   _lydInngangBekreftet = aktivert;
@@ -118,7 +142,7 @@ async function sendTilServer(blob, filnavn) {
 
   let jobbId;
   try {
-    const res = await fetch("/transkriber", { method: "POST", body: skjema });
+    const res = await appFetch("/transkriber", { method: "POST", body: skjema });
     if (!res.ok) throw new Error("Opplasting feilet: " + res.status);
     const data = await res.json();
     jobbId = data.jobb_id;
@@ -163,7 +187,7 @@ async function pollStatus(jobbId, startMs) {
 
   const intervall = setInterval(async () => {
     try {
-      const res  = await fetch("/status/" + jobbId);
+      const res  = await appFetch("/status/" + jobbId);
       const data = await res.json();
 
       if (data.status === "ferdig") {
@@ -196,7 +220,7 @@ async function pollStatus(jobbId, startMs) {
 }
 
 async function hentResultat(jobbId) {
-  const res = await fetch("/resultat/" + jobbId);
+  const res = await appFetch("/resultat/" + jobbId);
   const data = await res.json();
   document.getElementById("fremdrift").classList.remove("synlig");
   // Nullstill progress-elementer for neste kjøring
@@ -481,6 +505,8 @@ function nyttOpptak() {
   document.getElementById("resultat-tekst").textContent = "";
   document.querySelector("#segment-tabell tbody").innerHTML = "";
   document.getElementById("referat-panel").style.display = "none";
+  document.getElementById("referat-tekst").dataset.complete = "false";
+  referatComparison.reset();
   visSeksjon("opptak");
   resultatSeksjon.classList.add("aktiv");
 }
@@ -650,7 +676,7 @@ async function lastReferatScenarier() {
   const velger = document.getElementById("referat-scenario");
   if (!velger) return;
   try {
-    const res = await fetch("/llm/referat-scenarier");
+    const res = await appFetch("/llm/referat-scenarier");
     if (!res.ok) throw new Error("HTTP " + res.status);
     const data = await res.json();
     _referatScenarier = data.scenarier || [];
@@ -704,27 +730,30 @@ async function _triggerLiveReferat(transkripsjon) {
   document.getElementById("live-referat-chevron").textContent = "▲";
   _settLiveReferatStatus("oppdaterer …", true);
 
-  tekstEl.innerHTML = '<span class="live-referat-tom">Genererer …</span>';
+  if (!_liveReferatTekst) tekstEl.innerHTML = '<span class="live-referat-tom">Genererer …</span>';
+  tekstEl.setAttribute("aria-busy", "true");
   tekstEl.classList.remove("llm-utilgjengelig");
   const controller = new AbortController();
   _liveReferatReader = {cancel: () => controller.abort()};
   try {
-    document.getElementById("live-utkast-tittel").textContent = "Utkast: " + _referatValgTittel(valg);
     const data = await _genererLlmJobb(
       valg.scenario === "sammendrag" ? "sammendrag" : "rullerende_referat",
       {transkripsjon, ...(valg.scenario === "sammendrag" ? {} : valg)},
       melding => _settLiveReferatStatus(melding, true), controller.signal,
     );
     _liveReferatTekst = data.tekst;
+    liveReferatComparison.update(data.tekst);
     tekstEl.textContent = data.tekst;
+    document.getElementById("live-utkast-tittel").textContent = "Utkast: " + _referatValgTittel(valg);
     _settLiveReferatStatus("sist oppdatert " + new Date().toLocaleTimeString("nb-NO", {hour:"2-digit", minute:"2-digit"}), false);
     document.getElementById("live-referat-tid").textContent = "Modell: " + (data.modell || "");
   } catch (e) {
     if (!controller.signal.aborted) {
-      tekstEl.textContent = "Kunne ikke oppdatere: " + e.message;
-      _settLiveReferatStatus("feil", false);
+      if (!_liveReferatTekst) tekstEl.textContent = "Kunne ikke oppdatere: " + e.message;
+      _settLiveReferatStatus("Kunne ikke oppdatere: " + e.message, false);
     }
   } finally {
+    tekstEl.setAttribute("aria-busy", "false");
     _liveReferatOppdaterer = false;
     _oppdaterReferatValgLaas();
     _liveReferatReader = null;
@@ -819,7 +848,7 @@ async function startSanntid(restored = []) {
   }, 1000);
 
   // Retryable HTTP chunks retain the audio independently of the connection.
-  sanntidWs = new RecordingTransport({restored});
+  sanntidWs = new RecordingTransport({restored, request: appFetch});
   recordingArchive = sanntidWs;
   const socket = sanntidWs;
   visOpptakAvbrudd(socket.gaps || []);
@@ -949,7 +978,7 @@ async function startSanntid(restored = []) {
       };
       // A separate HTTP request can report a failed WebSocket without audio or transcript data.
       console.warn("recording.browser_closed", report);
-      fetch("/diagnostics/recording-close", {
+      appFetch("/diagnostics/recording-close", {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify(report), keepalive: true,
       }).catch(() => {});
@@ -985,7 +1014,7 @@ async function startAudioWorklet() {
       visOpptakAvbrudd(gaps);
     },
     report: report => {
-      fetch("/diagnostics/recording-capture", {
+      appFetch("/diagnostics/recording-capture", {
         method: "POST", headers: {"Content-Type": "application/json"},
         body: JSON.stringify({recording_id: socket.recordingId, ...report}), keepalive: true,
       }).catch(() => {});
@@ -1202,7 +1231,10 @@ function nullstillSanntid() {
   document.getElementById("sanntid-tomtilstand").hidden = false;
   // Skjul referat-panelet hvis det vises fra sanntid
   document.getElementById("referat-panel").style.display = "none";
+  document.getElementById("referat-tekst").dataset.complete = "false";
   // Avbryt evt. pågående live-referat og nullstill tilstand
+  referatComparison.reset();
+  liveReferatComparison.reset();
   if (_liveReferatReader) { try { _liveReferatReader.cancel(); } catch {} }
   _liveReferatOppdaterer = false;
   _liveReferatOrdTalt    = 0;
@@ -1240,15 +1272,22 @@ function _hentTranskripsjonTekst(kilde) {
 
 function _visReferatPanel(tittel) {
   const panel = document.getElementById("referat-panel");
+  const boks = document.getElementById("referat-tekst");
+  const harReferat = boks.dataset.complete === "true";
+  panel.dataset.pendingTitle = tittel;
   panel.style.display = "block";
-  document.getElementById("referat-panel-tittel").textContent = tittel;
+  panel.setAttribute("aria-busy", "true");
+  if (!harReferat) document.getElementById("referat-panel-tittel").textContent = tittel;
+  document.getElementById("referat-feil").hidden = true;
   document.getElementById("referat-laster").style.display = "flex";
   document.getElementById("referat-laster-tekst").textContent = "Kobler til …";
   document.getElementById("referat-progress-wrap").style.display = "none";
   document.getElementById("referat-progress-bar").style.width = "0%";
-  document.getElementById("referat-tekst").style.display = "none";
-  document.getElementById("referat-tekst").textContent = "";
-  document.getElementById("referat-footer").style.display = "none";
+  if (!harReferat) {
+    boks.style.display = "none";
+    boks.textContent = "";
+    document.getElementById("referat-footer").style.display = "none";
+  }
   setTimeout(() => panel.scrollIntoView({ behavior: "smooth", block: "start" }), 50);
 }
 
@@ -1293,6 +1332,7 @@ function _stopReferatProgress() {
 
 function _visReferatStream(tekst) {
   const boks = document.getElementById("referat-tekst");
+  if (boks.dataset.complete === "true") return;
   boks.classList.remove("llm-utilgjengelig");
   boks.style.color = "";
   boks.textContent = tekst;   // rå tekst under generering
@@ -1301,6 +1341,11 @@ function _visReferatStream(tekst) {
 
 function _visReferatResultat(tekst, modell) {
   _stopReferatProgress();
+  referatComparison.update(tekst);
+  const panel = document.getElementById("referat-panel");
+  panel.setAttribute("aria-busy", "false");
+  if (panel.dataset.pendingTitle) document.getElementById("referat-panel-tittel").textContent = panel.dataset.pendingTitle;
+  document.getElementById("referat-feil").hidden = true;
   document.getElementById("referat-laster").style.display = "none";
   const boks = document.getElementById("referat-tekst");
   boks.classList.remove("llm-utilgjengelig");
@@ -1311,6 +1356,7 @@ function _visReferatResultat(tekst, modell) {
     .replace(/^(#{1,3}) (.+)$/gm, (_, h, t) => `<strong>${t}</strong>`)
     .replace(/\n/g, "<br>");
   boks.style.display = "block";
+  boks.dataset.complete = "true";
   const footer = document.getElementById("referat-footer");
   footer.style.display = "flex";
   document.getElementById("referat-modell-info").textContent = `Modell: ${modell}`;
@@ -1318,8 +1364,15 @@ function _visReferatResultat(tekst, modell) {
 
 function _visReferatFeil(melding) {
   _stopReferatProgress();
+  document.getElementById("referat-panel").setAttribute("aria-busy", "false");
   document.getElementById("referat-laster").style.display = "none";
   const boks = document.getElementById("referat-tekst");
+  if (boks.dataset.complete === "true") {
+    const feil = document.getElementById("referat-feil");
+    feil.textContent = melding;
+    feil.hidden = false;
+    return;
+  }
   boks.classList.remove("llm-utilgjengelig");
   boks.textContent = melding;
   boks.style.color = "#ba3a26";
@@ -1327,6 +1380,10 @@ function _visReferatFeil(melding) {
 }
 
 function _visLlmUtilgjengelig(melding) {
+  if (document.getElementById("referat-tekst").dataset.complete === "true") {
+    _visReferatFeil(melding || "AI-modellen er ikke tilgjengelig nå. Prøv igjen senere.");
+    return;
+  }
   _stopReferatProgress();
   document.getElementById("referat-laster").style.display = "none";
   const boks = document.getElementById("referat-tekst");
@@ -1410,13 +1467,15 @@ async function _genererLlmJobb(handling, payload, onProgress, signal) {
     const timeout = setTimeout(() => controller.abort(), 20000);
     let state;
     try {
-      const res = await fetch(accepted ? `/llm/jobber/${key}` : submitUrl, {
+      const res = await appFetch(accepted ? `/llm/jobber/${key}` : submitUrl, {
         ...(accepted ? {} : {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify(payload)}),
         cache: "no-store", signal: controller.signal,
       });
       if (res.redirected || res.headers?.get("content-type")?.includes("text/html")) {
         state = {status: "feil", melding: "Innloggingen er utløpt. Logg inn på nytt."};
-      } else if ([401, 403].includes(res.status)) {
+      } else if (res.status === 401) {
+        onProgress("Innlogging kreves. Genereringen venter på ny innlogging …");
+      } else if (res.status === 403) {
         state = {status: "feil", melding: "Innlogging kreves. Logg inn på nytt."};
       } else if (!res.ok && [429, 502, 503, 504].includes(res.status)) {
         onProgress("Venter på tilkobling. Genereringen fortsetter automatisk …");
@@ -1432,6 +1491,7 @@ async function _genererLlmJobb(handling, payload, onProgress, signal) {
       clearTimeout(timeout);
       signal?.removeEventListener("abort", abort);
     }
+    await sessionAccess.waitForAuthentication(signal);
     if (state?.status === "ferdig") return state;
     if (state?.status === "feil") throw new Error(state.melding);
     if (state?.melding) onProgress(state.melding);
@@ -1608,7 +1668,11 @@ function _oppdaterKapabilitetVarsel(status) {
 async function lastSystemstatus() {
   const el = document.getElementById("systeminfo-footer");
   try {
-    const res = await fetch("/system/status");
+    const res = await appFetch("/system/status");
+    if (res.status === 401) {
+      if (el) el.innerHTML = _statusChip("Innlogging", "kreves", "feil");
+      return;
+    }
     if (!res.ok) throw new Error("HTTP " + res.status);
     const status = await res.json();
 
