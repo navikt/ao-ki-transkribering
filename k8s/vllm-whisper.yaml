@@ -8,6 +8,8 @@ metadata:
 spec:
   # Keep one GPU request active, including outside office hours.
   replicas: 1
+  strategy:
+    type: Recreate
   selector:
     matchLabels:
       app: vllm-whisper
@@ -64,7 +66,7 @@ spec:
       containers:
         - name: vllm
           # Self-hosted Whisper transcription and separate Nemotron speaker model.
-          image: europe-west4-docker.pkg.dev/ao-ki-taskforce-prod-2472/vllm/whisper-diarization:20261014-runtime-comparison
+          image: europe-west4-docker.pkg.dev/ao-ki-taskforce-prod-2472/vllm/whisper-diarization:20261103-3h-344f4af
           command: ["python", "-m", "uvicorn"]
           env:
             - name: SPEECH_ASR_BACKEND
