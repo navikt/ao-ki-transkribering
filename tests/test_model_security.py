@@ -179,6 +179,18 @@ async def test_audio_auth_accepts_multipart_and_rejects_master_key(monkeypatch):
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("offset,status", [(7201, 200), (9000, 200), (10800, 200), (10800.01, 400)])
+async def test_gateway_recording_offsets_allow_three_hours(monkeypatch, offset, status):
+    monkeypatch.setenv("NAIS_DEV_API_KEY", "dev-key")
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=gateway_app()), base_url="https://gateway") as client:
+        response = await client.post("/v1/audio/transcriptions", headers={"Authorization": "Bearer dev-key"},
+            files={"file": ("audio.wav", b"synthetic-audio")},
+            data={"model": "nb-whisper-large", "session_id": "00000000-0000-4000-8000-000000000000",
+                  "chunk_start": str(offset)})
+    assert response.status_code == status
+
+
+@pytest.mark.asyncio
 async def test_scoped_auth_preserves_uploaded_body_for_downstream(monkeypatch):
     monkeypatch.setenv("NAIS_DEV_API_KEY", "dev-key")
     app = FastAPI()

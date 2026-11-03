@@ -1,6 +1,6 @@
 const {test} = require("node:test");
 const assert = require("node:assert/strict");
-const {RecordingTransport} = require("../frontend/static/recording.js");
+const {RecordingTransport, MAX_RECORDING_SAMPLES} = require("../frontend/static/recording.js");
 
 class Archive {
   rows = new Map();
@@ -10,6 +10,54 @@ class Archive {
   async cleanup() { this.rows.clear(); }
 }
 const tick = () => new Promise(resolve => setImmediate(resolve));
+test("three-hour boundary seals the final partial chunk without uploading beyond the limit", async () => {
+  assert.equal(MAX_RECORDING_SAMPLES, 10800 * 16000);
+  const archive = new Archive(), notices = [];
+  const transport = new RecordingTransport({archive, request: async (url, options) => reply(url, options)});
+  transport.onfatal = message => notices.push(message);
+  try {
+    await transport.initialized;
+    transport.captured = transport.start = MAX_RECORDING_SAMPLES - 16000;
+    transport.send(new Float32Array(32000).fill(0.25).buffer);
+    await until(() => transport.readyState === 3);
+    assert.equal(transport.stopped, true);
+    assert.equal(transport.captured, MAX_RECORDING_SAMPLES);
+    assert.equal(transport.rows.length, 1);
+    assert.equal(transport.rows[0].end, MAX_RECORDING_SAMPLES);
+    const row = await archive.get(transport.rows[0].key);
+    assert.equal(row.pcm.length, 16000);
+    assert.equal(row.pcm.at(-1), 0.25);
+    assert.match(notices[0], /tre timer/);
+    transport.send(new Float32Array(16000).buffer);
+    assert.equal(notices.length, 1);
+    assert.equal(transport.captured, MAX_RECORDING_SAMPLES);
+  } finally { await transport.dispose(); }
+});
+test("401 pauses uploads but retains new audio and resumes the same chunk after login", async () => {
+  const archive = new Archive(), calls = [];
+  let authorized = false;
+  const transport = new RecordingTransport({archive, retryMs: 5, request: async (url, options) => {
+    calls.push(url);
+    return authorized ? reply(url, options) : {ok: false, status: 401};
+  }});
+  try {
+    await transport.initialized;
+    transport.send(new Float32Array(240000).buffer);
+    await new Promise(resolve => setTimeout(resolve, 35));
+    assert.equal(calls.length, 1, "must not repeatedly upload into an invalid login session");
+    assert.equal(transport.authenticationRequired, true);
+    transport.send(new Float32Array(240000).buffer);
+    await transport.writing;
+    assert.equal(archive.rows.size, 2);
+    assert.equal(transport.stopped, false);
+    authorized = true;
+    transport.resumeAfterLogin();
+    transport.stop();
+    await until(() => transport.readyState === 3);
+    assert.equal(calls[0], calls[1]);
+    assert.equal(transport.next, transport.rows.length);
+  } finally { await transport.dispose(); }
+});
 async function until(condition) {
   for (let i = 0; i < 100 && !condition(); i++) await new Promise(resolve => setTimeout(resolve, 2));
   assert.ok(condition());

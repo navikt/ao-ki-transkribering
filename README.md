@@ -300,7 +300,7 @@ modellkall i stedet for hele originalfilen. Talerskille deler samme opptakstilst
 tidsstempler flyttes til filens tidslinje, og overlappende tekst håndteres som ved
 mikrofonopptak. Stille partier og siste lyddel beholdes. Fremdrift følger behandlet
 lyd; en mislykket del gir feil på jobben fremfor et delvis resultat. Midlertidig
-konvertert lyd ryddes ved avslutning. Gjeldende varighetsgrense er to timer.
+konvertert lyd ryddes ved avslutning. Gjeldende varighetsgrense er tre timer.
 
 ### Container
 

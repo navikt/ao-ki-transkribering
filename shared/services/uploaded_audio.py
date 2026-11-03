@@ -7,7 +7,7 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 SAMPLE_RATE = 16000
-MAX_AUDIO_SECONDS = 7200
+MAX_AUDIO_SECONDS = 3 * 60 * 60
 
 
 class AudioFileError(ValueError):
@@ -44,7 +44,7 @@ async def decoded_audio(source: Path):
             raise AudioFileError("Lydfilen kunne ikke leses.") from None
         with audio:
             if audio.getnframes() > MAX_AUDIO_SECONDS * SAMPLE_RATE:
-                raise AudioFileError("Lydfilen er lengre enn grensen på to timer.")
+                raise AudioFileError("Lydfilen er lengre enn grensen på tre timer.")
             if not audio.getnframes():
                 raise AudioFileError("Lydfilen inneholder ingen lyd.")
             yield audio

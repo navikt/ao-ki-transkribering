@@ -249,6 +249,18 @@ kubectl logs -n vllm deployment/vllm-whisper -c last-ned-modell --tail=100
 ```
 ## Recording Connection Diagnostics
 
+### Summary comparisons
+
+Live drafts and manually generated summaries offer a collapsed comparison after
+the second successful generation. Insertions are underlined and deletions are
+struck through, with colour and a labelled legend. The clean summary and its copy
+action remain separate. A failed generation changes neither version. Only the
+last two successful versions are held in page memory; resetting the corresponding
+recording clears this history, and reload does not restore it. Comparisons use a
+locally served jsdiff distribution, never a model call, CDN or server-side text
+history. Diff computation runs only when expanded, has a bounded time/edit budget,
+and falls back to a complete-text replacement for large rewrites.
+
 ### Recoverable browser recordings
 
 The current browser uploads 15-second float32 PCM chunks over authenticated HTTP
@@ -263,6 +275,25 @@ range, including silence with no transcript. Failed or lost responses retry the
 same chunk after three seconds; a 90-second request timeout does not stop capture.
 Stop ends microphone capture and flushes the final partial chunk; pending uploads
 continue. The displayed processed/captured durations expose any backlog.
+
+HTTP 401 is handled separately from network errors: uploads pause, but capture
+and the temporary local archive continue within the limits below. A visible
+login warning opens `/oauth2/login` in a separate tab so reauthentication does
+not reload or discard the recording page. Returning to the page, or selecting
+the login-check button, probes the authenticated `/system/status` endpoint.
+Only a successful probe resumes the same queued chunk and any waiting summary
+job. Other application requests are gated during this login interruption rather
+than repeatedly sending unauthorized requests. HTTP 403 is not treated as an
+expired session. No tokens or cookies are stored in application JavaScript.
+
+When investigating 401s, inspect the Wonderwall container as well as the API:
+requests rejected by the login proxy never reach application logs. A
+`decrypting session data: ... message authentication failed` error indicates an
+unreadable encrypted session cookie, not a microphone interruption or necessarily
+ordinary token expiration. Reauthenticate on the same origin; do not reload the
+recording tab or remove its IndexedDB storage. If this recurs after a fresh
+login, ask NAIS to investigate the session-cookie encryption/SSO configuration.
+Do not disable authentication or cookie verification as a workaround.
 
 The API caches the latest result and in-flight task per session, preventing
 duplicate inference on the same API process. Cache entries expire after ten idle
@@ -282,8 +313,13 @@ disconnects do not lose that buffer. Browser storage eviction can also remove da
 Temporary recordings expire eight hours after creation. An open page deletes its
 copy at expiry; when the browser is closed, expired records are deleted on the
 next app visit, not by a background guarantee. Explicit deletion is preferable on
-shared devices. A 512 MiB captured-PCM limit (plus overlap storage) or storage
-failure stops capture with a visible warning rather than silently dropping audio.
+shared devices. Recordings are limited to three hours; capture stops at the
+boundary and queues the final partial chunk. Three hours of float32 PCM requires
+about 659 MiB before overlap storage (about 706 MiB with the one-second overlaps).
+Storage failure stops capture with a visible warning rather than silently dropping audio.
+Uploaded audio, gateway recording offsets and the speech worker use the same
+three-hour duration limit. The frontend, gateway image and speech image must all
+be updated for this limit to take effect end to end.
 Downloaded files are outside this retention policy. Review browser-local sensitive
 audio retention with the deployment owner before production rollout.
 

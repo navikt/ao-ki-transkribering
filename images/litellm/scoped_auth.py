@@ -8,6 +8,8 @@ from uuid import UUID
 
 from fastapi import HTTPException, Request
 
+MAX_RECORDING_SECONDS = 3 * 60 * 60
+
 _ROUTES = {
     ("GET", "/v1/models"): None,
     ("POST", "/v1/chat/completions"): "borealis-12b",
@@ -125,7 +127,7 @@ async def authorize(request: Request, api_key: str) -> str:
                 if "session_id" in payload:
                     UUID(payload["session_id"])
                 offset = float(payload.get("chunk_start", 0))
-                if not math.isfinite(offset) or not 0 <= offset <= 7200:
+                if not math.isfinite(offset) or not 0 <= offset <= MAX_RECORDING_SECONDS:
                     raise ValueError
                 if offset and "session_id" not in payload:
                     raise ValueError
