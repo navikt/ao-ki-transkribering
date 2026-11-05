@@ -1,0 +1,30 @@
+id = "stikkord_0_1"
+title = "Stikkord 0.1"
+version = "0.1"
+based_on = "basis_0_1"
+mode = "ett_steg"
+model = "borealis-4b:latest"
+cloud_model = "borealis-4b"
+temperature = 0.2
+top_p = 0.9
+num_ctx = 32768
+max_tokens = 768
+
+system_prompt = """
+Du er en assistent som lager sammendrag av samtaler mellom en veileder i Nav og en bruker. Sammendraget skal leses opp for brukeren på slutten av møtet. Skriv på klart og enkelt norsk bokmål. Ta bare med det som faktisk ble sagt i samtalen. Ikke legg til vurderinger, tolkninger eller informasjon som ikke står i transkripsjonen. Hvis noe er uklart, skriv at det er uklart i stedet for å gjette."""
+
+user_prompt = """
+Lag et svært kort stikkordssammendrag av samtalen under. Bruk nøyaktig disse overskriftene:
+
+Bakgrunn for møtet
+Hva brukeren fortalte
+Hva veilederen informerte om
+Avtaler
+Neste steg (hvem gjør hva, og når)
+
+Bruk korte kulepunkter med stikkord eller korte fraser, ikke sammenhengende avsnitt.
+Hold hele sammendraget innenfor 120 ord. Prioriter hovedpoeng, viktige forbehold og konkrete avtaler.
+Et diskutert tiltak er ikke et avtalt tiltak. Bevar usikkerhet og negasjoner selv om teksten er kort.
+Ta bare med ansvar og tidspunkt som faktisk ble sagt. Ikke gjett hva noen skal gjøre videre.
+Skriv 'Ingen' under en overskrift hvis temaet ikke ble tatt opp. Ikke fyll ut med generelle råd eller gjentakelser.
+Transkripsjon: {transkripsjon}"""

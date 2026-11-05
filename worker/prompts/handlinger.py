@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from worker.prompts.versions import BASIS_0_1, PromptVersion, load_definition
+from worker.prompts.versions import BASIS_0_1, STIKKORD_0_1, UTFYLLENDE_0_1, PromptVersion, load_definition
 
 from worker.prompts.motereferat import (
     BRUKER_GENERELT_MOTE,
@@ -67,11 +67,23 @@ VEILEDER_VARIANTER = {
 }
 
 REFERAT_SCENARIER: dict[str, ReferatScenario] = {
+    STIKKORD_0_1.id: ReferatScenario(
+        id=STIKKORD_0_1.id, tittel=STIKKORD_0_1.title,
+        beskrivelse="Korte stikkord under de fem overskriftene, inntil 120 ord.",
+        system_prompt=STIKKORD_0_1.system_prompt, bruker_prompt_template=STIKKORD_0_1.user_prompt,
+        max_tokens=STIKKORD_0_1.max_tokens, profile=STIKKORD_0_1,
+    ),
     BASIS_0_1.id: ReferatScenario(
         id=BASIS_0_1.id, tittel=BASIS_0_1.title,
         beskrivelse="Kort samtalesammendrag som kan leses opp for brukeren.",
         system_prompt=BASIS_0_1.system_prompt, bruker_prompt_template=BASIS_0_1.user_prompt,
         max_tokens=BASIS_0_1.max_tokens, profile=BASIS_0_1,
+    ),
+    UTFYLLENDE_0_1.id: ReferatScenario(
+        id=UTFYLLENDE_0_1.id, tittel=UTFYLLENDE_0_1.title,
+        beskrivelse="Utfyllende prosa med relevant kontekst, detaljer, forbehold og oppfølging.",
+        system_prompt=UTFYLLENDE_0_1.system_prompt, bruker_prompt_template=UTFYLLENDE_0_1.user_prompt,
+        max_tokens=UTFYLLENDE_0_1.max_tokens, profile=UTFYLLENDE_0_1,
     ),
     "minimalt_sammendrag": ReferatScenario(
         id="minimalt_sammendrag",

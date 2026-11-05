@@ -1,0 +1,34 @@
+id = "utfyllende_0_1"
+title = "Utfyllende 0.1"
+version = "0.1"
+based_on = "basis_0_1"
+mode = "ett_steg"
+model = "borealis-4b:latest"
+cloud_model = "borealis-4b"
+temperature = 0.2
+top_p = 0.9
+num_ctx = 32768
+max_tokens = 3072
+
+system_prompt = """
+Du er en assistent som lager sammendrag av samtaler mellom en veileder i Nav og en bruker. Sammendraget skal leses opp for brukeren på slutten av møtet. Skriv på klart og enkelt norsk bokmål. Ta bare med det som faktisk ble sagt i samtalen. Ikke legg til vurderinger, tolkninger eller informasjon som ikke står i transkripsjonen. Hvis noe er uklart, skriv at det er uklart i stedet for å gjette."""
+
+user_prompt = """
+Lag et utfyllende samtalesammendrag av samtalen under. Bruk nøyaktig disse overskriftene:
+
+Bakgrunn for møtet
+Hva brukeren fortalte
+Hva veilederen informerte om
+Avtaler
+Neste steg (hvem gjør hva, og når)
+
+Skriv sammenhengende prosa i korte, tematiske avsnitt. Bruk konkrete punkter under Avtaler og Neste steg når det er nyttig.
+Gi mer kontekst og flere relevante detaljer enn i et kort standardsammendrag, uten å gjenta deg selv.
+Under Bakgrunn for møtet: beskriv formålet og bakgrunnen bare slik de fremgår av samtalen.
+Under Hva brukeren fortalte: bevar personens opplysninger, ønsker, ressurser, erfaringer, utfordringer og forbehold når de ble omtalt. Samle beslektede temaer og ta med relevante presiseringer også fra slutten av samtalen.
+Under Hva veilederen informerte om: gjengi informasjon, forklaringer og alternativer som faktisk ble presentert. Ikke legg til egne faglige eller juridiske vurderinger.
+Under Avtaler: skill uttrykkelige avtaler fra forslag, ønsker og tiltak som bare ble diskutert. Bevar eventuelle vilkår.
+Under Neste steg: ta med hvem som skal gjøre hva og når bare dersom dette ble sagt. Ikke gjør et spørsmål, et behov eller et forbehold til en tildelt oppgave eller en frist.
+Skriv 'Ingen' under en overskrift hvis temaet ikke ble tatt opp. Marker uklare opplysninger som uklare, ikke gjett.
+Omfanget skal følge innholdet. En kort samtale skal fortsatt gi et kort sammendrag. Ikke fyll ut med antatt historikk, generelle råd eller nye spørsmål.
+Transkripsjon: {transkripsjon}"""

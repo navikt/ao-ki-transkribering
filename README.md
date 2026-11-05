@@ -10,6 +10,10 @@ eller 4B for referat. Large og 4B er standard. Transkripsjonsmodellen
 låses for hele opptaket, også ved gjenoppretting; referatmodellen kan byttes før
 neste generering uten å transkribere lyden på nytt. I lokal modus brukes den
 konfigurerte modellen.
+
+De tre hovedmalene er **Stikkord 0.1**, **Basis 0.1** (uendret standard) og
+**Utfyllende 0.1**. Eldre maler finnes under **Tidligere maler**.
+Se [promptoppsettet](møtereferat_prompt.md) for versjoner og forskjeller.
 Lokal modus bruker som standard NB-Whisper Medium, ECAPA-talerskille og kan
 kobles til [Ollama](https://ollama.com) for referatgenerering.
 

@@ -52,9 +52,13 @@ class PromptVersion:
     max_tokens: int
     system_prompt: str
     user_prompt: str
+    based_on: str | None = None
 
     def metadata(self):
-        return {"id": self.id, "title": self.title, "version": self.version, "mode": self.mode}
+        return {"id": self.id, "title": self.title, "version": self.version, "mode": self.mode,
+                **({"based_on": self.based_on} if self.based_on else {})}
 
 
 BASIS_0_1 = PromptVersion(**load_definition("basis_0_1"))
+STIKKORD_0_1 = PromptVersion(**load_definition("stikkord_0_1"))
+UTFYLLENDE_0_1 = PromptVersion(**load_definition("utfyllende_0_1"))

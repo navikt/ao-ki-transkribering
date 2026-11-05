@@ -3,6 +3,30 @@
 Dette dokumentet beskriver dagens promptoppsett. Selve instruksjonene ligger i
 versjonerte definisjoner, slik at dokumentasjonen ikke blir en separat kopi av promptene.
 
+## Tre hovedvalg
+
+De tre hovedvalgene vises i denne rekkefølgen:
+
+| Valg | Form | Maksimalt svar |
+| --- | --- | --- |
+| **Stikkord 0.1** | Korte kulepunkter og fraser, inntil 120 ord | 768 tokener |
+| **Basis 0.1** | Det opprinnelige standardsammendraget, uendret og fortsatt valgt som standard | 2048 tokener |
+| **Utfyllende 0.1** | Sammenhengende prosa, mer relevant kontekst og detaljer, konkrete avtaler og neste steg | 3072 tokener |
+
+Alle tre bruker samme systemprompt, de samme fem overskriftene, modellvalg,
+temperatur, top-p og kontekststørrelse som Basis 0.1. Brukerprompt og svarbudsjett
+gir forskjellen i form og detaljnivå. Basis-filen er ikke endret, heller ikke for
+å legge til nye stilkrav om prosa. De to nye definisjonene er selvstendige,
+versjonerte filer, slik at senere endringer ikke endrer Basis 0.1 i stillhet.
+Begge oppgir `based_on = "basis_0_1"`; samme baseline-ID følger med i
+resultatmetadata. Dette dokumenterer opphavet, ikke dynamisk arv av prompttekst.
+
+De eldre valgene er samlet under **Tidligere maler**, også når oppslag av
+menyvalgene feiler og nettsiden bruker sin statiske fallback. Ingen eldre mal
+er fjernet: de har ikke nøyaktig samme prompt og behandling som de tre nye.
+Maler for generelle møter, spesielle avgrensninger, møteformål og egne
+instruksjoner er derfor fortsatt tilgjengelige for sammenligning og særbehov.
+
 ## Basis 0.1
 
 **Basis 0.1** er nytt standardvalg. Den kan leses opp for brukeren og bruker
@@ -57,6 +81,8 @@ Feilmeldinger, UI-tekster og syntetiske benchmark-/testdata er ikke promptdefini
 | TOML-fil | Innhold |
 | --- | --- |
 | `basis_0_1.toml` | Uendret Basis 0.1, fortsatt standard |
+| `stikkord_0_1.toml` | Kort stikkordsvariant av Basis |
+| `utfyllende_0_1.toml` | Utfyllende prosavariant av Basis |
 | `generelt_mote_0_1.toml` | Generelt møtereferat |
 | `minimalt_sammendrag_0_1.toml` | Minimalt sammendrag |
 | `utfyllende_sammendrag_0_1.toml` | Utfyllende sammendrag og svarbudsjett |
@@ -96,9 +122,9 @@ kontrollsummer tatt før migreringen.
 | [frontend/compact_summary.py](frontend/compact_summary.py) | Kompakt kildekontroll av referatet |
 | [frontend/summary_assignments.py](frontend/summary_assignments.py) | Konservativ håndtering av oppgaver og ansvar |
 
-## Tekstmaler
+## Eldre tekstmaler
 
-- **Basis 0.1** er standard. Malene under beholdes som eldre alternativer.
+- Malene under beholdes som eldre alternativer under **Tidligere maler**.
 - **Generelt møte** gir et nøytralt møtereferat.
 - **Minimalt sammendrag** prioriterer hovedpoengene i inntil tre korte punkter.
 - **Utfyllende sammendrag** gir en tematisk gjennomgang med oppgaver, åpne

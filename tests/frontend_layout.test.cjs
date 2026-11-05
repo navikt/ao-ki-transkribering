@@ -139,6 +139,40 @@ test("Basis 0.1 is the initial template and result metadata shows its version sa
   assert.equal(element("referat-modell-info").textContent, "Modell: borealis-4b · Basis 0.1");
 });
 
+test("three primary prompt choices precede the retained legacy group in fallback HTML", () => {
+  const html = fs.readFileSync(path.join(__dirname, "../frontend/static/index.html"), "utf8");
+  const select = html.match(/<select id="referat-scenario"[\s\S]*?<\/select>/)[0];
+  const primary = [...select.split("<optgroup")[0].matchAll(/<option value="([^"]+)"/g)].map(match => match[1]);
+  assert.deepEqual(primary, ["stikkord_0_1", "basis_0_1", "utfyllende_0_1"]);
+  assert.match(select, /<option value="basis_0_1" selected>/);
+  assert.match(select, /<optgroup label="Tidligere maler">[\s\S]*value="veiledermote"/);
+});
+
+test("scenario discovery keeps three primary choices and groups older alternatives", async () => {
+  const {element, run} = workspace();
+  element("referat-scenario").value = "basis_0_1";
+  await run(`
+    const select = document.getElementById('referat-scenario');
+    select.children = [];
+    select.appendChild = child => select.children.push(child);
+    document.createElement = tag => ({tagName:tag, children:[], appendChild(child) {this.children.push(child);}});
+    fetch = async () => ({ok:true, json:async()=>({scenarier:[
+      {id:'stikkord_0_1', prompt:{version:'0.1'}},
+      {id:'basis_0_1', standard:true, prompt:{version:'0.1'}},
+      {id:'utfyllende_0_1', prompt:{version:'0.1'}},
+      {id:'minimalt_sammendrag'}, {id:'utfyllende_sammendrag'}, {id:'veiledermote'},
+    ]})});
+    lastReferatScenarier();
+  `);
+  const children = element("referat-scenario").children;
+  assert.deepEqual(Array.from(children.filter(child => child.tagName === "option"), child => child.value),
+    ["stikkord_0_1", "basis_0_1", "utfyllende_0_1"]);
+  const legacy = children.find(child => child.tagName === "optgroup");
+  assert.equal(legacy.label, "Tidligere maler");
+  assert.ok(legacy.children.some(child => child.value === "veiledermote"));
+  assert.equal(children.find(child => child.value === "basis_0_1").selected, true);
+});
+
 test("copy buttons show pending and confirmed feedback without changing their labels", async () => {
   const {element, run} = workspace();
   run(`
