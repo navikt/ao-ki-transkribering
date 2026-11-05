@@ -18,6 +18,7 @@ def test_system_status_reports_ok_models(monkeypatch):
     monkeypatch.setattr(helse_routes, "TRANSKRIPSJON_BACKEND", "remote")
     monkeypatch.setattr(helse_routes, "TRANSKRIPSJON_MODELL", "nb-whisper-large")
     monkeypatch.setattr(helse_routes, "LLM_MODELL", "borealis-12b")
+    monkeypatch.setattr(helse_routes, "LLM_BACKEND", "openai")
     monkeypatch.setattr(
         helse_routes,
         "hent_llm_status",
@@ -38,6 +39,8 @@ def test_system_status_reports_ok_models(monkeypatch):
     assert data["llm"]["status"] == "ok"
     assert data["transcription"]["status"] == "ok"
     assert data["diarization"]["status"] == "degraded"
+    assert data["transcription"]["selectable_models"] == ["nb-whisper-large", "nb-whisper-small"]
+    assert data["llm"]["selectable_models"] == ["borealis-12b", "borealis-4b"]
 
 
 def test_system_status_reports_missing_models(monkeypatch):

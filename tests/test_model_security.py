@@ -77,7 +77,7 @@ async def test_gateway_parallel_limit_preserves_key_scope(monkeypatch, configure
     assert auth.max_parallel_requests == expected
     assert auth.rpm_limit == 120
     assert auth.key_alias == "nais-prod"
-    assert auth.models == ["nb-whisper-large", "borealis-12b"]
+    assert auth.models == ["nb-whisper-large", "borealis-12b", "nb-whisper-small", "borealis-4b"]
 
 
 @pytest.mark.asyncio
@@ -179,6 +179,23 @@ async def test_audio_auth_accepts_multipart_and_rejects_master_key(monkeypatch):
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("model,route,status", [
+    ("nb-whisper-small", "/v1/audio/transcriptions", 200),
+    ("borealis-4b", "/v1/chat/completions", 200),
+    ("borealis-4b", "/v1/audio/transcriptions", 403),
+    ("nb-whisper-small", "/v1/chat/completions", 403),
+    ("arbitrary-model", "/v1/chat/completions", 403),
+])
+async def test_gateway_smaller_models_remain_scoped_to_their_inference_routes(monkeypatch, model, route, status):
+    monkeypatch.setenv("NAIS_DEV_API_KEY", "dev-key")
+    options = {"files": {"file": ("audio.wav", b"synthetic")}, "data": {"model": model}} if "audio" in route else {
+        "json": {"model": model, "messages": [{"role": "user", "content": "Hei"}]}}
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=gateway_app()), base_url="https://gateway") as client:
+        response = await client.post(route, headers={"Authorization": "Bearer dev-key"}, **options)
+    assert response.status_code == status
+
+
+@pytest.mark.asyncio
 @pytest.mark.parametrize("offset,status", [(7201, 200), (9000, 200), (10800, 200), (10800.01, 400)])
 async def test_gateway_recording_offsets_allow_three_hours(monkeypatch, offset, status):
     monkeypatch.setenv("NAIS_DEV_API_KEY", "dev-key")
@@ -250,7 +267,7 @@ def test_tls_renderer_keeps_credentials_out_of_manifests():
         assert "--ssl-certfile" in container["args"]
         if name == "whisper":
             assert "worker.nemotron_api:app" in container["args"]
-            assert "whisper-diarization" in container["image"]
+            assert "speech-cohost" in container["image"]
             assert {e["name"]: e.get("value") for e in container["env"]}["SPEECH_ASR_BACKEND"] == "faster-whisper"
         else:
             assert "worker.llama_api:app" in container["args"]

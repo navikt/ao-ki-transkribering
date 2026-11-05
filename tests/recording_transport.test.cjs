@@ -10,6 +10,28 @@ class Archive {
   async cleanup() { this.rows.clear(); }
 }
 const tick = () => new Promise(resolve => setImmediate(resolve));
+test("recording model survives retries and recovery instead of following a new selection", async () => {
+  const archive = new Archive(), calls = [];
+  const transport = new RecordingTransport({archive, model: "nb-whisper-small", request: async url => {
+    calls.push(url);
+    return {status: 401, ok: false};
+  }});
+  try {
+    await transport.initialized;
+    transport.send(new Float32Array(240000).buffer);
+    await until(() => transport.authenticationRequired);
+    assert.match(calls[0], /modell=nb-whisper-small/);
+    const restored = [...archive.rows.values()];
+    assert.equal(restored[0].model, "nb-whisper-small");
+    const recovered = new RecordingTransport({archive, restored, model: "nb-whisper-large",
+      request: async (url, options) => { calls.push(url); return reply(url, options); }});
+    try {
+      await recovered.initialized;
+      assert.equal(recovered.model, "nb-whisper-small");
+      assert.equal(calls[0], calls[1]);
+    } finally { await recovered.dispose(); }
+  } finally { await transport.dispose(); }
+});
 test("three-hour boundary seals the final partial chunk without uploading beyond the limit", async () => {
   assert.equal(MAX_RECORDING_SAMPLES, 10800 * 16000);
   const archive = new Archive(), notices = [];

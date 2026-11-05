@@ -5,6 +5,11 @@ Transkriberings- og referatverktøy for møter og veiledersamtaler.
 NAIS-oppsettet bruker NB-Whisper Large for transkripsjon, Nemotron Diarization
 for estimert talerskille og Borealis-12b Q8 via llama.cpp for referater. Modellene
 kjører i et separat GKE-cluster bak en autentisert Cloud Run-gateway.
+I nettleseren kan du velge NB-Whisper Large eller Small for lyd, og Borealis 12B
+eller 4B for referat. Large og 12B er fortsatt standard. Transkripsjonsmodellen
+låses for hele opptaket, også ved gjenoppretting; referatmodellen kan byttes før
+neste generering uten å transkribere lyden på nytt. I lokal modus brukes den
+konfigurerte modellen.
 Lokal modus bruker som standard NB-Whisper Medium, ECAPA-talerskille og kan
 kobles til [Ollama](https://ollama.com) for referatgenerering.
 

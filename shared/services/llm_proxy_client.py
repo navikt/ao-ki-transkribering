@@ -3,7 +3,8 @@ import os
 from typing import Literal
 
 import httpx
-from pydantic import BaseModel, Field, StrictBool
+from pydantic import BaseModel, Field, StrictBool, field_validator
+from shared.services.model_selection import resolve_model, summary_models
 
 from shared.core.settings import AI_PROXY_API_KEY, AI_PROXY_URL, LLM_BACKEND, LLM_MODELL, OLLAMA_URL
 from worker.prompts.normalisering import normaliser_til_bokmal
@@ -37,6 +38,13 @@ class LlmForesporsel(BaseModel):
     instruksjoner: str | None = Field(default=None, max_length=4000)
     begrenset_referat: StrictBool = False
     veileder_variant: Literal["kartlegging", "oppfolging"] | None = None
+
+    @field_validator("modell")
+    @classmethod
+    def supported_model(cls, value):
+        if value is not None:
+            resolve_model(value, summary_models(LLM_BACKEND, LLM_MODELL))
+        return value
 
 
 class LlmModell(BaseModel):
@@ -130,7 +138,7 @@ class IncompleteModelResponse(RuntimeError):
 
 
 async def count_tokens(system: str, bruker: str, modell: str | None = None) -> int | None:
-    if LLM_BACKEND != "openai" or (modell or LLM_MODELL) != "borealis-12b":
+    if LLM_BACKEND != "openai" or (modell or LLM_MODELL) not in {"borealis-12b", "borealis-4b"}:
         return None
     with metrics.track("token_count") as state:
         result = await _count_tokens(system, bruker, modell)

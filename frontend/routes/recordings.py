@@ -9,7 +9,8 @@ from uuid import UUID
 import numpy as np
 from fastapi import APIRouter, HTTPException, Query, Request
 
-from shared.core.settings import TRANSKRIPSJON_BACKEND
+from shared.core.settings import TRANSKRIPSJON_BACKEND, TRANSKRIPSJON_MODELL
+from shared.services.model_selection import resolve_model, transcription_models
 from shared.diagnostics import event, failure, recording_id
 from shared.metrics import observe
 from shared.services.transkripsjon_client import transkriber_remote_pcm
@@ -23,6 +24,7 @@ MAX_SESSIONS = 64
 
 @dataclass
 class Session:
+    model: str = TRANSKRIPSJON_MODELL
     touched: float = field(default_factory=time.monotonic)
     sequence: int = -1
     end: int = 0
@@ -49,7 +51,7 @@ async def process(session, key, sequence, start, raw):
     try:
         pcm = np.frombuffer(raw, dtype="<f4").copy()
         if TRANSKRIPSJON_BACKEND == "remote":
-            reply = await transkriber_remote_pcm(pcm, session_id=key, chunk_start=start / RATE)
+            reply = await transkriber_remote_pcm(pcm, session_id=key, chunk_start=start / RATE, model=session.model)
             result = reply.model_dump()
             speakers = None
         else:
@@ -75,7 +77,11 @@ async def process(session, key, sequence, start, raw):
 
 @router.post("/recordings/{key}/chunks/{sequence}")
 async def upload_chunk(key: UUID, sequence: int, request: Request,
-                       start_sample: int = Query(ge=0, le=16000 * 8 * 3600)):
+                       start_sample: int = Query(ge=0, le=16000 * 8 * 3600), modell: str | None = None):
+    try:
+        selected_model = resolve_model(modell, transcription_models(TRANSKRIPSJON_BACKEND, TRANSKRIPSJON_MODELL))
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from None
     if sequence < 0 or sequence > 2200:
         raise HTTPException(422, "Invalid sequence")
     raw = bytearray()
@@ -94,7 +100,9 @@ async def upload_chunk(key: UUID, sequence: int, request: Request,
             raise HTTPException(429, "Recording capacity reached")
         # Browser retains processed results; after a restart it can resume at its
         # first unfinished chunk. Speaker continuity may reset in that case.
-        session = sessions[key] = Session(sequence=sequence - 1, end=start_sample)
+        session = sessions[key] = Session(model=selected_model, sequence=sequence - 1, end=start_sample)
+    if session.model != selected_model:
+        raise HTTPException(409, "Modellen kan ikke endres under et opptak")
     digest = hashlib.sha256(str(start_sample).encode() + bytes(raw)).hexdigest()
     session.touched = now
     if session.task and not session.task.done():

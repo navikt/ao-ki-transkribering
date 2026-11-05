@@ -36,11 +36,12 @@ class RecordingArchive {
 }
 
 class RecordingTransport {
-  constructor({archive = new RecordingArchive(), request = (...args) => fetch(...args), retryMs = 3000, restored = []} = {}) {
+  constructor({archive = new RecordingArchive(), request = (...args) => fetch(...args), retryMs = 3000, restored = [], model = null} = {}) {
     this.archive = archive;
     this.request = request;
     this.retryMs = retryMs;
     this.recordingId = restored[0]?.session || crypto.randomUUID();
+    this.model = restored.find(row => row.model)?.model || (restored.length ? null : model);
     this.readyState = 1;
     this.gaps = restored.find(row => row.kind === "capture-health")?.gaps || [];
     this.rows = restored.filter(row => Number.isInteger(row.sequence))
@@ -95,7 +96,7 @@ class RecordingTransport {
     if (this.disposed) return;
     this.gaps = gaps.map(gap => ({...gap}));
     const row = {key: `${this.recordingId}:health`, session: this.recordingId,
-      kind: "capture-health", gaps: this.gaps, expires: this.expires};
+      kind: "capture-health", model: this.model, gaps: this.gaps, expires: this.expires};
     this.writing = this.writing.then(() => this.archive.put(row)).catch(() => {
       this.onstate?.("Avbruddsloggen kunne ikke lagres lokalt. Last ned avbruddsloggen.");
     });
@@ -104,7 +105,7 @@ class RecordingTransport {
     const sequence = this.rows.length;
     const row = {key: `${this.recordingId}:${sequence}`, session: this.recordingId,
       sequence, start: this.start, end: this.start + pcm.length,
-      state: "captured", expires: this.expires};
+      state: "captured", model: this.model, expires: this.expires};
     this.rows.push(row);
     this.writing = this.writing.then(async () => {
       try { await this.archive.put({...row, pcm}); }
@@ -128,7 +129,8 @@ class RecordingTransport {
         row.state = "sending";
         let response;
         try {
-          response = await this.request(`/recordings/${this.recordingId}/chunks/${row.sequence}?start_sample=${row.start}`, {
+          const modelQuery = this.model ? `&modell=${encodeURIComponent(this.model)}` : "";
+          response = await this.request(`/recordings/${this.recordingId}/chunks/${row.sequence}?start_sample=${row.start}${modelQuery}`, {
             method: "POST", headers: {"Content-Type": "application/octet-stream"},
             body: pcm.buffer, signal: this.controller.signal,
           });

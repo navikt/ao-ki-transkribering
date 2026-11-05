@@ -15,6 +15,7 @@ from shared.core.settings import (
     TRANSKRIPSJON_SERVICE_URL,
 )
 from shared.services.llm_proxy_client import LlmStatus, hent_status as hent_llm_status
+from shared.services.model_selection import transcription_models, summary_models
 from worker.transkribering.konstanter import STILLHET_TERSKEL_S, MAKS_BUFFER_S, ENERGI_TERSKEL
 from worker.transkribering.diarisering import _ECAPA_KILDE, _VINDU_S, _RATE
 from worker.transkribering.sanntid import _CT2_MODELL_STI
@@ -125,11 +126,13 @@ async def system_status():
             "status": "ok",
             "backend": TRANSKRIPSJON_BACKEND,
             "model": TRANSKRIPSJON_MODELL,
+            "selectable_models": transcription_models(TRANSKRIPSJON_BACKEND, TRANSKRIPSJON_MODELL),
         },
         "llm": {
             "status": "unknown",
             "backend": LLM_BACKEND,
             "model": LLM_MODELL,
+            "selectable_models": summary_models(LLM_BACKEND, LLM_MODELL),
         },
         "diarization": {
             "status": "ok",

@@ -12,8 +12,8 @@ MAX_RECORDING_SECONDS = 3 * 60 * 60
 
 _ROUTES = {
     ("GET", "/v1/models"): None,
-    ("POST", "/v1/chat/completions"): "borealis-12b",
-    ("POST", "/v1/audio/transcriptions"): "nb-whisper-large",
+    ("POST", "/v1/chat/completions"): {"borealis-12b", "borealis-4b"},
+    ("POST", "/v1/audio/transcriptions"): {"nb-whisper-large", "nb-whisper-small"},
 }
 _FIELDS = {
     "/v1/chat/completions": {"model", "messages", "stream", "temperature", "max_tokens", "extra_body", "response_format"},
@@ -111,7 +111,7 @@ async def authorize(request: Request, api_key: str) -> str:
             raise HTTPException(status_code=400, detail="Invalid inference request") from None
         if not isinstance(payload, dict) and request.url.path != "/v1/audio/transcriptions":
             raise HTTPException(status_code=400, detail="Invalid inference request")
-        if payload.get("model") != model or set(payload) - _FIELDS[request.url.path]:
+        if not isinstance(payload.get("model"), str) or payload["model"] not in model or set(payload) - _FIELDS[request.url.path]:
             raise HTTPException(status_code=403, detail="Model or request parameter is not permitted")
         if request.url.path == "/v1/chat/completions":
             if "extra_body" in payload and (
@@ -149,7 +149,7 @@ async def user_api_key_auth(request: Request, api_key: str):
     return UserAPIKeyAuth(
         api_key=api_key,
         key_alias=f"nais-{environment}",
-        models=["nb-whisper-large", "borealis-12b"],
+        models=["nb-whisper-large", "borealis-12b", "nb-whisper-small", "borealis-4b"],
         max_parallel_requests=parallel_requests,
         rpm_limit=120,
     )

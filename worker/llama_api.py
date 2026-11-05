@@ -71,6 +71,10 @@ async def models():
 
 @app.post("/v1/chat/completions")
 async def chat(request: Request):
+    return await proxy_chat(request, MODEL, app.state.upstream)
+
+
+async def proxy_chat(request: Request, model: str, upstream_client: httpx.AsyncClient):
     body = bytearray()
     async for chunk in request.stream():
         body.extend(chunk)
@@ -81,9 +85,9 @@ async def chat(request: Request):
     except (ValueError, UnicodeError):
         raise HTTPException(400, "Invalid JSON") from None
     if (not isinstance(payload, dict) or not isinstance(payload.get("model"), str)
-            or payload["model"] not in {MODEL, "/models/borealis-12b"}):
+            or payload["model"] not in {model, f"/models/{model}"}):
         raise HTTPException(400, "Unknown model")
-    payload["model"] = MODEL
+    payload["model"] = model
     if payload.get("transkriberit_count_tokens") is True:
         messages = payload.get("messages")
         if payload.get("stream", False) is not False or not isinstance(messages, list) or not messages or any(
@@ -92,9 +96,9 @@ async def chat(request: Request):
         ):
             raise HTTPException(400, "Invalid token counter request")
         try:
-            template = await app.state.upstream.post("/apply-template", json={"messages": messages})
+            template = await upstream_client.post("/apply-template", json={"messages": messages})
             template.raise_for_status()
-            tokens = await app.state.upstream.post("/tokenize", json={
+            tokens = await upstream_client.post("/tokenize", json={
                 "content": template.json()["prompt"], "add_special": True, "parse_special": True,
             })
             tokens.raise_for_status()
@@ -103,13 +107,13 @@ async def chat(request: Request):
             raise HTTPException(503, "Model tokenizer unavailable") from None
         return {
             "id": "token-count-" + uuid4().hex, "object": "chat.completion", "created": int(time.time()),
-            "model": MODEL, "choices": [{"index": 0, "finish_reason": "stop", "message": {
+            "model": model, "choices": [{"index": 0, "finish_reason": "stop", "message": {
                 "role": "assistant", "content": json.dumps({"type": "token_count", "input_tokens": count}),
             }}], "usage": {"prompt_tokens": count, "completion_tokens": 0, "total_tokens": count},
         }
     try:
-        upstream = await app.state.upstream.send(
-            app.state.upstream.build_request("POST", "/v1/chat/completions", json=payload), stream=True)
+        upstream = await upstream_client.send(
+            upstream_client.build_request("POST", "/v1/chat/completions", json=payload), stream=True)
     except httpx.TimeoutException:
         raise HTTPException(504, "Model response timed out") from None
     except httpx.RequestError:

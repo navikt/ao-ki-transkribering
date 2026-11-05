@@ -12,11 +12,11 @@ logger = logging.getLogger(__name__)
 
 
 class CTranslate2Transkriberer:
-    def __init__(self):
+    def __init__(self, *, source=None, target=None, inference_concurrency=None):
         from faster_whisper import WhisperModel
 
-        source = Path(os.getenv("WHISPER_MODELL", "/models/nb-whisper-large"))
-        target = Path(os.getenv("WHISPER_CT2_MODELL", "/models/nb-whisper-large-ct2-fp16"))
+        source = Path(source or os.getenv("WHISPER_MODELL", "/models/nb-whisper-large"))
+        target = Path(target or os.getenv("WHISPER_CT2_MODELL", "/models/nb-whisper-large-ct2-fp16"))
         if not (target / "model.bin").is_file():
             from ctranslate2.converters import TransformersConverter
 
@@ -29,7 +29,8 @@ class CTranslate2Transkriberer:
                 converter.convert(str(output), quantization="float16")
                 output.rename(target)
         self.enhet = "cuda"
-        self.inference_concurrency = int(os.getenv("SPEECH_INFERENCE_CONCURRENCY", "2"))
+        self.inference_concurrency = int(inference_concurrency if inference_concurrency is not None
+                                         else os.getenv("SPEECH_INFERENCE_CONCURRENCY", "2"))
         if not 1 <= self.inference_concurrency <= 8:
             raise ValueError("SPEECH_INFERENCE_CONCURRENCY must be between 1 and 8")
         self.model = WhisperModel(str(target), device="cuda", compute_type="float16",

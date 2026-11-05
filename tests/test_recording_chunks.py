@@ -69,6 +69,27 @@ def test_invalid_and_oversized_audio(client):
     assert post(client, pcm=np.array([float("nan")], dtype="<f4")).status_code == 422
 
 
+def test_recording_model_is_forwarded_and_cannot_change_mid_session(client, monkeypatch):
+    from shared.contracts.transcription import TranskripsjonSvar
+    calls = []
+
+    async def model(pcm, **kwargs):
+        calls.append(kwargs["model"])
+        return TranskripsjonSvar(tekst="", segmenter=[])
+
+    monkeypatch.setattr(recordings, "TRANSKRIPSJON_BACKEND", "remote")
+    monkeypatch.setattr(recordings, "TRANSKRIPSJON_MODELL", "nb-whisper-large")
+    monkeypatch.setattr(recordings, "transkriber_remote_pcm", model)
+    url = f"/recordings/{KEY}/chunks/0?start_sample=0&modell="
+    audio = np.zeros(240000, dtype="<f4").tobytes()
+    assert client.post(url + "borealis-4b", content=audio).status_code == 422
+    assert not recordings.sessions
+    assert client.post(url + "nb-whisper-small", content=audio).status_code == 200
+    assert client.post(url + "nb-whisper-small", content=audio).status_code == 200
+    assert calls == ["nb-whisper-small"]
+    assert client.post(url + "nb-whisper-large", content=audio).status_code == 409
+
+
 @pytest.mark.asyncio
 async def test_disconnected_request_does_not_cancel_processing(monkeypatch):
     from starlette.requests import Request

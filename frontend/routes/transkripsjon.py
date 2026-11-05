@@ -9,6 +9,7 @@ from shared.core.runtime import job_store, jobbkø
 from shared.core.settings import MODELL_ID, TRANSKRIPSJON_BACKEND, TRANSKRIPSJON_MODELL
 from shared.diagnostics import event, failure, recording_id
 from shared.services.transkripsjon_client import transkriber_remote
+from shared.services.model_selection import resolve_model, transcription_models
 from shared.services.uploaded_audio import AudioFileError
 from shared.metrics import metrics
 from worker.transkribering.batch import estimert_total_s
@@ -46,11 +47,16 @@ async def start_transkribering(
     background_tasks: BackgroundTasks,
     lydfil: UploadFile = File(...),
     n_talere: int = Form(0),
+    modell: str | None = Form(None),
 ):
     """Mottar lydfil, sender til arbeiderprosess, returnerer jobb-ID.
 
     n_talere: 0 = auto-deteksjon, 2/3/4 = eksakt antall talere.
     """
+    try:
+        selected_model = resolve_model(modell, transcription_models(TRANSKRIPSJON_BACKEND, TRANSKRIPSJON_MODELL))
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from None
     suffix = Path(lydfil.filename or "opptak.webm").suffix or ".webm"
     paths = job_store.create_paths(suffix)
 
@@ -66,6 +72,7 @@ async def start_transkribering(
             paths.audio_path,
             paths.result_path,
             n_talere,
+            selected_model,
         )
     else:
         jobbkø.put((paths.job_id, str(paths.audio_path), str(paths.result_path), n_talere))
@@ -77,10 +84,11 @@ async def _kjor_remote_transkribering(
     audio_path: Path,
     result_path: Path,
     n_talere: int,
+    model: str | None = None,
 ) -> None:
     job_store.write_transcribing(
         result_path,
-        model_id=TRANSKRIPSJON_MODELL,
+        model_id=model or TRANSKRIPSJON_MODELL,
         device="remote",
     )
     started = time.monotonic()
@@ -91,6 +99,7 @@ async def _kjor_remote_transkribering(
             resultat = await transkriber_remote(
                 audio_path, n_talere=n_talere,
                 status_callback=lambda values: job_store.update_path(result_path, values),
+                model=model,
             )
         job_store.write_done(
             result_path,

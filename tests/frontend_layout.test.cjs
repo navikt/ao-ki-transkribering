@@ -89,6 +89,46 @@ function transcriptWorkspace() {
   return w;
 }
 
+test("model selectors preserve defaults and choices and lock during generation or recording", () => {
+  const {element, run} = workspace();
+  run(`
+    _oppdaterModellvalg('transkripsjon-modell', {backend:'remote', status:'ok', model:'nb-whisper-large',
+      selectable_models:['nb-whisper-large','nb-whisper-small'],
+      available_models:['nb-whisper-large','nb-whisper-small']}, false);
+  `);
+  assert.equal(element("transkripsjon-modell").value, "nb-whisper-large");
+  element("transkripsjon-modell").value = "nb-whisper-small";
+  run(`_oppdaterModellvalg('transkripsjon-modell', {backend:'remote', status:'ok', model:'nb-whisper-large',
+    selectable_models:['nb-whisper-large','nb-whisper-small'], available_models:['nb-whisper-large','nb-whisper-small']}, true);`);
+  assert.equal(element("transkripsjon-modell").value, "nb-whisper-small");
+  assert.equal(element("transkripsjon-modell").disabled, true);
+  element("referat-modell").dataset.choices = "multiple";
+  run("_referatGenererer = true; _oppdaterReferatValgLaas()");
+  assert.equal(element("referat-modell").disabled, true);
+  run("_referatGenererer = false; _oppdaterReferatValgLaas()");
+  assert.equal(element("referat-modell").disabled, false);
+});
+
+test("summary jobs capture the model choice once for submission and retries", async () => {
+  const {element, run} = workspace();
+  element("referat-modell").value = "borealis-4b";
+  const result = await run(`
+    globalThis.submitted = [];
+    fetch = async (url, options) => {
+      submitted.push(JSON.parse(options.body));
+      if (submitted.length === 1) {
+        document.getElementById('referat-modell').value = 'borealis-12b';
+        throw new Error('connection reset');
+      }
+      return {ok:true, json:async()=>({status:'ferdig', tekst:'Test', modell:'borealis-4b'})};
+    };
+    _genererLlmJobb('referat', {transkripsjon:'Test'}, ()=>{});
+  `);
+  assert.equal(run("submitted.length"), 2);
+  assert.equal(run("submitted.every(payload => payload.modell === 'borealis-4b')"), true);
+  assert.equal(result.modell, "borealis-4b");
+});
+
 test("copy buttons show pending and confirmed feedback without changing their labels", async () => {
   const {element, run} = workspace();
   run(`

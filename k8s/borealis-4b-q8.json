@@ -1,0 +1,9 @@
+{
+  "repository": "NbAiLab/borealis-4b-gguf",
+  "revision": "0438d80853b3aab5791f3ba77d4d94a7f8d8ca0e",
+  "filename": "borealis-4b-Q8_0.gguf",
+  "sha256": "799150f7ab450c459cfdd1602d097e0f15e57516c8274be35da514c935ad4776",
+  "size": 4130402720,
+  "bucket": "ao-ki-taskforce-prod-2472-modeller",
+  "prefix": "borealis-4b-gguf"
+}

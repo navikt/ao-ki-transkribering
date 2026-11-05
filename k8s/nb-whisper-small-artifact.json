@@ -1,0 +1,22 @@
+{
+  "repository": "NbAiLab/nb-whisper-small",
+  "revision": "e9bb5cb83cb74c96239fd506163aa97cff2fce4c",
+  "filename": "model.safetensors",
+  "sha256": "72eabc8b35e1a08f19d49554daddc30d98ea11d1eee22c87186fcf4168c86dfe",
+  "size": 966995080,
+  "bucket": "ao-ki-taskforce-prod-2472-modeller",
+  "prefix": "whisper/nb-whisper-small",
+  "metadata_files": [
+    "README.md",
+    "config.json",
+    "generation_config.json",
+    "preprocessor_config.json",
+    "tokenizer.json",
+    "tokenizer_config.json",
+    "special_tokens_map.json",
+    "added_tokens.json",
+    "merges.txt",
+    "vocab.json",
+    "normalizer.json"
+  ]
+}

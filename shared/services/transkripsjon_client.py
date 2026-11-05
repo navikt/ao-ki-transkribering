@@ -92,13 +92,14 @@ async def _call_transkripsjon_service(
     session_id: str | None = None,
     chunk_start: float = 0,
     read_timeout: float = 600,
+    model: str | None = None,
 ) -> TranskripsjonSvar:
     url = service_url.rstrip("/") + TRANSKRIPSJON_API_PATH
     timeout = httpx.Timeout(10.0, read=read_timeout, write=120, pool=10.0)
     if _is_openai_audio_path(TRANSKRIPSJON_API_PATH):
         files = {"file": (filename, content, "audio/wav")}
         data = {
-            "model": TRANSKRIPSJON_MODELL,
+            "model": model or TRANSKRIPSJON_MODELL,
             "response_format": "verbose_json",
             "language": "no",
         }
@@ -144,12 +145,13 @@ async def transkriber_remote(
     n_talere: int = 0,
     service_url: str = TRANSKRIPSJON_SERVICE_URL,
     status_callback: StatusCallback | None = None,
+    model: str | None = None,
 ) -> TranskripsjonSvar:
     """Send uploaded audio in bounded sections, sharing diarization state throughout."""
     if not _is_openai_audio_path(TRANSKRIPSJON_API_PATH):
         with lydfil.open("rb") as f:
             return await _call_transkripsjon_service(
-                filename=lydfil.name, content=f.read(), n_talere=n_talere, service_url=service_url,
+                filename=lydfil.name, content=f.read(), n_talere=n_talere, service_url=service_url, model=model,
             )
 
     from worker.transkribering.sanntid import LydChunk, SegmentSamler
@@ -171,6 +173,7 @@ async def transkriber_remote(
                 filename="segment.wav", content=_pcm_to_wav_bytes(pcm), n_talere=n_talere,
                 service_url=service_url, session_id=session_id, chunk_start=start / SAMPLE_RATE,
                 read_timeout=60,
+                model=model,
             )
             warnings.extend(result.advarsler)
             merged = collector.legg_til(result.model_dump(), LydChunk(
@@ -194,6 +197,7 @@ async def transkriber_remote_pcm(
     service_url: str = TRANSKRIPSJON_SERVICE_URL,
     session_id: str | None = None,
     chunk_start: float = 0,
+    model: str | None = None,
 ) -> TranskripsjonSvar:
     wav_content = _pcm_to_wav_bytes(pcm)
     return await _call_transkripsjon_service(
@@ -204,4 +208,5 @@ async def transkriber_remote_pcm(
         session_id=session_id,
         chunk_start=chunk_start,
         read_timeout=60,
+        model=model,
     )

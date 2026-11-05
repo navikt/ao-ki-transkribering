@@ -56,6 +56,13 @@ spec:
               DIAR=gs://ao-ki-taskforce-prod-2472-modeller/nemotron-diarization/f667ed73aee57d40cc39428eb768b4fd87a0a29e
               gcloud storage cp "$DIAR/config.json" "$DIAR/processor_config.json" \
                 "$DIAR/model.safetensors" /models/nemotron-diarization/
+              mkdir -p /models/nb-whisper-small /models/borealis-4b
+              SMALL=gs://ao-ki-taskforce-prod-2472-modeller/whisper/nb-whisper-small/e9bb5cb83cb74c96239fd506163aa97cff2fce4c
+              gcloud storage cp "$SMALL/*.json" "$SMALL/merges.txt" "$SMALL/model.safetensors" /models/nb-whisper-small/
+              echo '72eabc8b35e1a08f19d49554daddc30d98ea11d1eee22c87186fcf4168c86dfe  /models/nb-whisper-small/model.safetensors' | sha256sum -c -
+              BOREALIS=gs://ao-ki-taskforce-prod-2472-modeller/borealis-4b-gguf/0438d80853b3aab5791f3ba77d4d94a7f8d8ca0e
+              gcloud storage cp "$BOREALIS/borealis-4b-Q8_0.gguf" /models/borealis-4b/
+              echo '799150f7ab450c459cfdd1602d097e0f15e57516c8274be35da514c935ad4776  /models/borealis-4b/borealis-4b-Q8_0.gguf' | sha256sum -c -
           volumeMounts:
             - name: modeller
               mountPath: /models
@@ -66,7 +73,7 @@ spec:
       containers:
         - name: vllm
           # Self-hosted Whisper transcription and separate Nemotron speaker model.
-          image: europe-west4-docker.pkg.dev/ao-ki-taskforce-prod-2472/vllm/whisper-diarization:20261103-3h-344f4af
+          image: europe-west4-docker.pkg.dev/ao-ki-taskforce-prod-2472/vllm/speech-cohost:20261104-small-models
           command: ["python", "-m", "uvicorn"]
           env:
             - name: SPEECH_ASR_BACKEND
@@ -77,6 +84,10 @@ spec:
               value: /models/nb-whisper-large
             - name: SPEECH_INFERENCE_CONCURRENCY
               value: "2"
+            - name: WHISPER_SMALL_MODELL
+              value: /models/nb-whisper-small
+            - name: BOREALIS_SMALL_MODELL
+              value: /models/borealis-4b/borealis-4b-Q8_0.gguf
           args:
             - worker.nemotron_api:app
             - --host
@@ -89,11 +100,12 @@ spec:
               name: http
           resources:
             requests:
-              cpu: "4"
-              memory: 8Gi
+              cpu: "6"
+              memory: 24Gi
               nvidia.com/gpu: "1"
             limits:
               nvidia.com/gpu: "1"
+              memory: 36Gi
           volumeMounts:
             - name: modeller
               mountPath: /models

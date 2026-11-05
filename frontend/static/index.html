@@ -31,6 +31,12 @@
     <div class="mote-toolbar">
     <div class="mote-oppsett">
       <label class="scenario-velger">
+        <span>Transkripsjonsmodell</span>
+        <select id="transkripsjon-modell" onchange="lastSystemstatus()" disabled>
+          <option value="">Standardmodell</option>
+        </select>
+      </label>
+      <label class="scenario-velger">
         <span>Lydkilde</span>
         <select id="lydkilde" onchange="byttLydkilde(this.value)">
           <option value="sanntid" selected>Mikrofon (sanntid)</option>
@@ -211,6 +217,12 @@
   </div><!-- /transkripsjon-kolonne -->
   <div class="referat-kolonne">
     <div class="referat-oppsett">
+      <label class="scenario-velger">
+        <span>Referatmodell</span>
+        <select id="referat-modell" onchange="lastSystemstatus()" disabled>
+          <option value="">Standardmodell</option>
+        </select>
+      </label>
       <label class="scenario-velger">
         <span>Tekstmal</span>
         <select id="referat-scenario" onchange="oppdaterReferatMal()">

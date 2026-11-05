@@ -139,6 +139,8 @@ async function sendTilServer(blob, filnavn) {
   skjema.append("lydfil", blob, filnavn);
   const nTalere = document.getElementById("n-talere-velger")?.value ?? "2";
   skjema.append("n_talere", nTalere);
+  const model = document.getElementById("transkripsjon-modell").value;
+  if (model) skjema.append("modell", model);
 
   let jobbId;
   try {
@@ -818,6 +820,7 @@ async function startSanntid(restored = []) {
   sanntidStoppgrunn = "";
   nullstillMikrofonNiva(true);
   document.getElementById("lydkilde").disabled = true;
+  document.getElementById("transkripsjon-modell").disabled = true;
   sanntidSegmenter = [];
   sanntidSekunder  = 0;
   opptakStartet = Date.now();
@@ -850,7 +853,9 @@ async function startSanntid(restored = []) {
   }, 1000);
 
   // Retryable HTTP chunks retain the audio independently of the connection.
-  sanntidWs = new RecordingTransport({restored, request: appFetch});
+  sanntidWs = new RecordingTransport({restored, request: appFetch,
+    model: document.getElementById("transkripsjon-modell").value || null});
+  if (sanntidWs.model) document.getElementById("transkripsjon-modell").value = sanntidWs.model;
   recordingArchive = sanntidWs;
   const socket = sanntidWs;
   visOpptakAvbrudd(socket.gaps || []);
@@ -986,6 +991,7 @@ async function startSanntid(restored = []) {
       }).catch(() => {});
     }
     sanntidWs = null;
+    lastSystemstatus();
     if (avbrutt) settSanntidStatus("Prover igjen – lyden er lagret lokalt");
     else settSanntidStatus(sanntidStoppgrunn || "All lyd er behandlet", false);
   };
@@ -1446,6 +1452,8 @@ function _oppdaterReferatValgLaas() {
   document.getElementById("referat-scenario").disabled = laast;
   document.getElementById("paragraf14-hake").disabled = laast;
   document.getElementById("veileder-variant").disabled = laast;
+  const model = document.getElementById("referat-modell");
+  model.disabled = laast || model.dataset.choices !== "multiple";
 }
 
 function hentReferatFraArbeidsflate() {
@@ -1468,6 +1476,8 @@ function _referatScenarioTittel(scenarioId) {
 }
 
 async function _genererLlmJobb(handling, payload, onProgress, signal) {
+  const model = document.getElementById("referat-modell").value;
+  payload = {...payload, ...(model ? {modell: model} : {})};
   const key = crypto.randomUUID();
   const submitUrl = `/llm/handlinger/${handling}/jobber/${key}`;
   let accepted = false;
@@ -1677,6 +1687,33 @@ function _oppdaterKapabilitetVarsel(status) {
   el.style.display = "block";
 }
 
+function _oppdaterModellvalg(id, state, locked) {
+  const select = document.getElementById(id);
+  const choices = state?.selectable_models;
+  if (!select || !choices?.length) return;
+  const selected = select.value || state.model;
+  const labels = {"nb-whisper-large": "NB-Whisper Large", "nb-whisper-small": "NB-Whisper Small",
+    "borealis-12b": "Borealis 12B", "borealis-4b": "Borealis 4B"};
+  select.innerHTML = "";
+  for (const model of choices) {
+    const option = document.createElement("option");
+    option.value = model;
+    option.textContent = labels[model] || model;
+    option.disabled = state.backend !== "local" && Array.isArray(state.available_models)
+      && !state.available_models.includes(model);
+    select.appendChild(option);
+  }
+  select.value = choices.includes(selected) ? selected : state.model;
+  select.dataset.choices = choices.length > 1 ? "multiple" : "single";
+  select.disabled = locked || choices.length < 2;
+  // Availability advertised by the gateway is not an inference health probe.
+  if (select.value !== state.model && ["ok", "missing_model"].includes(state.status)) {
+    state.status = state.available_models?.includes(select.value) ? "ok" : "missing_model";
+    state.message = state.status === "ok" ? "" : "Valgt modell er ikke tilgjengelig";
+  }
+  state.model = select.value;
+}
+
 async function lastSystemstatus() {
   const el = document.getElementById("systeminfo-footer");
   try {
@@ -1687,6 +1724,9 @@ async function lastSystemstatus() {
     }
     if (!res.ok) throw new Error("HTTP " + res.status);
     const status = await res.json();
+    _oppdaterModellvalg("transkripsjon-modell", status.transcription,
+      sanntidAktivt || sanntidWs?.readyState === 1);
+    _oppdaterModellvalg("referat-modell", status.llm, _referatGenererer || _liveReferatOppdaterer);
 
     _settTranskripsjonTilgjengelig(
       ["ok", "starting"].includes(status.transcription?.status),

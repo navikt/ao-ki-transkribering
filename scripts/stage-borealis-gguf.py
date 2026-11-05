@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
-"""Stream the publisher's pinned GGUF into GCS without a local weights copy."""
+"""Stream pinned model weights into GCS without a local weights copy."""
 
+import argparse
 import hashlib
 import json
 import subprocess
@@ -10,7 +11,8 @@ from pathlib import Path
 
 def stage_model(spec):
     base = f"https://huggingface.co/{spec['repository']}/resolve/{spec['revision']}"
-    destination = f"gs://{spec['bucket']}/borealis-12b-gguf/{spec['revision']}"
+    prefix = spec.get("prefix", "borealis-12b-gguf")
+    destination = f"gs://{spec['bucket']}/{prefix}/{spec['revision']}"
     command = ["gcloud", "storage", "cp", "-", f"{destination}/{spec['filename']}",
                "--if-generation-match=0"]
     digest, size, reported = hashlib.sha256(), 0, 0
@@ -33,7 +35,7 @@ def stage_model(spec):
             process.kill()
             process.wait()
             raise
-    for name in ("LICENSE", "README.md"):
+    for name in spec.get("metadata_files", ["LICENSE", "README.md"]):
         with urllib.request.urlopen(f"{base}/{name}", timeout=60) as source:
             subprocess.run(["gcloud", "storage", "cp", "-", f"{destination}/{name}"],
                            input=source.read(), check=True)
@@ -43,4 +45,7 @@ def stage_model(spec):
 
 
 if __name__ == "__main__":
-    stage_model(json.loads((Path(__file__).resolve().parents[1] / "k8s/borealis-q8.json").read_text()))
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--spec", type=Path,
+                        default=Path(__file__).resolve().parents[1] / "k8s/borealis-q8.json")
+    stage_model(json.loads(parser.parse_args().spec.read_text()))

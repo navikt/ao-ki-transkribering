@@ -58,7 +58,8 @@ def test_preserves_remote_speakers_and_warnings():
 
 
 @pytest.mark.asyncio
-async def test_openai_audio_path_uses_file_multipart_field(monkeypatch):
+@pytest.mark.parametrize("model", [None, "nb-whisper-small"])
+async def test_openai_audio_path_uses_file_multipart_field(monkeypatch, model):
     monkeypatch.setattr(transkripsjon_client, "TRANSKRIPSJON_API_PATH", "/v1/audio/transcriptions")
     monkeypatch.setattr(transkripsjon_client, "TRANSKRIPSJON_MODELL", "nb-whisper-large")
 
@@ -79,12 +80,13 @@ async def test_openai_audio_path_uses_file_multipart_field(monkeypatch):
             content=b"wav",
             n_talere=0,
             service_url="http://model-api",
+            model=model,
         )
 
     _, kwargs = mock_klient.post.call_args
     assert "file" in kwargs["files"]
     assert "lydfil" not in kwargs["files"]
-    assert kwargs["data"]["model"] == "nb-whisper-large"
+    assert kwargs["data"]["model"] == (model or "nb-whisper-large")
 
 
 @pytest.mark.asyncio

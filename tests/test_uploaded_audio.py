@@ -74,12 +74,13 @@ async def test_uploaded_file_uses_bounded_sections_with_shared_speakers_and_abso
 
     monkeypatch.setattr(client, "TRANSKRIPSJON_API_PATH", "/v1/audio/transcriptions")
     monkeypatch.setattr(client, "_call_transkripsjon_service", model)
-    result = await client.transkriber_remote(path, n_talere=2, status_callback=progress.append)
+    result = await client.transkriber_remote(path, n_talere=2, status_callback=progress.append, model="nb-whisper-small")
     starts = list(range(0, math.ceil(seconds - 15) + 14, 14))
     assert [round(call["chunk_start"], 2) for call, _ in calls] == starts
     assert [length for _, length in calls] == [min(15, seconds - start) for start in starts]
     assert len({call["session_id"] for call, _ in calls}) == 1
     assert all(call["session_id"] and call["n_talere"] == 2 for call, _ in calls)
+    assert all(call["model"] == "nb-whisper-small" for call, _ in calls)
     assert [segment.start for segment in result.segmenter] == starts
     assert result.segmenter[-1].slutt == seconds
     assert all(segment.taler == "SPEAKER_01" for segment in result.segmenter)

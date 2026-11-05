@@ -138,6 +138,83 @@ pod and briefly interrupt Borealis. Neither requests an extra GPU. Ordinary
 `apply-k8s.sh` reapplies the Q8 manifest; restore the desired manifest as well if
 the rollback is intended to persist.
 
+### Smaller Evaluation Models
+
+Pinned staging specifications are available for NB-Whisper Small and Borealis 4B
+Q8. Stage them independently of the production deployment:
+
+```bash
+.venv/bin/python scripts/stage-borealis-gguf.py --spec k8s/nb-whisper-small-artifact.json
+.venv/bin/python scripts/stage-borealis-gguf.py --spec k8s/borealis-4b-q8.json
+```
+
+The same streaming/hash checks apply. Whisper includes one safetensors weights
+file and the tokenizer/processor/configuration files needed for later CTranslate2
+conversion; duplicate PyTorch, Flax and GGML weights are not uploaded. Staging is
+not deployment: the production model names, routes and GPU assignments do not
+change. Co-hosting requires an explicitly shared runtime/pod arrangement or GPU
+sharing configuration; another ordinary pod requesting one GPU cannot consume
+the unused VRAM of an already allocated GPU.
+
+On 2026-11-04, an idle `nvidia-smi` snapshot reported 4616 MiB used and 17948 MiB
+free on the speech L4, versus 17384 MiB used and 5180 MiB free on the Borealis L4.
+The speech GPU is therefore the candidate for testing the smaller models. These
+are idle observations, not peak-memory or concurrent-performance guarantees.
+
+Live Borealis `/props` and a synthetic `/apply-template` request confirmed its
+embedded Gemma 3 chat template (`<start_of_turn>` / `<end_of_turn>`). The deployment
+uses `--jinja`, without a template override. The template combines system
+instructions with the first user turn; meeting-specific Norwegian prompts remain
+separate from this model-specific serialization. Never add chat control tokens
+manually to application prompts.
+
+#### Shared Speech GPU Runtime
+
+`images/cohost/Dockerfile` combines the existing speech environment with
+llama.cpp in one container requesting one GPU. `k8s/vllm-whisper.yaml` loads
+NB-Whisper Large, NB-Whisper Small and Nemotron diarization, and starts Borealis
+4B Q8 on loopback port 8002. The authenticated speech API proxies chat requests;
+the native llama.cpp port is not exposed by a Service. No GPU time-sharing
+configuration or additional GPU node is required.
+
+The secured gateway accepts `nb-whisper-small` on `/v1/audio/transcriptions` and
+`borealis-4b` on `/v1/chat/completions`. These are API evaluation alternatives,
+not new frontend defaults. Large and Borealis 12B remain the app defaults, and
+12B retains its separate GPU. Borealis 4B uses its embedded Gemma chat template,
+one generation slot and a 32768-token context allocation. Speech requests share
+the existing bounded queue; simultaneous models compete for GPU compute.
+
+The speech deployment uses `Recreate`, so changing this image briefly interrupts
+speech availability while weights download, convert and load. Preserve the
+currently allocated node pool when rendering the secure manifest. Roll back a
+failed rollout with `kubectl -n vllm rollout undo deployment/vllm-whisper` using
+the GPU cluster context, then check readiness. This does not change Borealis 12B.
+
+Run `scripts/smoke-cohost-models.py` from an authenticated NAIS API runtime to
+check all four gateway aliases with eight concurrent synthetic requests. It
+prints only status and latency metadata and does not read recordings. Random
+noise exercises the speech request path but cannot establish transcription
+accuracy; this is not a throughput or quality benchmark.
+
+Verified on 2026-11-04 through the production NAIS identity and secured gateway:
+all eight concurrent requests returned HTTP 200 (two per model). Each speech
+request contained 15 seconds of synthetic noise; chat requests used a short
+synthetic Norwegian meeting and a 96-token output cap.
+
+| Model | Observed response time |
+| --- | --- |
+| NB-Whisper Large | 5.00-5.82 seconds |
+| NB-Whisper Small | 5.69-6.00 seconds |
+| Borealis 12B | 4.50 seconds |
+| Borealis 4B Q8 | 2.04-3.34 seconds |
+
+Ninety one-second samples on the shared speech L4 showed 9456 MiB initially
+allocated, a sampled peak of 10234 MiB, and at least 12330 MiB free. Both model
+pods remained ready with zero restarts. Health reported Nemotron diarization
+enabled and both speech models loaded; private llama.cpp properties confirmed
+one slot, a 32768-token context and Gemma turn tokens. These short, noise-based
+requests do not predict long-meeting latency, ASR quality or worst-case memory.
+
 ## Start and Stop Models
 
 Whisper and Borealis currently remain at one replica around the clock. Both
