@@ -151,9 +151,11 @@ async def generate(
     stream: ModelStream | None = None,
     max_tokens: int | None = None,
     count: TokenCounter | None = None,
+    context_tokens: int | None = None,
 ):
     """Yield progress and final output; never send intermediate notes to the user."""
-    budget = input_token_budget(max_tokens) if max_tokens is not None else input_token_budget()
+    budget = (context_tokens - (max_tokens or 512) - 512) if context_tokens is not None else (
+        input_token_budget(max_tokens) if max_tokens is not None else input_token_budget())
     output_options = {"max_tokens": max_tokens} if max_tokens is not None else {}
     sizer = PromptSizer(model, count)
     for attempt in range(4):
@@ -172,7 +174,9 @@ async def generate(
                 result = await call(system, user, model, **output_options)
                 if not result.strip():
                     raise TranscriptProcessingError("Modellen ga et tomt svar. Prøv igjen.")
-                yield {"type": "ferdig", "tekst": result}
+                yield {"type": "ferdig", "tekst": result, **({"advarsler": [
+                    "Kildeteksten oversteg promptens kontekst. Møtet ble behandlet i flere steg, ikke ett steg."
+                ]} if context_tokens is not None and prepared != text else {})}
                 return
             async for token, done, full in stream(system, user, model, **output_options):
                 if done:

@@ -31,7 +31,7 @@ def test_llm_backend_defaults_to_openai_proxy():
             sys.executable,
             "-c",
             "from shared.core.settings import LLM_BACKEND, LLM_MODELL; "
-            "assert LLM_BACKEND == 'openai'; assert LLM_MODELL == 'borealis-12b'",
+            "assert LLM_BACKEND == 'openai'; assert LLM_MODELL == 'borealis-4b'",
         ],
         env=env,
         capture_output=True,
@@ -51,7 +51,7 @@ def test_llm_backend_ollama_gets_local_default_model():
             sys.executable,
             "-c",
             "from shared.core.settings import LLM_BACKEND, LLM_MODELL, OLLAMA_URL; "
-            "assert LLM_BACKEND == 'ollama'; assert LLM_MODELL == 'qwen3:8b'; "
+            "assert LLM_BACKEND == 'ollama'; assert LLM_MODELL == 'borealis-4b:latest'; "
             "assert OLLAMA_URL == 'http://localhost:11434'",
         ],
         env=env,

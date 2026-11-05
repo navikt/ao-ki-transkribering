@@ -43,7 +43,7 @@ class SummaryJobs:
                 "status": "feil", "melding": "Genereringen ble avbrutt ved en omstart. Start den på nytt.",
             })
         return {name: value for name, value in data.items()
-                if name in {"jobb_id", "status", "melding", "tekst", "modell", "handling", "scenario", "advarsler"}}
+                if name in {"jobb_id", "status", "melding", "tekst", "modell", "handling", "scenario", "advarsler", "prompt"}}
 
     def submit(self, key: str, owner: str, fingerprint: str, metadata: dict,
                generate: Callable[[], AsyncIterator[dict]], error_message: Callable[[Exception], str]) -> dict:

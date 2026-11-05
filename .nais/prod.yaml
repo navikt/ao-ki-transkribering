@@ -87,7 +87,7 @@ spec:
     - name: REMOTE_DIARIZATION_MODEL
       value: "nvidia/Nemotron-3-Diarization"
     - name: LLM_MODELL
-      value: "borealis-12b"
+      value: "borealis-4b"
     - name: LLM_MAX_TOKENS
       value: "1024"
     - name: LLM_CONTEXT_TOKENS

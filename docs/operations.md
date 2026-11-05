@@ -179,7 +179,8 @@ configuration or additional GPU node is required.
 
 The secured gateway accepts `nb-whisper-small` on `/v1/audio/transcriptions` and
 `borealis-4b` on `/v1/chat/completions`. These are API evaluation alternatives,
-not new frontend defaults. Large and Borealis 12B remain the app defaults, and
+not automatic replacements for the startup configuration. Large remains the
+speech default; the app's summary default is set separately with `LLM_MODELL`.
 12B retains its separate GPU. Borealis 4B uses its embedded Gemma chat template,
 one generation slot and a 32768-token context allocation. Speech requests share
 the existing bounded queue; simultaneous models compete for GPU compute.

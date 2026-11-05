@@ -94,7 +94,8 @@ def er_kontekstfeil(exc: httpx.HTTPStatusError) -> bool:
     )
 
 
-def _build_payload(system: str, bruker: str, modell: str | None, stream: bool, max_tokens: int | None = None) -> dict:
+def _build_payload(system: str, bruker: str, modell: str | None, stream: bool, max_tokens: int | None = None,
+                   generation: dict | None = None) -> dict:
     return {
         "model": modell or LLM_MODELL,
         "stream": stream,
@@ -104,6 +105,7 @@ def _build_payload(system: str, bruker: str, modell: str | None, stream: bool, m
         ],
         "temperature": _OPTIONS["temperature"],
         "max_tokens": max_tokens if max_tokens is not None else _OPTIONS["num_predict"],
+        **{key: value for key, value in (generation or {}).items() if key in {"temperature", "top_p"}},
     }
 
 
@@ -169,7 +171,8 @@ async def _count_tokens(system: str, bruker: str, modell: str | None) -> int | N
 
 @observe("llm_generate")
 async def kall(system: str, bruker: str, modell: str | None = None, *, max_tokens: int | None = None,
-               raw: bool = False, json_mode: bool = False, response_schema: dict | None = None) -> str:
+               raw: bool = False, json_mode: bool = False, response_schema: dict | None = None,
+               generation: dict | None = None) -> str:
     if LLM_BACKEND == "ollama":
         from worker.ollama.klient import kall as kall_ollama
 
@@ -178,9 +181,11 @@ async def kall(system: str, bruker: str, modell: str | None = None, *, max_token
             options.update(raw=raw, json_mode=json_mode)
         if response_schema is not None:
             options["response_schema"] = response_schema
+        if generation is not None:
+            options["generation"] = generation
         return await kall_ollama(system, bruker, modell or LLM_MODELL, **options)
 
-    payload = _build_payload(system, bruker, modell, stream=False, max_tokens=max_tokens)
+    payload = _build_payload(system, bruker, modell, stream=False, max_tokens=max_tokens, generation=generation)
     if json_mode:
         payload["response_format"] = {"type": "json_schema", "json_schema": {
             "name": "transkriberit_" + response_schema["title"], "strict": True, "schema": response_schema,

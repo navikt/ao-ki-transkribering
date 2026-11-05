@@ -686,14 +686,17 @@ async function lastReferatScenarier() {
     if (!_referatScenarier.length) return;
     const valgt = velger.value;
     velger.innerHTML = "";
+    const legacy = document.createElement("optgroup");
+    legacy.label = "Tidligere maler";
     for (const scenario of [{ id: "sammendrag", tittel: "Sammendrag" }, ..._referatScenarier]) {
       const option = document.createElement("option");
       option.value = scenario.id;
       option.textContent = _referatScenarioTittel(scenario.id);
       option.title = scenario.beskrivelse || "";
       option.selected = scenario.id === valgt || (!valgt && scenario.standard);
-      velger.appendChild(option);
+      (scenario.prompt ? velger : legacy).appendChild(option);
     }
+    velger.appendChild(legacy);
     const varianter = _referatScenarier.find(scenario => scenario.id === "veiledermote")?.varianter;
     const variantVelger = document.getElementById("veileder-variant");
     if (varianter?.length && variantVelger) {
@@ -750,7 +753,8 @@ async function _triggerLiveReferat(transkripsjon) {
     _visReferatAdvarsler("live-referat-advarsler", data.advarsler);
     document.getElementById("live-utkast-tittel").textContent = "Utkast: " + _referatValgTittel(valg);
     _settLiveReferatStatus("sist oppdatert " + new Date().toLocaleTimeString("nb-NO", {hour:"2-digit", minute:"2-digit"}), false);
-    document.getElementById("live-referat-tid").textContent = "Modell: " + (data.modell || "");
+    document.getElementById("live-referat-tid").textContent = "Modell: " + (data.modell || "")
+      + (data.prompt ? " · " + data.prompt.title : "");
   } catch (e) {
     if (!controller.signal.aborted) {
       if (!_liveReferatTekst) tekstEl.textContent = "Kunne ikke oppdatere: " + e.message;
@@ -1356,7 +1360,7 @@ function _visReferatAdvarsler(id, warnings = []) {
   box.hidden = messages.length === 0;
 }
 
-function _visReferatResultat(tekst, modell, warnings = []) {
+function _visReferatResultat(tekst, modell, warnings = [], prompt = null) {
   _stopReferatProgress();
   _visReferatAdvarsler("referat-advarsler", warnings);
   referatComparison.update(tekst);
@@ -1377,7 +1381,8 @@ function _visReferatResultat(tekst, modell, warnings = []) {
   boks.dataset.complete = "true";
   const footer = document.getElementById("referat-footer");
   footer.style.display = "flex";
-  document.getElementById("referat-modell-info").textContent = `Modell: ${modell}`;
+  document.getElementById("referat-modell-info").textContent = `Modell: ${modell}`
+    + (prompt ? ` · ${prompt.title}` : "");
 }
 
 function _visReferatFeil(melding) {
@@ -1412,7 +1417,7 @@ function _visLlmUtilgjengelig(melding) {
 }
 
 function _valgtReferatScenario() {
-  return document.getElementById("referat-scenario")?.value || "generelt_mote";
+  return document.getElementById("referat-scenario")?.value || "basis_0_1";
 }
 
 function oppdaterReferatMal() {
@@ -1463,6 +1468,7 @@ function hentReferatFraArbeidsflate() {
 
 function _referatScenarioTittel(scenarioId) {
   const titler = {
+    basis_0_1: "Basis 0.1",
     minimalt_sammendrag: "Minimalt sammendrag",
     utfyllende_sammendrag: "Utfyllende sammendrag",
     sammendrag: "Kort NAV-sammendrag",
@@ -1534,7 +1540,7 @@ async function _streamReferat(endepunkt, tekst, tittel, ekstra = {}) {
       document.getElementById("referat-progress-wrap").style.display = "none";
       document.getElementById("referat-laster-tekst").textContent = melding;
     });
-    _visReferatResultat(data.tekst, data.modell, data.advarsler);
+    _visReferatResultat(data.tekst, data.modell, data.advarsler, data.prompt);
   } finally {
     _referatGenererer = false;
     _oppdaterReferatValgLaas();

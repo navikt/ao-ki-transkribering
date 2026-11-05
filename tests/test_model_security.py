@@ -196,6 +196,16 @@ async def test_gateway_smaller_models_remain_scoped_to_their_inference_routes(mo
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("top_p,status", [(0.9, 200), (0, 200), (1, 200), (True, 403), ("0.9", 403), (-1, 403), (2, 403)])
+async def test_gateway_accepts_bounded_basis_sampling(monkeypatch, top_p, status):
+    monkeypatch.setenv("NAIS_DEV_API_KEY", "dev-key")
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=gateway_app()), base_url="https://gateway") as client:
+        response = await client.post("/v1/chat/completions", headers={"Authorization": "Bearer dev-key"},
+                                     json={"model": "borealis-4b", "top_p": top_p})
+    assert response.status_code == status
+
+
+@pytest.mark.asyncio
 @pytest.mark.parametrize("offset,status", [(7201, 200), (9000, 200), (10800, 200), (10800.01, 400)])
 async def test_gateway_recording_offsets_allow_three_hours(monkeypatch, offset, status):
     monkeypatch.setenv("NAIS_DEV_API_KEY", "dev-key")

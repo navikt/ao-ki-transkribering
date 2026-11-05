@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from worker.prompts.versions import BASIS_0_1, PromptVersion
 
 from worker.prompts.motereferat import (
     BRUKER_GENERELT_MOTE,
@@ -44,12 +45,13 @@ class ReferatScenario:
     system_prompt: str
     bruker_prompt_template: str
     max_tokens: int | None = None
+    profile: PromptVersion | None = None
 
     def bygg_bruker_prompt(self, transkripsjon: str) -> str:
         return self.bruker_prompt_template.format(transkripsjon=transkripsjon)
 
 
-STANDARD_REFERAT_SCENARIO = "generelt_mote"
+STANDARD_REFERAT_SCENARIO = BASIS_0_1.id
 STANDARD_VEILEDER_VARIANT = "oppfolging"
 VEILEDER_VARIANTER = {
     "kartlegging": {
@@ -65,6 +67,12 @@ VEILEDER_VARIANTER = {
 }
 
 REFERAT_SCENARIER: dict[str, ReferatScenario] = {
+    BASIS_0_1.id: ReferatScenario(
+        id=BASIS_0_1.id, tittel=BASIS_0_1.title,
+        beskrivelse="Kort samtalesammendrag som kan leses opp for brukeren.",
+        system_prompt=BASIS_0_1.system_prompt, bruker_prompt_template=BASIS_0_1.user_prompt,
+        max_tokens=BASIS_0_1.max_tokens, profile=BASIS_0_1,
+    ),
     "minimalt_sammendrag": ReferatScenario(
         id="minimalt_sammendrag",
         tittel="Minimalt sammendrag",
@@ -224,6 +232,7 @@ def list_referat_scenarier() -> list[dict]:
             "tittel": scenario.tittel,
             "beskrivelse": scenario.beskrivelse,
             "standard": scenario.id == STANDARD_REFERAT_SCENARIO,
+            **({"prompt": scenario.profile.metadata()} if scenario.profile else {}),
             **({"varianter": [
                 {"id": key, "tittel": value["tittel"], "beskrivelse": value["beskrivelse"],
                  "standard": key == STANDARD_VEILEDER_VARIANT}

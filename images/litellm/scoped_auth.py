@@ -16,7 +16,7 @@ _ROUTES = {
     ("POST", "/v1/audio/transcriptions"): {"nb-whisper-large", "nb-whisper-small"},
 }
 _FIELDS = {
-    "/v1/chat/completions": {"model", "messages", "stream", "temperature", "max_tokens", "extra_body", "response_format"},
+    "/v1/chat/completions": {"model", "messages", "stream", "temperature", "top_p", "max_tokens", "extra_body", "response_format"},
     "/v1/audio/transcriptions": {"model", "file", "response_format", "language", "session_id", "chunk_start"},
 }
 
@@ -114,6 +114,9 @@ async def authorize(request: Request, api_key: str) -> str:
         if not isinstance(payload.get("model"), str) or payload["model"] not in model or set(payload) - _FIELDS[request.url.path]:
             raise HTTPException(status_code=403, detail="Model or request parameter is not permitted")
         if request.url.path == "/v1/chat/completions":
+            if "top_p" in payload and (type(payload["top_p"]) not in {int, float}
+                                        or not math.isfinite(payload["top_p"]) or not 0 <= payload["top_p"] <= 1):
+                raise HTTPException(403, "Invalid sampling parameter")
             if "extra_body" in payload and (
                 payload["extra_body"] != {"transkriberit_count_tokens": True}
                 or type(payload["extra_body"].get("transkriberit_count_tokens")) is not bool

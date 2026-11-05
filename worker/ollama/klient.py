@@ -90,7 +90,8 @@ async def stream_tokens(system: str, bruker: str, modell: str | None = None, *, 
 
 
 async def kall(system: str, bruker: str, modell: str | None = None, *, max_tokens: int | None = None,
-               raw: bool = False, json_mode: bool = False, response_schema: dict | None = None) -> str:
+               raw: bool = False, json_mode: bool = False, response_schema: dict | None = None,
+               generation: dict | None = None) -> str:
     """Kaller Ollama /api/generate med streaming og returnerer svarteksten.
 
     Bruker streaming for å unngå timeout ved lange svar.
@@ -109,7 +110,8 @@ async def kall(system: str, bruker: str, modell: str | None = None, *, max_token
                 "stream": True,
                 "think": False,
                 **({"format": response_schema or "json"} if json_mode else {}),
-                "options": {**_OPTIONS, **({"num_predict": max_tokens} if max_tokens is not None else {}),
+                "options": {**(_OPTIONS if generation is None else {}), **({"num_predict": max_tokens} if max_tokens is not None else {}),
+                            **{key: value for key, value in (generation or {}).items() if key in {"temperature", "top_p", "num_ctx"}},
                             **({"temperature": 0} if json_mode else {})},
             },
         ) as resp:

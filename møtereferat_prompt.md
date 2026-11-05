@@ -1,12 +1,57 @@
 # Prompter og referatmaler
 
 Dette dokumentet beskriver dagens promptoppsett. Selve instruksjonene ligger i
-kode, slik at dokumentasjonen ikke blir en separat kopi av promptene.
+versjonerte definisjoner, slik at dokumentasjonen ikke blir en separat kopi av promptene.
+
+## Basis 0.1
+
+**Basis 0.1** er nytt standardvalg. Den kan leses opp for brukeren og bruker
+de fem overskriftene Bakgrunn for møtet, Hva brukeren fortalte, Hva veilederen
+informerte om, Avtaler og Neste steg (hvem gjør hva, og når).
+
+Den autoritative definisjonen er
+[basis_0_1.toml](worker/prompts/versions/basis_0_1.toml). System- og brukerprompten
+bygger på den leverte grunnprompten, uten gamle tillegg om møteformål,
+§14a, kildekontroll eller omskriving. «Ingen» brukes når noe ikke ble tatt opp.
+
+| Innstilling | Basis 0.1 |
+| --- | --- |
+| Modus | `ett_steg` |
+| Modell | `borealis-4b:latest` lokalt, `borealis-4b` i GCloud |
+| Temperatur | 0.2 |
+| Top-p | 0.9 |
+| Kontekst | 32768 tokener, inkludert prompt og svar |
+| Maksimalt svar | 2048 tokener |
+
+Modellvelgeren kan fortsatt overstyre modellvalget. Lokalmodellen må være
+installert eller importert med det angitte navnet; navnet er ikke en garanti
+for at en tilsvarende tag finnes i Ollamas offentlige modellbibliotek.
+
+Når teksten passer, brukes én generering på originaltranskripsjonen, uten de
+eldre kontroll- og omskrivingsrundene. Ved for lang tekst beholdes eksisterende
+oppdeling og sammenstilling, med en synlig advarsel om at flere steg ble brukt.
+Ingen tekst kuttes bevisst bort for å få kilden til å passe. Dette er ikke en
+garanti for et feilfritt eller fullstendig sammendrag; veileder må gjennomgå det.
+
+### Versjonering
+
+Ikke endre en utgitt definisjon på stedet. Lag for eksempel `basis_0_2.toml`
+med ny ID `basis_0_2`, versjon `0.2` og navn `Basis 0.2`. Endringer i ordlyd,
+genereringsinnstillinger eller genereringsmåte skal få en ny versjon. Git
+bevarer historikken, og en test låser innholdet i Basis 0.1 med en kontrollsum.
+API-svar og genereringsjobber inkluderer promptens ID, navn, versjon og modus.
+Nettsiden viser versjonen sammen med modellnavnet på resultatet.
+
+Ved utrulling må også gatewayens allowlist oppdateres fra
+`images/litellm/scoped_auth.py` via OpenTofu-oppsettet i `terraform/gke`, siden
+Basis 0.1 sender `top_p`. En ren NAIS-utrulling uten gatewayoppdateringen kan
+ellers bli avvist med HTTP 403.
 
 ## Kilder i kode
 
 | Fil | Ansvar |
 |-----|--------|
+| [worker/prompts/versions/](worker/prompts/versions/) | Versjonerte prompttekster og tilhørende innstillinger |
 | [worker/prompts/motereferat.py](worker/prompts/motereferat.py) | Grunnprompter, møteformål og tekstmaler |
 | [worker/prompts/handlinger.py](worker/prompts/handlinger.py) | Tilgjengelige scenarier, standardvalg og svarbudsjetter |
 | [frontend/routes/referat.py](frontend/routes/referat.py) | Setter sammen valgt mal, møteformål og avgrensning |
@@ -16,7 +61,8 @@ kode, slik at dokumentasjonen ikke blir en separat kopi av promptene.
 
 ## Tekstmaler
 
-- **Generelt møte** er standard og gir et nøytralt møtereferat.
+- **Basis 0.1** er standard. Malene under beholdes som eldre alternativer.
+- **Generelt møte** gir et nøytralt møtereferat.
 - **Minimalt sammendrag** prioriterer hovedpoengene i inntil tre korte punkter.
 - **Utfyllende sammendrag** gir en tematisk gjennomgang med oppgaver, åpne
   spørsmål og konklusjon når kilden inneholder dette.
@@ -50,7 +96,7 @@ Talernumre fra diarisering er estimater, ikke bekreftede identiteter.
 
 Når hele transkripsjonen passer i modellens kontekstvindu, brukes den direkte.
 Større kilder behandles i avgrensede deler uten å kutte bort slutten av møtet.
-Kompakt kontroll er standard; den eldre, mer omfattende kontrollen beholdes for
+De eldre referatmalene bruker kompakt kontroll; den mer omfattende kontrollen beholdes for
 evaluering. Begge bruker en språkmodell og kan overse feil eller mangler.
 
 Se [kildekontroll og evaluering](docs/summary-grounding.md) for algoritme,

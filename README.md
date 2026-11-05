@@ -3,10 +3,10 @@
 Transkriberings- og referatverktøy for møter og veiledersamtaler.
 
 NAIS-oppsettet bruker NB-Whisper Large for transkripsjon, Nemotron Diarization
-for estimert talerskille og Borealis-12b Q8 via llama.cpp for referater. Modellene
+for estimert talerskille og Borealis 4B Q8 via llama.cpp som standard for referater. Modellene
 kjører i et separat GKE-cluster bak en autentisert Cloud Run-gateway.
 I nettleseren kan du velge NB-Whisper Large eller Small for lyd, og Borealis 12B
-eller 4B for referat. Large og 12B er fortsatt standard. Transkripsjonsmodellen
+eller 4B for referat. Large og 4B er standard. Transkripsjonsmodellen
 låses for hele opptaket, også ved gjenoppretting; referatmodellen kan byttes før
 neste generering uten å transkribere lyden på nytt. I lokal modus brukes den
 konfigurerte modellen.
@@ -169,11 +169,12 @@ Kjør dette i et eget terminalvindu, eller som bakgrunnsprosess. Ollama lytter p
 ### Last ned lokal LLM
 
 ```bash
-ollama pull qwen3:8b
+ollama pull qwen3:8b  # Et valgfritt eksempel fra Ollama-biblioteket
 ```
 
-`qwen3:8b` er standard når `LLM_BACKEND=ollama`. Velg en annen installert modell
-med `LLM_MODELL`, for eksempel `borealis:12b`. Hastighet og minnebehov avhenger av
+Basis 0.1 oppgir lokalnavnet `borealis-4b:latest`, som må være installert eller
+importert lokalt. Velg en annen installert modell med `LLM_MODELL`, for eksempel
+`qwen3:8b`. Hastighet og minnebehov avhenger av
 modell, kvantisering og kontekstvindu.
 
 > **En annen modell?** Last den ned og angi navnet ved oppstart:
@@ -228,13 +229,13 @@ python -m uvicorn frontend.app:app --host 127.0.0.1 --port 8765
 | `NEMOTRON_CPU_THREADS` | `4` | CPU-traader for Nemotron |
 | `WHISPER_SANNTID_MODELL` | `modeller/nb-whisper-medium` | Modell for sanntidsmodus |
 | `LLM_BACKEND` | `openai` | `openai` for OpenAI-kompatibel proxy, eller `ollama` for lokal Ollama |
-| `LLM_MODELL` | `borealis-12b` (`qwen3:8b` ved `LLM_BACKEND=ollama`) | LLM for møtereferat og sammendrag |
-| `LLM_MAX_TOKENS` | `256` (`1024` i NAIS) | Standard svarbudsjett for proxy-baserte LLM-kall. Utfyllende sammendrag bruker et eget budsjett på 3072 tokener. Prompt og svar deler modellens kontekstvindu. |
+| `LLM_MODELL` | `borealis-4b` (`borealis-4b:latest` ved `LLM_BACKEND=ollama`) | LLM for møtereferat og sammendrag |
+| `LLM_MAX_TOKENS` | `256` (`1024` i NAIS) | Standard svarbudsjett for proxy-baserte LLM-kall. Basis 0.1 bruker 2048, og eldre utfyllende sammendrag 3072 tokener. Prompt og svar deler modellens kontekstvindu. |
 | `LLM_CONTEXT_TOKENS` | `8192` (`32768` ved lokal Ollama, eller `OLLAMA_NUM_CTX`) | Kontekstvindu per forespørsel, inkludert instruksjoner og svar. Må samsvare med modellserveren; øker ikke serverens grense. `LLM_NUM_CTX` støttes som eldre alias. |
 | `AI_PROXY_URL` | `http://127.0.0.1:9000` | OpenAI-kompatibelt LLM-endepunkt ved `LLM_BACKEND=openai` |
 | `AI_PROXY_API_KEY` | tom | API-nøkkel for OpenAI-kompatibelt LLM-endepunkt |
 | `OLLAMA_URL` | `http://localhost:11434`     | Ollama-endepunkt |
-| `OLLAMA_MODELL` | `qwen3:8b`                   | Eldre alias for `LLM_MODELL` i Ollama-modus |
+| `OLLAMA_MODELL` | som `LLM_MODELL` | Eldre alias for `LLM_MODELL` i Ollama-modus |
 | `OLLAMA_NUM_CTX` | `32768`                      | Kontekstvindauge for LLM (tokens) |
 | `ARBEIDSMAPPE` | midlertidig mappe | Mappe for lyd- og jobbstatusfiler |
 | `START_LOKAL_WORKER` | `true` | Starter lokal transkripsjonsarbeider sammen med API-et |
@@ -246,7 +247,7 @@ Referater og sammendrag bruker originaltranskripsjonen direkte når den passer i
 kontekstvinduet. Borealis kan telle hele den ferdig formaterte chat-prompten med
 sin egen tokenizer, inkludert spesialtokener. Instruksjoner og svar har reserverte
 budsjetter. Hvis tokentelleren ikke er tilgjengelig, brukes et konservativt estimat.
-For store kilder hentes strukturerte kildepunkter automatisk, uten å kutte bort
+De eldre malene henter strukturerte kildepunkter automatisk for store kilder, uten å kutte bort
 første eller siste del av møtet. Kildenumre peker på uendrede originalutdrag;
 sitater hentes av kode, ikke skrives eller oversettes av modellen.
 Når originalen passer, brukes normalt to modellkall: ett for referatet og ett for

@@ -29,6 +29,7 @@ def test_referat_scenarier_lister_faste_promptvalg():
     scenarier = list_referat_scenarier()
 
     assert [scenario["id"] for scenario in scenarier] == [
+        "basis_0_1",
         "minimalt_sammendrag",
         "utfyllende_sammendrag",
         "veiledermote",
@@ -36,7 +37,7 @@ def test_referat_scenarier_lister_faste_promptvalg():
         "samarbeidsmote",
         "egendefinert",
     ]
-    assert [scenario["id"] for scenario in scenarier if scenario["standard"]] == ["generelt_mote"]
+    assert [scenario["id"] for scenario in scenarier if scenario["standard"]] == ["basis_0_1"]
 
 
 def test_handling_bygger_prompt_fra_transkripsjon():
@@ -200,18 +201,19 @@ def test_ukjent_referat_scenario_gir_400():
     assert "Ukjent referat-scenario" in res.json()["detail"]
 
 
-def test_referat_uten_scenario_bruker_generelt_mote(monkeypatch):
+def test_referat_uten_scenario_bruker_basis_0_1(monkeypatch):
     app = FastAPI()
     app.include_router(router)
     kall = AsyncMock(return_value="Referat")
-    checked_model(monkeypatch, kall)
+    monkeypatch.setattr(referat_routes, "kall_llm", kall)
     response = TestClient(app).post("/referat", json={"transkripsjon": "Vi avtaler et nytt møte."})
     assert response.status_code == 200
-    assert response.json()["scenario"] == "generelt_mote"
-    assert "generelt møtereferat" in kall.await_args.args[1]
+    assert response.json()["scenario"] == "basis_0_1"
+    assert response.json()["prompt"]["version"] == "0.1"
+    assert "Bakgrunn for møtet" in kall.await_args.args[1]
 
 
-@pytest.mark.parametrize("scenario", [None, "generelt_mote", "veiledermote", "samarbeidsmote", "minimalt_sammendrag", "utfyllende_sammendrag"])
+@pytest.mark.parametrize("scenario", ["generelt_mote", "veiledermote", "samarbeidsmote", "minimalt_sammendrag", "utfyllende_sammendrag"])
 def test_live_referat_bruker_motetype(monkeypatch, scenario):
     from worker.prompts.handlinger import hent_referat_scenario
 

@@ -1,6 +1,7 @@
 import hashlib
 import json
 import os
+from functools import partial
 from uuid import UUID
 
 import httpx
@@ -67,6 +68,10 @@ def _bygg_referat_prompt(foresporsel: LlmForesporsel, *, rullerende: bool = Fals
     if foresporsel.veileder_variant is not None and scenario.id != "veiledermote":
         raise HTTPException(status_code=400, detail="Møteformål krever veiledermalen")
     tekst = foresporsel.transkripsjon
+    if scenario.profile:
+        if foresporsel.instruksjoner:
+            raise HTTPException(400, "Versjonerte prompter kan ikke endres med egne instruksjoner")
+        return scenario.system_prompt, scenario.bygg_bruker_prompt(tekst), scenario.id
     if scenario.id == "veiledermote":
         if foresporsel.instruksjoner:
             raise HTTPException(status_code=400, detail="Egne instruksjoner krever egendefinert referat-mal")
@@ -167,7 +172,7 @@ async def _kjor_handling(handling_id: str, foresporsel: LlmForesporsel):
             if event["type"] == "ferdig":
                 tekst = event["tekst"]
                 warnings = event.get("advarsler", [])
-        if handling.normaliser_output:
+        if handling.normaliser_output and not _prompt_metadata(handling, foresporsel):
             tekst = normaliser_til_bokmal(tekst)
     except httpx.ConnectError:
         raise HTTPException(status_code=503, detail="Kan ikke nå AI-proxyen")
@@ -181,6 +186,7 @@ async def _kjor_handling(handling_id: str, foresporsel: LlmForesporsel):
         failure("llm.action_failed", exc)
         raise HTTPException(status_code=500, detail=f"Feil ved generering av {handling.tittel}") from exc
     svar = {"tekst": tekst, "modell": foresporsel.modell or LLM_MODELL, "handling": handling.id}
+    svar.update(_prompt_metadata(handling, foresporsel))
     if warnings:
         svar["advarsler"] = warnings
     if scenario_id:
@@ -202,6 +208,16 @@ def _bygg_handling_prompt(handling: LlmHandling, foresporsel: LlmForesporsel) ->
 
 
 def _handling_events(handling, foresporsel, *, stream=None):
+    scenario = hent_referat_scenario(foresporsel.scenario) if handling.id in {"referat", "rullerende_referat"} else None
+    if scenario and scenario.profile:
+        profile = scenario.profile
+        return generate(
+            foresporsel.transkripsjon,
+            lambda text: _bygg_handling_prompt(handling, foresporsel.model_copy(update={"transkripsjon": text}))[:2],
+            foresporsel.modell, call=partial(kall_llm, raw=True, generation={
+                "temperature": profile.temperature, "top_p": profile.top_p, "num_ctx": profile.num_ctx}),
+            max_tokens=profile.max_tokens, context_tokens=profile.num_ctx, count=count_llm_tokens,
+        )
     grounded = handling.id in {"referat", "rullerende_referat", "sammendrag"}
     engine = generate_grounded if grounded else generate
     options = {"comprehensive": handling.id != "sammendrag" and foresporsel.scenario != "minimalt_sammendrag"} if grounded else {"stream": stream}
@@ -220,6 +236,14 @@ def _svargrense(handling: LlmHandling, foresporsel: LlmForesporsel) -> int | Non
         scenario = hent_referat_scenario(foresporsel.scenario)
         return scenario.max_tokens if scenario else None
     return None
+
+
+def _prompt_metadata(handling, foresporsel):
+    if handling.id in {"referat", "rullerende_referat"}:
+        scenario = hent_referat_scenario(foresporsel.scenario)
+        if scenario and scenario.profile:
+            return {"prompt": scenario.profile.metadata()}
+    return {}
 
 
 def _job_owner(request: Request) -> str:
@@ -263,12 +287,13 @@ async def start_llm_job(handling_id: str, jobb_id: UUID, foresporsel: LlmForespo
 
     async def run():
         async for result in _handling_events(handling, foresporsel):
-            if result["type"] == "ferdig" and handling.normaliser_output:
+            if result["type"] == "ferdig" and handling.normaliser_output and not _prompt_metadata(handling, foresporsel):
                 result["tekst"] = normaliser_til_bokmal(result["tekst"])
             yield result
 
     return summary_jobs.submit(str(jobb_id), _job_owner(request), fingerprint, {
         "modell": foresporsel.modell or LLM_MODELL, "handling": handling.id, "scenario": scenario,
+        **_prompt_metadata(handling, foresporsel),
         **_veileder_valg(foresporsel, scenario),
     }, run, _job_error)
 
@@ -296,6 +321,7 @@ def _stream_handling(handling_id: str, foresporsel: LlmForesporsel):
             "modell": valgt_modell,
             "handling": handling.id,
             "scenario": scenario_id,
+            **_prompt_metadata(handling, foresporsel),
             **_veileder_valg(foresporsel, scenario_id),
         })
         try:
@@ -305,9 +331,10 @@ def _stream_handling(handling_id: str, foresporsel: LlmForesporsel):
                     yield ": keepalive\n\n"
                 else:
                     if event["type"] == "ferdig":
-                        if handling.normaliser_output:
+                        if handling.normaliser_output and not _prompt_metadata(handling, foresporsel):
                             event["tekst"] = normaliser_til_bokmal(event["tekst"])
                         event.update(modell=valgt_modell, handling=handling.id, scenario=scenario_id)
+                        event.update(_prompt_metadata(handling, foresporsel))
                         event.update(_veileder_valg(foresporsel, scenario_id))
                     yield sse(event)
         except httpx.ConnectError:

@@ -10,7 +10,7 @@ if LOKAL_ASR_BACKEND not in {"whisper", "nemotron"}:
 NEMOTRON_MODELL = os.getenv("NEMOTRON_MODELL", "nvidia/nemotron-3.5-asr-streaming-0.6b")
 MODELL_ID = NEMOTRON_MODELL if LOKAL_ASR_BACKEND == "nemotron" else os.getenv("WHISPER_MODELL", "NbAiLab/nb-whisper-medium")
 LLM_BACKEND = os.getenv("LLM_BACKEND", "openai").lower()
-_standard_llm_modell = "qwen3:8b" if LLM_BACKEND == "ollama" else "borealis-12b"
+_standard_llm_modell = "borealis-4b:latest" if LLM_BACKEND == "ollama" else "borealis-4b"
 LLM_MODELL = os.getenv("LLM_MODELL", os.getenv("OLLAMA_MODELL", _standard_llm_modell))
 _arbeidsmappe = os.getenv("ARBEIDSMAPPE")
 ARBEIDSMAPPE = Path(_arbeidsmappe) if _arbeidsmappe else Path(tempfile.mkdtemp(prefix="transkribering_"))

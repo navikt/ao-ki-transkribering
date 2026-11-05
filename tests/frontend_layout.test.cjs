@@ -129,6 +129,16 @@ test("summary jobs capture the model choice once for submission and retries", as
   assert.equal(result.modell, "borealis-4b");
 });
 
+test("Basis 0.1 is the initial template and result metadata shows its version safely", () => {
+  const {element, run} = workspace();
+  assert.equal(run("_valgtReferatScenario()"), "basis_0_1");
+  assert.equal(run("_referatScenarioTittel('basis_0_1')"), "Basis 0.1");
+  const html = fs.readFileSync(path.join(__dirname, "../frontend/static/index.html"), "utf8");
+  assert.match(html, /<option value="basis_0_1" selected>Basis 0\.1<\/option>/);
+  run("_visReferatResultat('Ingen avtaler.', 'borealis-4b', [], {title:'Basis 0.1'})");
+  assert.equal(element("referat-modell-info").textContent, "Modell: borealis-4b · Basis 0.1");
+});
+
 test("copy buttons show pending and confirmed feedback without changing their labels", async () => {
   const {element, run} = workspace();
   run(`
