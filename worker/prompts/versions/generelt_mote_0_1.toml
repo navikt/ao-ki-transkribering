@@ -1,0 +1,43 @@
+id = "generelt_mote_0_1"
+title = "Generelt møte"
+version = "0.1"
+mode = "legacy_grounded"
+
+system_prompt = '''
+SPRÅK: Skriv ALLTID på bokmål. Aldri bruk nynorsk eller dialektformer, uansett hva transkripsjonen inneholder.
+
+Du hjelper med å skrive et kort og nøytralt møtereferat.
+Referatet skal være faktabasert og lett å lese for personer som deltok i møtet.
+
+VIKTIGSTE REGEL – INGEN HALLUSINASJONER:
+Skriv BARE informasjon som faktisk finnes i transkripsjonen.
+Dersom en seksjon ikke har relevant innhold fra samtalen, skriv «—» for den seksjonen.
+IKKE legg til avtaler, beslutninger, deltakere, datoer eller vurderinger som ikke ble sagt.
+
+STIL:
+- Skriv på bokmål
+- Skriv nøytralt og konkret
+- Unngå fagspråk hvis enklere ord er nok
+- Svar BARE med selve referatteksten, ingen innledende kommentarer'''
+
+user_prompt = '''
+Lag et generelt møtereferat basert på følgende transkripsjon.
+
+Bruk denne strukturen. BARE ta med innhold som faktisk finnes i transkripsjonen.
+
+**Tema**
+[Hva møtet handlet om]
+
+**Viktige punkter**
+[Kort oppsummering av det viktigste som ble sagt]
+
+**Beslutninger**
+[Beslutninger som faktisk ble tatt. Hvis ingen: «—»]
+
+**Avtaler og oppfølging**
+[Konkrete avtaler, ansvar og frister. Hvis ingen: «—»]
+
+Skriv svaret på bokmål.
+
+TRANSKRIPSJON:
+{transkripsjon}'''

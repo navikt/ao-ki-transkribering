@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from worker.prompts.versions import BASIS_0_1, PromptVersion
+from worker.prompts.versions import BASIS_0_1, PromptVersion, load_definition
 
 from worker.prompts.motereferat import (
     BRUKER_GENERELT_MOTE,
@@ -86,7 +86,7 @@ REFERAT_SCENARIER: dict[str, ReferatScenario] = {
         beskrivelse="Tematisk møtereferat med kort oversikt, detaljerte temaer, oppgaver, åpne spørsmål og konklusjon.",
         system_prompt=SYSTEM_UTFYLLENDE_SAMMENDRAG,
         bruker_prompt_template=BRUKER_UTFYLLENDE_SAMMENDRAG,
-        max_tokens=3072,
+        max_tokens=load_definition("utfyllende_sammendrag_0_1")["max_tokens"],
     ),
     "veiledermote": ReferatScenario(
         id="veiledermote",
@@ -94,7 +94,7 @@ REFERAT_SCENARIER: dict[str, ReferatScenario] = {
         beskrivelse="Samtalereferat i vi/du-form med situasjon, ønsker, usikkerhet og oppfølging.",
         system_prompt=SYSTEM_VEILEDERSAMTALE,
         bruker_prompt_template=BRUKER_VEILEDERSAMTALE,
-        max_tokens=2048,
+        max_tokens=load_definition("veiledermote_0_1")["max_tokens"],
     ),
     "generelt_mote": ReferatScenario(
         id="generelt_mote",
@@ -120,55 +120,13 @@ REFERAT_SCENARIER: dict[str, ReferatScenario] = {
 }
 
 
-SYSTEM_AVTALER = """\
-SPRÅK: Skriv ALLTID på bokmål. Aldri bruk nynorsk eller dialektformer.
+SYSTEM_AVTALER = load_definition("avtaler_0_1")["system_prompt"]
 
-Du hjelper NAV-veiledere med å hente ut konkrete avtaler og neste steg fra en transkripsjon.
-Skriv BARE informasjon som faktisk finnes i transkripsjonen.
-Dersom det ikke finnes konkrete avtaler, skriv «—».
-Ikke legg til frister, ansvar eller detaljer som ikke ble sagt.
-Svar BARE med selve listen, ingen innledning."""
+BRUKER_AVTALER = load_definition("avtaler_0_1")["user_prompt"]
 
-BRUKER_AVTALER = """\
-Hent ut konkrete avtaler, frister og ansvar fra denne transkripsjonen.
+SYSTEM_SJEKK = load_definition("kvalitetssjekk_0_1")["system_prompt"]
 
-Bruk denne strukturen:
-
-**Avtaler**
-[Kulepunkter med konkrete avtaler. Hvis ingen: «—»]
-
-**Frister**
-[Kulepunkter med datoer/tidspunkter som faktisk ble nevnt. Hvis ingen: «—»]
-
-**Ansvar**
-[Hvem skal gjøre hva, hvis det faktisk ble sagt. Hvis ingen: «—»]
-
-TRANSKRIPSJON:
-{transkripsjon}
-
-Skriv svaret på bokmål."""
-
-SYSTEM_SJEKK = """\
-SPRÅK: Skriv ALLTID på bokmål. Aldri bruk nynorsk eller dialektformer.
-
-Du hjelper NAV-veiledere med å sjekke om et referatutkast kan inneholde opplysninger
-som bør vurderes ekstra før lagring i Modia.
-Du skal ikke skrive om teksten. Du skal kun peke på mulige risikopunkter.
-Skriv BARE funn som bygger på teksten. Hvis ingen tydelige funn finnes, skriv «Ingen tydelige funn.»"""
-
-BRUKER_SJEKK = """\
-Sjekk teksten for mulige opplysninger som veileder bør vurdere før lagring.
-
-Se spesielt etter:
-- helsedetaljer eller diagnoser
-- sosialtjeneste/kommunale ytelser
-- subjektive personvurderinger
-- avtaler eller konklusjoner som virker dårlig forankret
-
-TEKST:
-{transkripsjon}
-
-Skriv svaret på bokmål."""
+BRUKER_SJEKK = load_definition("kvalitetssjekk_0_1")["user_prompt"]
 
 
 LLM_HANDLINGER: dict[str, LlmHandling] = {

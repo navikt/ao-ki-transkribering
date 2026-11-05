@@ -5,6 +5,7 @@ import re
 from sentence_splitter import SentenceSplitter
 
 from shared.diagnostics import event
+from worker.prompts.versions import load_texts
 
 _SENTENCES = SentenceSplitter(language="no")
 _NAME = r"[A-ZÆØÅ][a-zæøåéèäöü-]+"
@@ -44,10 +45,7 @@ _GENERIC_ACTORS = set((
 ).split())
 
 # Instructions supplement a code boundary; they are not treated as validation.
-DRAFT_RULES = """\nANSVAR OG OPPFØLGING: Ikke skriv oppgaveliste, ansvarstabell eller tilordninger i friteksten.
-Ikke gjett navn, roller eller taleridentiteter.
-Beskriv temaer og uavklarte forhold uten å gi personer oppgaver. Ikke gjenta tilordninger i konklusjonen.
-Kildeutsagn er ikke en bekreftelse på at oppgaven er vedtatt, fortsatt gjelder eller er gjennomført."""
+DRAFT_RULES = load_texts("source_processing_0_1")["DRAFT_RULES"]
 
 
 def _heading(line):

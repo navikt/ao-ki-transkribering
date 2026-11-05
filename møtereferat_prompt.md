@@ -49,10 +49,47 @@ ellers bli avvist med HTTP 403.
 
 ## Kilder i kode
 
+Alle faste prompttekster brukt av appen ligger nå i TOML under
+`worker/prompts/versions/`, også de eldre malene og interne kontrollinstruksjoner.
+Python-filene beholder sammensetting, validering, JSON-skjemaer og kjøremåte.
+Feilmeldinger, UI-tekster og syntetiske benchmark-/testdata er ikke promptdefinisjoner.
+
+| TOML-fil | Innhold |
+| --- | --- |
+| `basis_0_1.toml` | Uendret Basis 0.1, fortsatt standard |
+| `generelt_mote_0_1.toml` | Generelt møtereferat |
+| `minimalt_sammendrag_0_1.toml` | Minimalt sammendrag |
+| `utfyllende_sammendrag_0_1.toml` | Utfyllende sammendrag og svarbudsjett |
+| `veiledermote_0_1.toml` | Fullstendig veilederprompt og svarbudsjett |
+| `samarbeidsmote_0_1.toml` | Samarbeidsreferat |
+| `referat_14a_0_1.toml` | Eldre begrenset §14a-referat |
+| `rullerende_referat_0_1.toml`, `sammendrag_0_1.toml` | Eldre løpende utkast og sammendrag |
+| `avtaler_0_1.toml`, `kvalitetssjekk_0_1.toml` | Avtaleuttrekk og kvalitetssjekk |
+| `meeting_fragments_0_1.toml` | Felles veilederregler, Kartlegging/Oppfølging, egendefinert mal og tillegg for pågående møter |
+| `source_processing_0_1.toml` | Kildeuttrekk, faktakontroll, dekning, retting og oppdeling av lange transkripsjoner |
+
+Definisjonene deler feltene `id`, `title`, `version` og `mode`. Hele prompter har
+`system_prompt` og `user_prompt`; fragmentgruppene har en `[texts]`-tabell.
+Basis har eksplisitte genereringsinnstillinger. Eldre maler beholder arvede
+modell-/samplingsinnstillinger når disse ikke er angitt i filen. `max_tokens`
+flyttes til TOML der malen allerede hadde et eget svarbudsjett.
+
+Migreringen endrer ikke API-ID-er, menyvalg eller kontrollflyt. En eldre prompt
+blir ikke en Basis-/ett-stegsprofil bare fordi teksten nå ligger i TOML.
+Publiserte systemprompter er lagret ferdig sammensatt, slik at endringer i en
+annen definisjon ikke stille endrer en eksisterende versjon. Python-eksporter
+som `SYSTEM_REFERAT` beholdes for kompatibilitet, men leser teksten fra TOML.
+
+Definisjonene lastes ved oppstart og caches skrivebeskyttet. Lag en ny fil og
+versjon ved endringer, oppdater referansen i registeret/sammensettingen, og start
+appen på nytt. Dette gir ikke et redigeringsgrensesnitt eller hot-reload i prod.
+Snapshot-tester sammenligner de migrerte tekstene og sammensatte variantene med
+kontrollsummer tatt før migreringen.
+
 | Fil | Ansvar |
 |-----|--------|
 | [worker/prompts/versions/](worker/prompts/versions/) | Versjonerte prompttekster og tilhørende innstillinger |
-| [worker/prompts/motereferat.py](worker/prompts/motereferat.py) | Grunnprompter, møteformål og tekstmaler |
+| [worker/prompts/motereferat.py](worker/prompts/motereferat.py) | Kompatible Python-navn for møtepromptene i TOML |
 | [worker/prompts/handlinger.py](worker/prompts/handlinger.py) | Tilgjengelige scenarier, standardvalg og svarbudsjetter |
 | [frontend/routes/referat.py](frontend/routes/referat.py) | Setter sammen valgt mal, møteformål og avgrensning |
 | [worker/prompts/normalisering.py](worker/prompts/normalisering.py) | Deterministisk bokmål-normalisering av modelloutput |
