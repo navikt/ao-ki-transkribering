@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Transkriberit</title>
-  <link rel="stylesheet" href="/static/styles.css" />
+  <link rel="stylesheet" href="/static/styles.css?v=$asset_version" />
 </head>
 <body>
 <header class="app-header">
@@ -32,8 +32,8 @@
     <div class="mote-oppsett">
       <label class="scenario-velger">
         <span>Transkripsjonsmodell</span>
-        <select id="transkripsjon-modell" onchange="lastSystemstatus()" disabled>
-          <option value="">Standardmodell</option>
+        <select id="transkripsjon-modell" onchange="lastSystemstatus()" data-choices="$transcription_choices" $transcription_disabled>
+          $transcription_options
         </select>
       </label>
       <label class="scenario-velger">
@@ -219,8 +219,8 @@
     <div class="referat-oppsett">
       <label class="scenario-velger">
         <span>Referatmodell</span>
-        <select id="referat-modell" onchange="lastSystemstatus()" disabled>
-          <option value="">Standardmodell</option>
+        <select id="referat-modell" onchange="lastSystemstatus()" data-choices="$summary_choices" $summary_disabled>
+          $summary_options
         </select>
       </label>
       <label class="scenario-velger">
@@ -350,11 +350,11 @@
   </div>
 </footer>
 
-<script src="/static/session-access.js"></script>
-<script src="/static/vendor/jsdiff/dist/diff.min.js"></script>
-<script src="/static/summary-comparison.js"></script>
-<script src="/static/recording.js"></script>
-<script src="/static/recording-lifecycle.js"></script>
-<script src="/static/app.js"></script>
+<script src="/static/session-access.js?v=$asset_version"></script>
+<script src="/static/vendor/jsdiff/dist/diff.min.js?v=$asset_version"></script>
+<script src="/static/summary-comparison.js?v=$asset_version"></script>
+<script src="/static/recording.js?v=$asset_version"></script>
+<script src="/static/recording-lifecycle.js?v=$asset_version"></script>
+<script src="/static/app.js?v=$asset_version"></script>
 </body>
 </html>
