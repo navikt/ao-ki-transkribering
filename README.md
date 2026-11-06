@@ -14,6 +14,17 @@ konfigurerte modellen.
 De tre hovedmalene er **Stikkord 0.1**, **Basis 0.1** (uendret standard) og
 **Utfyllende 0.1**. Eldre maler finnes under **Tidligere maler**.
 Se [promptoppsettet](møtereferat_prompt.md) for versjoner og forskjeller.
+
+**Enkel** visning er standard: opptak, lydstatus og referat, med transkripsjon og
+redigering sammenfoldet. **Avansert** viser transkripsjon, modellvalg, prompteditor
+og diagnostikk. Bytte av visning avbryter ikke opptak eller generering.
+De tre versjonerte malene kan tilpasses midlertidig med egne system-/brukerprompter,
+temperature, top-p og svartokens (128–8192). Kontekstgrensen er skrivebeskyttet.
+Egne innstillinger gjelder også i enkel visning og er tydelig merket.
+Tilpasninger lagres bare i sidens minne; eksporter en JSON-variant for å beholde dem.
+TOML-baseline endres ikke. Diagnostikk viser siste innsendte transkripsjon bare
+i den aktive nettlesersiden, aldri i operasjonelle logger eller varianteksporten.
+
 Lokal modus bruker som standard NB-Whisper Medium, ECAPA-talerskille og kan
 kobles til [Ollama](https://ollama.com) for referatgenerering.
 

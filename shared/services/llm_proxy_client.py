@@ -3,7 +3,7 @@ import os
 from typing import Literal
 
 import httpx
-from pydantic import BaseModel, Field, StrictBool, field_validator
+from pydantic import BaseModel, ConfigDict, Field, StrictBool, field_validator, model_validator
 from shared.services.model_selection import resolve_model, summary_models
 
 from shared.core.settings import AI_PROXY_API_KEY, AI_PROXY_URL, LLM_BACKEND, LLM_MODELL, OLLAMA_URL
@@ -31,6 +31,29 @@ _OPTIONS = {
 }
 
 
+class SummaryOverrides(BaseModel):
+    """Request-scoped experiments; released prompt definitions remain immutable."""
+
+    model_config = ConfigDict(extra="forbid")
+    system_prompt: str | None = Field(default=None, min_length=1, max_length=12000)
+    user_prompt: str | None = Field(default=None, min_length=1, max_length=18000)
+    temperature: float | None = Field(default=None, ge=0, le=2, allow_inf_nan=False, strict=True)
+    top_p: float | None = Field(default=None, gt=0, le=1, allow_inf_nan=False, strict=True)
+    max_tokens: int | None = Field(default=None, ge=128, le=8192, strict=True)
+
+    @model_validator(mode="after")
+    def validate_prompts(self):
+        if (self.system_prompt is None) != (self.user_prompt is None):
+            raise ValueError("Both prompt fields are required for a custom prompt")
+        if self.system_prompt is not None and not self.system_prompt.strip():
+            raise ValueError("System prompt cannot be blank")
+        if self.user_prompt is not None and self.user_prompt.count("{transkripsjon}") != 1:
+            raise ValueError("User prompt must contain {transkripsjon} exactly once")
+        if not self.model_dump(exclude_none=True):
+            raise ValueError("At least one override is required")
+        return self
+
+
 class LlmForesporsel(BaseModel):
     transkripsjon: str
     modell: str | None = None
@@ -38,6 +61,7 @@ class LlmForesporsel(BaseModel):
     instruksjoner: str | None = Field(default=None, max_length=4000)
     begrenset_referat: StrictBool = False
     veileder_variant: Literal["kartlegging", "oppfolging"] | None = None
+    overrides: SummaryOverrides | None = None
 
     @field_validator("modell")
     @classmethod

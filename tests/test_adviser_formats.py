@@ -119,6 +119,7 @@ async def test_new_optional_field_preserves_old_job_fingerprints(monkeypatch):
     old_fields = payload.model_dump()
     old_fields.pop("begrenset_referat")
     old_fields.pop("veileder_variant")
+    old_fields.pop("overrides")
     old_fingerprint = hashlib.sha256(json.dumps(
         ["referat", old_fields], sort_keys=True, ensure_ascii=False,
     ).encode()).hexdigest()

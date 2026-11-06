@@ -6,12 +6,17 @@
   <title>Transkriberit</title>
   <link rel="stylesheet" href="/static/styles.css?v=$asset_version" />
 </head>
-<body>
+<body data-view="simple" data-advanced-tab="transcription">
 <header class="app-header">
   <div class="app-header-innhold">
     <div class="app-header-tekst">
       <h1>Transkriberit</h1>
     </div>
+    <div class="view-switch" role="group" aria-label="Visning">
+      <button type="button" id="view-simple" aria-pressed="true" onclick="meetingWorkspace.setView('simple')">Enkel</button>
+      <button type="button" id="view-advanced" aria-pressed="false" onclick="meetingWorkspace.setView('advanced')">Avansert</button>
+    </div>
+    <span id="workspace-custom-indicator" class="workspace-custom" role="status" hidden>Egne innstillinger er aktive</span>
   </div>
 </header>
 <main class="app-main">
@@ -152,6 +157,60 @@
   </div><!-- /app-main-venstre -->
 
   <div class="app-main-hoyre">
+  <section id="advanced-workspace" class="advanced-workspace" aria-label="Avansert arbeidsflate" hidden>
+    <div class="workspace-tabs" role="tablist" aria-label="Arbeidsflate">
+      <button type="button" id="tab-transcription" role="tab" aria-controls="workspace-transcription" aria-selected="true" onclick="meetingWorkspace.setTab('transcription')">Transkripsjon</button>
+      <button type="button" id="tab-prompt" role="tab" aria-controls="workspace-prompt" aria-selected="false" tabindex="-1" onclick="meetingWorkspace.setTab('prompt')">Prompt og modell</button>
+      <button type="button" id="tab-diagnostics" role="tab" aria-controls="workspace-diagnostics" aria-selected="false" tabindex="-1" onclick="meetingWorkspace.setTab('diagnostics')">Diagnostikk</button>
+    </div>
+    <div id="workspace-transcription" role="tabpanel" aria-labelledby="tab-transcription"></div>
+    <div id="workspace-prompt" role="tabpanel" aria-labelledby="tab-prompt" hidden>
+      <div id="workspace-models" class="workspace-fields"></div>
+      <p id="workspace-prompt-status" role="status"></p>
+      <button type="button" id="workspace-prompt-retry" class="knapp knapp-sekundær" onclick="meetingWorkspace.syncPrompt()" hidden>Hent tekstmal på nytt</button>
+      <fieldset id="workspace-prompt-fields" disabled>
+        <legend id="workspace-prompt-title">Tekstmal</legend>
+        <label for="workspace-system">Systemprompt</label>
+        <textarea id="workspace-system" rows="7" maxlength="12000" spellcheck="false"></textarea>
+        <label for="workspace-user">Brukerprompt</label>
+        <textarea id="workspace-user" rows="9" maxlength="18000" spellcheck="false"></textarea>
+        <div class="workspace-fields">
+          <label>Temperature<input id="workspace-temperature" type="number" min="0" max="2" step="0.05" /></label>
+          <label>Top-p<input id="workspace-top-p" type="number" min="0.01" max="1" step="0.01" /></label>
+          <label>Maks svartokens<input id="workspace-max-tokens" type="number" min="128" max="8192" step="1" /></label>
+          <label>Kontekstgrense<output id="workspace-context"></output></label>
+        </div>
+        <div class="knapper-rad">
+          <button type="button" class="knapp knapp-sekundær" onclick="meetingWorkspace.resetPrompt()">Tilbakestill</button>
+          <button type="button" class="knapp knapp-sekundær" onclick="meetingWorkspace.exportPrompt(this)">Eksporter variant</button>
+        </div>
+        <details id="workspace-prompt-diff" class="summary-comparison">
+          <summary>Endringer fra tekstmal</summary>
+          <div id="workspace-prompt-diff-text" class="summary-diff-body"></div>
+        </details>
+      </fieldset>
+    </div>
+    <div id="workspace-diagnostics" role="tabpanel" aria-labelledby="tab-diagnostics" hidden>
+      <div id="workspace-audio-diagnostics"></div>
+      <h2 class="seksjon-tittel">Siste generering</h2>
+      <pre id="workspace-request-info">Ingen generering startet.</pre>
+      <details>
+        <summary>Transkripsjon sendt til modellen</summary>
+        <textarea id="workspace-request-source" rows="10" readonly aria-label="Transkripsjon sendt til modellen"></textarea>
+      </details>
+      <details>
+        <summary>Prompt for siste generering</summary>
+        <label for="workspace-request-system">Systemprompt</label>
+        <textarea id="workspace-request-system" rows="6" readonly></textarea>
+        <label for="workspace-request-user">Brukerprompt med transkripsjon</label>
+        <textarea id="workspace-request-user" rows="10" readonly></textarea>
+      </details>
+    </div>
+  </section>
+  <details id="simple-transcription" class="simple-transcription">
+    <summary>Vis transkripsjon</summary>
+    <div id="simple-transcription-slot"></div>
+  </details>
   <div class="transkripsjon-kolonne">
   <div id="sanntid-resultat">
     <h2 class="seksjon-tittel">Transkripsjon</h2>
@@ -327,7 +386,8 @@
       <div id="referat-diff-tekst" class="summary-diff-body"></div>
     </details>
   </div><!-- /referat-panel -->
-  <section class="referat-editor" aria-labelledby="referat-editor-tittel">
+  <details class="referat-editor">
+    <summary>Rediger referat</summary>
     <h2 class="seksjon-tittel" id="referat-editor-tittel">
       <label for="referat-redigert">Bearbeidet referat</label>
     </h2>
@@ -339,7 +399,7 @@
       <span id="referat-editor-status" class="fotnote" role="status"></span>
     </div>
     <p class="fotnote">Teksten lagres ikke og forsvinner når du lukker eller laster siden på nytt.</p>
-  </section>
+  </details>
   </div><!-- /referat-kolonne -->
   </div><!-- /app-main-hoyre -->
   </div><!-- /app-main-grid -->
@@ -348,11 +408,14 @@
 
 <!-- Teknisk info – footer -->
 <footer class="app-footer">
+  <details class="service-status">
+  <summary id="workspace-service-status" role="status">Systemstatus · sjekker</summary>
   <div id="systeminfo-footer" class="systeminfo-footer" aria-live="polite">
     <span class="status-chip status-chip--ukjent"><b>API</b> sjekker</span>
     <span class="status-chip status-chip--ukjent"><b>Whisper</b> sjekker</span>
     <span class="status-chip status-chip--ukjent"><b>Borealis</b> sjekker</span>
   </div>
+  </details>
 </footer>
 
 <script src="/static/session-access.js?v=$asset_version"></script>
@@ -360,6 +423,7 @@
 <script src="/static/summary-comparison.js?v=$asset_version"></script>
 <script src="/static/recording.js?v=$asset_version"></script>
 <script src="/static/recording-lifecycle.js?v=$asset_version"></script>
+<script src="/static/workspace.js?v=$asset_version"></script>
 <script src="/static/app.js?v=$asset_version"></script>
 </body>
 </html>

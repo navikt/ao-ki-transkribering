@@ -74,6 +74,9 @@ def _bygg_referat_prompt(foresporsel: LlmForesporsel, *, rullerende: bool = Fals
     if scenario.profile:
         if foresporsel.instruksjoner:
             raise HTTPException(400, "Versjonerte prompter kan ikke endres med egne instruksjoner")
+        if foresporsel.overrides and foresporsel.overrides.system_prompt is not None:
+            return (foresporsel.overrides.system_prompt,
+                    foresporsel.overrides.user_prompt.replace("{transkripsjon}", tekst), scenario.id)
         return scenario.system_prompt, scenario.bygg_bruker_prompt(tekst), scenario.id
     if scenario.id == "veiledermote":
         if foresporsel.instruksjoner:
@@ -193,6 +196,10 @@ async def _kjor_handling(handling_id: str, foresporsel: LlmForesporsel):
 
 
 def _bygg_handling_prompt(handling: LlmHandling, foresporsel: LlmForesporsel) -> tuple[str, str, str | None]:
+    if foresporsel.overrides:
+        scenario = hent_referat_scenario(foresporsel.scenario)
+        if handling.id not in {"referat", "rullerende_referat"} or not scenario or not scenario.profile:
+            raise HTTPException(400, "Avanserte innstillinger krever en versjonert tekstmal")
     if handling.id in {"referat", "rullerende_referat"}:
         return _bygg_referat_prompt(foresporsel, rullerende=handling.id == "rullerende_referat")
     if foresporsel.begrenset_referat:
@@ -208,12 +215,16 @@ def _handling_events(handling, foresporsel, *, stream=None):
     scenario = hent_referat_scenario(foresporsel.scenario) if handling.id in {"referat", "rullerende_referat"} else None
     if scenario and scenario.profile:
         profile = scenario.profile
+        options = foresporsel.overrides
+        generation = {"temperature": profile.temperature, "top_p": profile.top_p, "num_ctx": profile.num_ctx}
+        if options:
+            generation.update(options.model_dump(include={"temperature", "top_p"}, exclude_none=True))
         return generate(
             foresporsel.transkripsjon,
             lambda text: _bygg_handling_prompt(handling, foresporsel.model_copy(update={"transkripsjon": text}))[:2],
-            foresporsel.modell, call=partial(kall_llm, raw=True, generation={
-                "temperature": profile.temperature, "top_p": profile.top_p, "num_ctx": profile.num_ctx}),
-            max_tokens=profile.max_tokens, context_tokens=profile.num_ctx, count=count_llm_tokens,
+            foresporsel.modell, call=partial(kall_llm, raw=True, generation=generation),
+            max_tokens=options.max_tokens if options and options.max_tokens is not None else profile.max_tokens,
+            context_tokens=profile.num_ctx, count=count_llm_tokens,
         )
     grounded = handling.id in {"referat", "rullerende_referat", "sammendrag"}
     engine = generate_grounded if grounded else generate
@@ -239,7 +250,19 @@ def _prompt_metadata(handling, foresporsel):
     if handling.id in {"referat", "rullerende_referat"}:
         scenario = hent_referat_scenario(foresporsel.scenario)
         if scenario and scenario.profile:
-            return {"prompt": scenario.profile.metadata()}
+            metadata = scenario.profile.metadata()
+            if foresporsel.overrides:
+                options = foresporsel.overrides
+                system, user, _ = _bygg_handling_prompt(handling, foresporsel.model_copy(update={"transkripsjon": ""}))
+                metadata = {**metadata, "title": "Egendefinert · " + scenario.profile.title, "custom": True,
+                            "definition_sha256": hashlib.sha256((system + "\0" + user).encode()).hexdigest()}
+                metadata["parameters"] = {
+                    "temperature": options.temperature if options.temperature is not None else scenario.profile.temperature,
+                    "top_p": options.top_p if options.top_p is not None else scenario.profile.top_p,
+                    "max_tokens": options.max_tokens if options.max_tokens is not None else scenario.profile.max_tokens,
+                    "context_tokens": scenario.profile.num_ctx,
+                }
+            return {"prompt": metadata}
     return {}
 
 
@@ -278,6 +301,8 @@ async def start_llm_job(handling_id: str, jobb_id: UUID, foresporsel: LlmForespo
         fingerprint_input.pop("begrenset_referat")
     if foresporsel.veileder_variant is None:
         fingerprint_input.pop("veileder_variant")
+    if foresporsel.overrides is None:
+        fingerprint_input.pop("overrides")
     fingerprint = hashlib.sha256(json.dumps(
         [handling.id, fingerprint_input], sort_keys=True, ensure_ascii=False,
     ).encode()).hexdigest()
@@ -361,6 +386,18 @@ async def hent_llm_handlinger():
 async def hent_referat_scenarier():
     """Lister faste referat-scenarier som velger serverdefinerte prompts."""
     return {"scenarier": list_referat_scenarier()}
+
+
+@router.get("/llm/prompt-definitions/{scenario_id}")
+async def prompt_definition(scenario_id: str, response: Response):
+    response.headers["Cache-Control"] = "no-store"
+    scenario = hent_referat_scenario(scenario_id)
+    if not scenario or not scenario.profile:
+        raise HTTPException(404, "Denne malen har ikke et avansert redigeringsoppsett")
+    profile = scenario.profile
+    return {"prompt": profile.metadata(), "system_prompt": profile.system_prompt,
+            "user_prompt": profile.user_prompt, "temperature": profile.temperature, "top_p": profile.top_p,
+            "max_tokens": profile.max_tokens, "context_tokens": profile.num_ctx}
 
 
 @router.get("/llm/status", response_model=LlmStatus)

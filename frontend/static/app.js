@@ -721,7 +721,7 @@ async function lastReferatScenarier() {
 
 async function _triggerLiveReferat(transkripsjon) {
   if (!_llmGatewayTilgjengelig) return;
-  const valg = _referatValg();
+  const valg = _referatValg(false);
   if (!valg) return;
   if (_liveReferatOppdaterer) return; // allerede pågår
   _liveReferatOppdaterer = true;
@@ -1426,16 +1426,21 @@ function oppdaterReferatMal() {
   document.getElementById("veileder-variant-valg").hidden = _valgtReferatScenario() !== "veiledermote";
   oppdaterMoteBekreftelse();
   document.getElementById("referat-mal-status").textContent = "";
+  globalThis.meetingWorkspace?.syncPrompt();
 }
 
-function _referatValg() {
+function _referatValg(visFeil = true) {
   const scenario = _valgtReferatScenario();
   if (scenario === "veiledermote") return {
     scenario,
     veileder_variant: document.getElementById("veileder-variant").value || "oppfolging",
     begrenset_referat: document.getElementById("paragraf14-hake").checked,
   };
-  if (scenario !== "egendefinert") return { scenario };
+  if (scenario !== "egendefinert") {
+    if (globalThis.meetingWorkspace && !meetingWorkspace.validate(visFeil)) return null;
+    const overrides = globalThis.meetingWorkspace?.overrides();
+    return { scenario, ...(overrides ? {overrides} : {}) };
+  }
   const instruksjoner = document.getElementById("referat-instruksjoner").value.trim();
   if (!instruksjoner) {
     document.getElementById("referat-mal-status").textContent = "Skriv egne instruksjoner før du lager referatet.";
@@ -1459,6 +1464,7 @@ function _oppdaterReferatValgLaas() {
   document.getElementById("veileder-variant").disabled = laast;
   const model = document.getElementById("referat-modell");
   model.disabled = laast || model.dataset.choices !== "multiple";
+  globalThis.meetingWorkspace?.setBusy(laast);
 }
 
 function hentReferatFraArbeidsflate() {
@@ -1486,6 +1492,7 @@ function _referatScenarioTittel(scenarioId) {
 async function _genererLlmJobb(handling, payload, onProgress, signal) {
   const model = document.getElementById("referat-modell").value;
   payload = {...payload, ...(model ? {modell: model} : {})};
+  globalThis.meetingWorkspace?.captureRequest(payload);
   const key = crypto.randomUUID();
   const submitUrl = `/llm/handlinger/${handling}/jobber/${key}`;
   let accepted = false;
@@ -1728,10 +1735,15 @@ async function lastSystemstatus() {
     const res = await appFetch("/system/status");
     if (res.status === 401) {
       if (el) el.innerHTML = _statusChip("Innlogging", "kreves", "feil");
+      const compact = document.getElementById("workspace-service-status");
+      if (compact) compact.textContent = "Systemstatus · innlogging kreves";
       return;
     }
     if (!res.ok) throw new Error("HTTP " + res.status);
     const status = await res.json();
+    const compact = document.getElementById("workspace-service-status");
+    if (compact) compact.textContent = [status.api, status.transcription, status.llm, status.diarization]
+      .every(service => service?.status === "ok") ? "Systemstatus · tilgjengelig" : "Systemstatus · krever oppmerksomhet";
     _oppdaterModellvalg("transkripsjon-modell", status.transcription,
       sanntidAktivt || sanntidWs?.readyState === 1);
     _oppdaterModellvalg("referat-modell", status.llm, _referatGenererer || _liveReferatOppdaterer);
@@ -1760,6 +1772,8 @@ async function lastSystemstatus() {
       ].join("");
     }
   } catch {
+    const compact = document.getElementById("workspace-service-status");
+    if (compact) compact.textContent = "Systemstatus · kunne ikke sjekkes";
     _settTranskripsjonTilgjengelig(false, "App-status kunne ikke sjekkes");
     _settLlmHandlingerTilgjengelig(false, "App-status kunne ikke sjekkes");
     _oppdaterKapabilitetVarsel({
@@ -1783,3 +1797,4 @@ function kortNavn(sti) {
 lastReferatScenarier();
 lastSystemstatus();
 setInterval(lastSystemstatus, 30000);
+if (typeof MeetingWorkspace !== "undefined") globalThis.meetingWorkspace = new MeetingWorkspace();

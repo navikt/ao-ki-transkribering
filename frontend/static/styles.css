@@ -137,6 +137,54 @@ h1 {
 .dialog-tekst, .referat-panel-body, .live-referat-body { overflow-wrap: anywhere; }
 .form-filinngang { max-width: 100%; }
 
+/* The two views share one recording, transcript and summary DOM. */
+.view-switch, .workspace-tabs { display: flex; flex-wrap: wrap; gap: .25rem; }
+.view-switch { margin-left: auto; }
+.view-switch button, .workspace-tabs button {
+  font: inherit; font-size: var(--font-sm); cursor: pointer;
+  background: white; color: var(--color-gray-700); border: 1px solid var(--color-gray-300);
+  border-radius: 4px; padding: .45rem .85rem; min-height: 40px;
+}
+.view-switch button:hover, .workspace-tabs button:hover { background: var(--color-gray-100); }
+.view-switch button[aria-pressed="true"], .workspace-tabs button[aria-selected="true"] {
+  color: var(--color-blue-700); background: var(--color-blue-50); border-color: var(--color-blue-600); font-weight: 600;
+}
+.view-switch button:active, .workspace-tabs button:active { background: var(--color-gray-200); }
+.view-switch button:focus-visible, .workspace-tabs button:focus-visible, summary:focus-visible {
+  outline: 3px solid var(--color-blue-600); outline-offset: 3px;
+}
+.workspace-custom { font-size: var(--font-sm); color: #725000; }
+.simple-transcription { grid-column: 1 / -1; }
+.simple-transcription > summary, .service-status > summary { cursor: pointer; font-size: var(--font-sm); }
+.simple-transcription[open] > summary { margin-bottom: 1rem; }
+.advanced-workspace { min-width: 0; }
+.workspace-tabs { padding-bottom: 1rem; border-bottom: 1px solid var(--color-gray-200); margin-bottom: 1rem; }
+.workspace-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; margin: 1rem 0; }
+.workspace-fields label { display: flex; flex-direction: column; gap: .3rem; min-width: 0; font-size: var(--font-sm); }
+.workspace-fields select, .workspace-fields input, .workspace-fields output {
+  width: 100%; min-width: 0; min-height: 40px; padding: .4rem .55rem; font: inherit;
+}
+.workspace-fields select, .workspace-fields input { border: 1px solid var(--color-gray-300); border-radius: 4px; background: white; }
+#workspace-prompt-fields { border: 0; min-width: 0; }
+#workspace-prompt-fields legend { font-weight: 600; margin: .75rem 0; }
+#workspace-prompt-fields > label { display: block; font-size: var(--font-sm); margin: .75rem 0 .3rem; }
+.advanced-workspace textarea {
+  display: block; width: 100%; resize: vertical; font: inherit; font-size: var(--font-sm);
+  padding: .65rem; border: 1px solid var(--color-gray-300); border-radius: 4px; min-height: 100px;
+}
+.advanced-workspace textarea:focus, .workspace-fields input:focus { outline: 2px solid var(--color-blue-600); }
+#workspace-prompt-status { font-size: var(--font-sm); color: var(--color-gray-700); min-height: 1.5rem; }
+#workspace-request-info { white-space: pre-wrap; overflow-wrap: anywhere; font-size: var(--font-sm); margin-bottom: 1rem; }
+.app-main-hoyre { grid-template-columns: minmax(0, 1fr); }
+.referat-kolonne { border-left: 0; padding-left: 0; }
+body[data-view="simple"] .app-main { max-width: 1150px; }
+body[data-view="simple"] .referat-kolonne { grid-row: 1; }
+body[data-view="simple"] .referat-kolonne .tomtilstand { min-height: 160px; }
+body[data-view="advanced"] .app-main-hoyre { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+body[data-view="advanced"] .referat-kolonne { border-left: 1px solid var(--color-gray-200); padding-left: 2rem; }
+.referat-editor > summary { cursor: pointer; font-weight: 600; margin-bottom: .75rem; }
+.service-status[open] > summary { margin-bottom: .5rem; }
+
 .app-footer {
   border-top: 1px solid var(--color-gray-200);
   background: var(--color-white);
@@ -862,6 +910,8 @@ button[aria-busy="true"]::after {
   .app-main-hoyre { grid-template-columns: minmax(0, 1fr); }
   .referat-kolonne { border-left: 0; padding-left: 0; border-top: 1px solid var(--color-gray-200); padding-top: 1.5rem; }
   .app-main-hoyre .tomtilstand { min-height: 120px; }
+  body[data-view="advanced"] .app-main-hoyre { grid-template-columns: minmax(0, 1fr); }
+  body[data-view="advanced"] .referat-kolonne { padding-left: 0; border-left: 0; }
 }
 .utviklermodus {
   margin-top: .75rem;
