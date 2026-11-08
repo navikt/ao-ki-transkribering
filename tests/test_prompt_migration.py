@@ -40,10 +40,10 @@ def test_released_toml_definitions_keep_their_checksum(name, expected):
     assert hashlib.sha256((DEFINITIONS / name).read_bytes()).hexdigest() == expected
 
 
-def test_migrating_text_does_not_change_default_or_opt_legacy_prompts_into_basis_mode():
+def test_migrated_legacy_prompts_do_not_opt_into_basis_mode():
     from worker.prompts.handlinger import REFERAT_SCENARIER, STANDARD_REFERAT_SCENARIO
-    assert STANDARD_REFERAT_SCENARIO == "basis_0_1"
-    current = {"stikkord_0_1", "basis_0_1", "utfyllende_0_1"}
+    assert STANDARD_REFERAT_SCENARIO == "basis_0_2"
+    current = {"stikkord_0_1", "basis_0_1", "utfyllende_0_1", "stikkord_0_2", "basis_0_2", "utfyllende_0_2"}
     assert {name for name, scenario in REFERAT_SCENARIER.items() if scenario.profile} == current
     assert all(scenario.profile is None for name, scenario in REFERAT_SCENARIER.items() if name not in current)
     assert REFERAT_SCENARIER["utfyllende_sammendrag"].max_tokens == 3072

@@ -26,7 +26,7 @@ def test_basis_release_is_versioned_and_has_the_requested_settings():
 
 
 @pytest.mark.parametrize("endpoint", ["/referat", "/referat/stream", "/referat/rullerende/stream"])
-@pytest.mark.parametrize("scenario", [None, "basis_0_1"])
+@pytest.mark.parametrize("scenario", ["basis_0_1"])
 def test_basis_uses_exact_prompt_and_one_generation_without_legacy_review(monkeypatch, endpoint, scenario):
     text = "Bruker: Jeg vil tenke på tiltaket. Veileder: Vi avtaler ingenting nå."
     result = "  Bakgrunn for møtet\nOppfølging.\nAvtaler\nIngen  "
@@ -61,7 +61,7 @@ def test_background_job_retains_prompt_version(monkeypatch, tmp_path):
     app.include_router(routes.router)
     key = str(uuid4())
     with TestClient(app) as client:
-        start = client.post(f"/llm/handlinger/referat/jobber/{key}", json={"transkripsjon": "Ingen avtaler."})
+        start = client.post(f"/llm/handlinger/referat/jobber/{key}", json={"transkripsjon": "Ingen avtaler.", "scenario": "basis_0_1"})
         assert start.status_code == 202
         assert start.json()["prompt"] == BASIS_0_1.metadata()
         for _ in range(100):

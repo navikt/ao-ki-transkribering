@@ -111,7 +111,7 @@ async def kall(system: str, bruker: str, modell: str | None = None, *, max_token
                 "think": False,
                 **({"format": response_schema or "json"} if json_mode else {}),
                 "options": {**(_OPTIONS if generation is None else {}), **({"num_predict": max_tokens} if max_tokens is not None else {}),
-                            **{key: value for key, value in (generation or {}).items() if key in {"temperature", "top_p", "num_ctx"}},
+                            **{key: value for key, value in (generation or {}).items() if key in {"temperature", "top_p", "num_ctx", "repeat_penalty"}},
                             **({"temperature": 0} if json_mode else {})},
             },
         ) as resp:

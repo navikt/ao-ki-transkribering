@@ -206,6 +206,23 @@ async def test_gateway_accepts_bounded_basis_sampling(monkeypatch, top_p, status
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("extra,status", [
+    ({"repeat_penalty": 1.05}, 200), ({"repeat_penalty": 1.2}, 200),
+    ({"repeat_penalty": 1}, 200), ({"repeat_penalty": 2}, 200),
+    ({"repeat_penalty": True}, 403), ({"repeat_penalty": "1.2"}, 403),
+    ({"repeat_penalty": 0.9}, 403), ({"repeat_penalty": 2.1}, 403),
+    ({"repeat_penalty": 1.2, "api_base": "https://other.invalid"}, 403),
+    ({"repeat_penalty": 1.2, "transkriberit_count_tokens": True}, 403),
+])
+async def test_gateway_limits_repeat_penalty_without_provider_overrides(monkeypatch, extra, status):
+    monkeypatch.setenv("NAIS_DEV_API_KEY", "dev-key")
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=gateway_app()), base_url="https://gateway") as client:
+        response = await client.post("/v1/chat/completions", headers={"Authorization": "Bearer dev-key"},
+                                     json={"model": "borealis-12b", "extra_body": extra})
+    assert response.status_code == status
+
+
+@pytest.mark.asyncio
 @pytest.mark.parametrize("offset,status", [(7201, 200), (9000, 200), (10800, 200), (10800.01, 400)])
 async def test_gateway_recording_offsets_allow_three_hours(monkeypatch, offset, status):
     monkeypatch.setenv("NAIS_DEV_API_KEY", "dev-key")

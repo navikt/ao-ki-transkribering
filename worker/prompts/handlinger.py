@@ -1,5 +1,7 @@
 from dataclasses import dataclass
-from worker.prompts.versions import BASIS_0_1, STIKKORD_0_1, UTFYLLENDE_0_1, PromptVersion, load_definition
+from worker.prompts.versions import (
+    BASIS_0_1, STIKKORD_0_1, UTFYLLENDE_0_1, BASIS_0_2, CURRENT_PROMPTS, PromptVersion, load_definition,
+)
 
 from worker.prompts.motereferat import (
     BRUKER_GENERELT_MOTE,
@@ -51,7 +53,7 @@ class ReferatScenario:
         return self.bruker_prompt_template.format(transkripsjon=transkripsjon)
 
 
-STANDARD_REFERAT_SCENARIO = BASIS_0_1.id
+STANDARD_REFERAT_SCENARIO = BASIS_0_2.id
 STANDARD_VEILEDER_VARIANT = "oppfolging"
 VEILEDER_VARIANTER = {
     "kartlegging": {
@@ -67,6 +69,14 @@ VEILEDER_VARIANTER = {
 }
 
 REFERAT_SCENARIER: dict[str, ReferatScenario] = {
+    **{profile.id: ReferatScenario(
+        id=profile.id, tittel=profile.title,
+        beskrivelse={"stikkord_0_2": "Korte kulepunkter og stikkord.",
+                     "basis_0_2": "Kort prosa med kulepunkter for avtaler.",
+                     "utfyllende_0_2": "Utfyllende prosa med kulepunkter for avtaler."}[profile.id],
+        system_prompt=profile.system_prompt, bruker_prompt_template=profile.user_prompt,
+        max_tokens=profile.max_tokens, profile=profile,
+    ) for profile in CURRENT_PROMPTS},
     STIKKORD_0_1.id: ReferatScenario(
         id=STIKKORD_0_1.id, tittel=STIKKORD_0_1.title,
         beskrivelse="Korte stikkord under de fem overskriftene, inntil 120 ord.",
@@ -202,6 +212,7 @@ def list_referat_scenarier() -> list[dict]:
             "tittel": scenario.tittel,
             "beskrivelse": scenario.beskrivelse,
             "standard": scenario.id == STANDARD_REFERAT_SCENARIO,
+            "current": scenario.id in {profile.id for profile in CURRENT_PROMPTS},
             **({"prompt": scenario.profile.metadata()} if scenario.profile else {}),
             **({"varianter": [
                 {"id": key, "tittel": value["tittel"], "beskrivelse": value["beskrivelse"],

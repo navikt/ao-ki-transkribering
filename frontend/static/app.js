@@ -694,7 +694,7 @@ async function lastReferatScenarier() {
       option.textContent = _referatScenarioTittel(scenario.id);
       option.title = scenario.beskrivelse || "";
       option.selected = scenario.id === valgt || (!valgt && scenario.standard);
-      (scenario.prompt ? velger : legacy).appendChild(option);
+      (scenario.prompt && scenario.current !== false ? velger : legacy).appendChild(option);
     }
     velger.appendChild(legacy);
     const varianter = _referatScenarier.find(scenario => scenario.id === "veiledermote")?.varianter;
@@ -1417,7 +1417,7 @@ function _visLlmUtilgjengelig(melding) {
 }
 
 function _valgtReferatScenario() {
-  return document.getElementById("referat-scenario")?.value || "basis_0_1";
+  return document.getElementById("referat-scenario")?.value || "basis_0_2";
 }
 
 function oppdaterReferatMal() {
@@ -1474,6 +1474,9 @@ function hentReferatFraArbeidsflate() {
 
 function _referatScenarioTittel(scenarioId) {
   const titler = {
+    stikkord_0_2: "Stikkord 0.2",
+    basis_0_2: "Basis 0.2",
+    utfyllende_0_2: "Utfyllende 0.2",
     stikkord_0_1: "Stikkord 0.1",
     basis_0_1: "Basis 0.1",
     utfyllende_0_1: "Utfyllende 0.1",

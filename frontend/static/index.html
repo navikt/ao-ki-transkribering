@@ -177,6 +177,7 @@
         <div class="workspace-fields">
           <label>Temperature<input id="workspace-temperature" type="number" min="0" max="2" step="0.05" /></label>
           <label>Top-p<input id="workspace-top-p" type="number" min="0.01" max="1" step="0.01" /></label>
+          <label id="workspace-repeat-field" hidden>Repetisjonsstraff<input id="workspace-repeat" type="number" min="1" max="2" step="0.05" /></label>
           <label>Maks svartokens<input id="workspace-max-tokens" type="number" min="128" max="8192" step="1" /></label>
           <label>Kontekstgrense<output id="workspace-context"></output></label>
         </div>
@@ -285,10 +286,13 @@
       <label class="scenario-velger">
         <span>Tekstmal</span>
         <select id="referat-scenario" onchange="oppdaterReferatMal()">
-          <option value="stikkord_0_1">Stikkord 0.1</option>
-          <option value="basis_0_1" selected>Basis 0.1</option>
-          <option value="utfyllende_0_1">Utfyllende 0.1</option>
+          <option value="stikkord_0_2">Stikkord 0.2</option>
+          <option value="basis_0_2" selected>Basis 0.2</option>
+          <option value="utfyllende_0_2">Utfyllende 0.2</option>
           <optgroup label="Tidligere maler">
+          <option value="stikkord_0_1">Stikkord 0.1</option>
+          <option value="basis_0_1">Basis 0.1</option>
+          <option value="utfyllende_0_1">Utfyllende 0.1</option>
           <option value="minimalt_sammendrag">Minimalt sammendrag</option>
           <option value="utfyllende_sammendrag">Utfyllende sammendrag</option>
           <option value="sammendrag">Kort NAV-sammendrag</option>

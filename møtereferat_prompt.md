@@ -9,17 +9,34 @@ De tre hovedvalgene vises i denne rekkefølgen:
 
 | Valg | Form | Maksimalt svar |
 | --- | --- | --- |
-| **Stikkord 0.1** | Korte kulepunkter og fraser, inntil 120 ord | 768 tokener |
-| **Basis 0.1** | Det opprinnelige standardsammendraget, uendret og fortsatt valgt som standard | 2048 tokener |
-| **Utfyllende 0.1** | Sammenhengende prosa, mer relevant kontekst og detaljer, konkrete avtaler og neste steg | 3072 tokener |
+| **Stikkord 0.2** | Korte kulepunkter og stikkord | 2048 tokener |
+| **Basis 0.2** | Kort prosatekst, kulepunkter for avtaler; standard | 2048 tokener |
+| **Utfyllende 0.2** | Utfyllende prosatekst, kulepunkter for avtaler | 2048 tokener |
 
-Alle tre bruker samme systemprompt, de samme fem overskriftene, modellvalg,
-temperatur, top-p og kontekststørrelse som Basis 0.1. Brukerprompt og svarbudsjett
-gir forskjellen i form og detaljnivå. Basis-filen er ikke endret, heller ikke for
-å legge til nye stilkrav om prosa. De to nye definisjonene er selvstendige,
-versjonerte filer, slik at senere endringer ikke endrer Basis 0.1 i stillhet.
-Begge oppgir `based_on = "basis_0_1"`; samme baseline-ID følger med i
-resultatmetadata. Dette dokumenterer opphavet, ikke dynamisk arv av prompttekst.
+0.2 er importert ordrett fra `prompt-nav-20261106-140228-643da01b_kort.md`,
+`prompt-nav-20261106-140210-139b1723_medium.md` og
+`prompt-nav-20261106-133057-f29d0323_langt.md`. Runtime-definisjonene ligger i
+`worker/prompts/versions/{stikkord,basis,utfyllende}_0_2.toml`.
+Kort og medium har tillegg om Du/veileder, utelatelse av navn og avgrensning mot
+teknologiprat. Disse tilleggene finnes ikke i den leverte lange varianten og
+er derfor ikke lagt til der. Alle bruker overskriftene Bakgrunn, Det du fortalte,
+Det veilederen informerte om, Avtaler og Ikke avtalt ennå.
+
+| Innstilling | Stikkord 0.2 | Basis 0.2 | Utfyllende 0.2 |
+| --- | --- | --- | --- |
+| Temperatur | 0.2 | 0.2 | 0 |
+| Repetisjonsstraff | 1.05 | 1.2 | 1.2 |
+| Top-p | 0.9 | 0.9 | 0.9 |
+| Kontekst | 32768 | 32768 | 32768 |
+
+Alle tre bevarer 2048 svartokener fra kildene. Modellreferansen er
+`hf.co/NbAiLab/borealis-12b-gguf:Q4_K_M`, med `borealis-12b` som cloud-alias.
+Dette bytter ikke automatisk installert modell, kvantisering eller modellvalg i
+nettleseren: modellvelgeren og driftsoppsettet bestemmer faktisk modell.
+
+Hver 0.2-fil oppgir sin forrige 0.1-versjon i `based_on`. Alle 0.1-filer er
+uendret og fortsatt tilgjengelige under Tidligere maler, også i prompteditoren.
+Testene låser både tidligere kontrollsummer og ordlyden i de importerte promptene.
 
 De eldre valgene er samlet under **Tidligere maler**, også når oppslag av
 menyvalgene feiler og nettsiden bruker sin statiske fallback. Ingen eldre mal
@@ -27,9 +44,9 @@ er fjernet: de har ikke nøyaktig samme prompt og behandling som de tre nye.
 Maler for generelle møter, spesielle avgrensninger, møteformål og egne
 instruksjoner er derfor fortsatt tilgjengelige for sammenligning og særbehov.
 
-## Basis 0.1
+## Basis 0.1 (tidligere versjon)
 
-**Basis 0.1** er nytt standardvalg. Den kan leses opp for brukeren og bruker
+**Basis 0.1** var det opprinnelige standardvalget. Den kan leses opp for brukeren og bruker
 de fem overskriftene Bakgrunn for møtet, Hva brukeren fortalte, Hva veilederen
 informerte om, Avtaler og Neste steg (hvem gjør hva, og når).
 
@@ -66,10 +83,14 @@ bevarer historikken, og en test låser innholdet i Basis 0.1 med en kontrollsum.
 API-svar og genereringsjobber inkluderer promptens ID, navn, versjon og modus.
 Nettsiden viser versjonen sammen med modellnavnet på resultatet.
 
-Ved utrulling må også gatewayens allowlist oppdateres fra
-`images/litellm/scoped_auth.py` via OpenTofu-oppsettet i `terraform/gke`, siden
-Basis 0.1 sender `top_p`. En ren NAIS-utrulling uten gatewayoppdateringen kan
-ellers bli avvist med HTTP 403.
+Før 0.2 rulles ut til NAIS, må gatewayens allowlist oppdateres fra
+`images/litellm/scoped_auth.py` via OpenTofu-oppsettet i `terraform/gke`.
+0.2 sender `extra_body.repeat_penalty`; bare denne ekstra parameteren med en
+numerisk verdi mellom 1 og 2 tillates, i tillegg til det eksisterende, separate
+tokentellerformatet. Andre provider-overstyringer er fortsatt blokkert.
+Klienten bruker `repeat_penalty` i Ollama-options lokalt, og LiteLLM viderefører
+ekstra parameter til llama.cpp i cloud. En ren NAIS-utrulling uten denne
+gatewayoppdateringen kan bli avvist med HTTP 403.
 
 ## Kilder i kode
 
@@ -80,7 +101,10 @@ Feilmeldinger, UI-tekster og syntetiske benchmark-/testdata er ikke promptdefini
 
 | TOML-fil | Innhold |
 | --- | --- |
-| `basis_0_1.toml` | Uendret Basis 0.1, fortsatt standard |
+| `basis_0_2.toml` | Ny medium-prompt, standard |
+| `stikkord_0_2.toml` | Ny kort-prompt |
+| `utfyllende_0_2.toml` | Ny lang-prompt |
+| `basis_0_1.toml` | Uendret Basis 0.1, tidligere versjon |
 | `stikkord_0_1.toml` | Kort stikkordsvariant av Basis |
 | `utfyllende_0_1.toml` | Utfyllende prosavariant av Basis |
 | `generelt_mote_0_1.toml` | Generelt møtereferat |

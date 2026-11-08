@@ -117,7 +117,11 @@ async def authorize(request: Request, api_key: str) -> str:
             if "top_p" in payload and (type(payload["top_p"]) not in {int, float}
                                         or not math.isfinite(payload["top_p"]) or not 0 <= payload["top_p"] <= 1):
                 raise HTTPException(403, "Invalid sampling parameter")
-            if "extra_body" in payload and (
+            extra = payload.get("extra_body")
+            repeat_only = (isinstance(extra, dict) and set(extra) == {"repeat_penalty"}
+                           and type(extra["repeat_penalty"]) in {int, float}
+                           and math.isfinite(extra["repeat_penalty"]) and 1 <= extra["repeat_penalty"] <= 2)
+            if "extra_body" in payload and not repeat_only and (
                 payload["extra_body"] != {"transkriberit_count_tokens": True}
                 or type(payload["extra_body"].get("transkriberit_count_tokens")) is not bool
                 or payload.get("stream") is not False or type(payload.get("max_tokens")) is not int or payload["max_tokens"] != 1

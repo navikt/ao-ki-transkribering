@@ -5,7 +5,7 @@ class MeetingWorkspace {
     this.drafts = new Map();
     this.loading = 0;
     this.busy = false;
-    this.fields = ["system", "user", "temperature", "top-p", "max-tokens"];
+    this.fields = ["system", "user", "temperature", "top-p", "max-tokens", "repeat"];
     this.transcript = document.querySelector(".transkripsjon-kolonne");
     for (const id of ["transkripsjon-modell", "referat-modell"]) {
       this.el("workspace-models").appendChild(this.el(id).closest("label"));
@@ -29,6 +29,8 @@ class MeetingWorkspace {
   }
 
   el(id) { return document.getElementById(id); }
+
+  versioned(scenario) { return /^(basis|stikkord|utfyllende)_\d+_\d+$/.test(scenario); }
 
   setView(view) {
     if (!["simple", "advanced"].includes(view)) return;
@@ -57,12 +59,14 @@ class MeetingWorkspace {
       temperature: Number(this.el("workspace-temperature").value),
       top_p: Number(this.el("workspace-top-p").value),
       max_tokens: Number(this.el("workspace-max-tokens").value),
+      ...(this.definition?.repeat_penalty != null ? {repeat_penalty: Number(this.el("workspace-repeat").value)} : {}),
     };
   }
 
   baseline() {
-    const {system_prompt, user_prompt, temperature, top_p, max_tokens} = this.definition;
-    return {system_prompt, user_prompt, temperature, top_p, max_tokens};
+    const {system_prompt, user_prompt, temperature, top_p, max_tokens, repeat_penalty} = this.definition;
+    return {system_prompt, user_prompt, temperature, top_p, max_tokens,
+      ...(repeat_penalty != null ? {repeat_penalty} : {})};
   }
 
   overrides() {
@@ -73,7 +77,7 @@ class MeetingWorkspace {
   }
 
   validate(reveal = true) {
-    if (!this.definition && ["basis_0_1", "stikkord_0_1", "utfyllende_0_1"].includes(this.el("referat-scenario").value)) {
+    if (!this.definition && this.versioned(this.el("referat-scenario").value)) {
       this.el("workspace-prompt-status").textContent = "Tekstmalen er ikke klar. Hent tekstmalen på nytt før generering.";
       if (reveal) { this.setView("advanced"); this.setTab("prompt"); }
       return false;
@@ -82,10 +86,12 @@ class MeetingWorkspace {
     const v = this.values();
     const valid = v.system_prompt.trim() && v.system_prompt.length <= 12000 && v.user_prompt.length <= 18000
       && v.user_prompt.split("{transkripsjon}").length === 2
-      && this.fields.slice(2).every(field => this.el("workspace-" + field).value.trim() !== "")
+      && this.fields.slice(2).filter(field => field !== "repeat" || v.repeat_penalty != null)
+        .every(field => this.el("workspace-" + field).value.trim() !== "")
       && Number.isFinite(v.temperature) && v.temperature >= 0 && v.temperature <= 2
       && Number.isFinite(v.top_p) && v.top_p > 0 && v.top_p <= 1
-      && Number.isInteger(v.max_tokens) && v.max_tokens >= 128 && v.max_tokens <= 8192;
+      && Number.isInteger(v.max_tokens) && v.max_tokens >= 128 && v.max_tokens <= 8192
+      && (v.repeat_penalty == null || Number.isFinite(v.repeat_penalty) && v.repeat_penalty >= 1 && v.repeat_penalty <= 2);
     if (!valid) {
       if (reveal) { this.setView("advanced"); this.setTab("prompt"); }
       this.el("workspace-prompt-status").textContent = "Kontroller parametergrensene. Brukerprompten må inneholde {transkripsjon} nøyaktig én gang.";
@@ -116,11 +122,13 @@ class MeetingWorkspace {
       this.el("workspace-" + field).value = String(values[key]);
     }
     this.el("workspace-context").textContent = this.definition.context_tokens.toLocaleString("nb-NO");
+    this.el("workspace-repeat-field").hidden = this.definition.repeat_penalty == null;
+    this.el("workspace-repeat").value = values.repeat_penalty != null ? String(values.repeat_penalty) : "";
     this.changed();
   }
 
   async syncPrompt() {
-    const scenario = this.el("referat-scenario").value || "basis_0_1";
+    const scenario = this.el("referat-scenario").value || "basis_0_2";
     if (scenario === this.definition?.prompt.id) return;
     const revision = ++this.loading;
     this.definition = null;
@@ -129,7 +137,7 @@ class MeetingWorkspace {
     this.el("workspace-custom-indicator").hidden = true;
     this.el("workspace-prompt-diff-text").textContent = "";
     for (const field of this.fields) this.el("workspace-" + field).value = "";
-    if (!["basis_0_1", "stikkord_0_1", "utfyllende_0_1"].includes(scenario)) {
+    if (!this.versioned(scenario)) {
       this.el("workspace-prompt-status").textContent = "Tidligere mal · parameterredigering er ikke tilgjengelig";
       return;
     }
@@ -171,8 +179,10 @@ class MeetingWorkspace {
       parameters: payload.overrides ? {
         temperature: payload.overrides.temperature, top_p: payload.overrides.top_p,
         max_tokens: payload.overrides.max_tokens,
+        ...(payload.overrides.repeat_penalty != null ? {repeat_penalty: payload.overrides.repeat_penalty} : {}),
       } : definition ? {temperature: definition.temperature, top_p: definition.top_p,
-        max_tokens: definition.max_tokens} : null,
+        max_tokens: definition.max_tokens,
+        ...(definition.repeat_penalty != null ? {repeat_penalty: definition.repeat_penalty} : {})} : null,
     }, null, 2);
   }
 

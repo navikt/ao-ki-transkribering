@@ -217,8 +217,10 @@ def _handling_events(handling, foresporsel, *, stream=None):
         profile = scenario.profile
         options = foresporsel.overrides
         generation = {"temperature": profile.temperature, "top_p": profile.top_p, "num_ctx": profile.num_ctx}
+        if profile.repeat_penalty is not None:
+            generation["repeat_penalty"] = profile.repeat_penalty
         if options:
-            generation.update(options.model_dump(include={"temperature", "top_p"}, exclude_none=True))
+            generation.update(options.model_dump(include={"temperature", "top_p", "repeat_penalty"}, exclude_none=True))
         return generate(
             foresporsel.transkripsjon,
             lambda text: _bygg_handling_prompt(handling, foresporsel.model_copy(update={"transkripsjon": text}))[:2],
@@ -262,6 +264,9 @@ def _prompt_metadata(handling, foresporsel):
                     "max_tokens": options.max_tokens if options.max_tokens is not None else scenario.profile.max_tokens,
                     "context_tokens": scenario.profile.num_ctx,
                 }
+                repeat = options.repeat_penalty if options.repeat_penalty is not None else scenario.profile.repeat_penalty
+                if repeat is not None:
+                    metadata["parameters"]["repeat_penalty"] = repeat
             return {"prompt": metadata}
     return {}
 
@@ -397,7 +402,8 @@ async def prompt_definition(scenario_id: str, response: Response):
     profile = scenario.profile
     return {"prompt": profile.metadata(), "system_prompt": profile.system_prompt,
             "user_prompt": profile.user_prompt, "temperature": profile.temperature, "top_p": profile.top_p,
-            "max_tokens": profile.max_tokens, "context_tokens": profile.num_ctx}
+            "max_tokens": profile.max_tokens, "context_tokens": profile.num_ctx,
+            **({"repeat_penalty": profile.repeat_penalty} if profile.repeat_penalty is not None else {})}
 
 
 @router.get("/llm/status", response_model=LlmStatus)

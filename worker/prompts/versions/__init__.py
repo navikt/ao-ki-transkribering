@@ -2,6 +2,7 @@
 
 from dataclasses import dataclass
 from functools import lru_cache
+import math
 from pathlib import Path
 from types import MappingProxyType
 import tomllib
@@ -25,6 +26,9 @@ def load_definition(name):
             raise ValueError(f"Invalid {key} in prompt definition {name}")
     if "max_tokens" in data and (type(data["max_tokens"]) is not int or data["max_tokens"] <= 0):
         raise ValueError(f"Invalid max_tokens in prompt definition {name}")
+    if "repeat_penalty" in data and (type(data["repeat_penalty"]) not in {float, int}
+            or not math.isfinite(data["repeat_penalty"]) or not 1 <= data["repeat_penalty"] <= 2):
+        raise ValueError(f"Invalid repeat_penalty in prompt definition {name}")
     if "texts" not in data and not {"system_prompt", "user_prompt"} <= data.keys():
         raise ValueError(f"Missing prompt text in definition {name}")
     if "texts" in data:
@@ -53,6 +57,7 @@ class PromptVersion:
     system_prompt: str
     user_prompt: str
     based_on: str | None = None
+    repeat_penalty: float | None = None
 
     def metadata(self):
         return {"id": self.id, "title": self.title, "version": self.version, "mode": self.mode,
@@ -62,3 +67,7 @@ class PromptVersion:
 BASIS_0_1 = PromptVersion(**load_definition("basis_0_1"))
 STIKKORD_0_1 = PromptVersion(**load_definition("stikkord_0_1"))
 UTFYLLENDE_0_1 = PromptVersion(**load_definition("utfyllende_0_1"))
+BASIS_0_2 = PromptVersion(**load_definition("basis_0_2"))
+STIKKORD_0_2 = PromptVersion(**load_definition("stikkord_0_2"))
+UTFYLLENDE_0_2 = PromptVersion(**load_definition("utfyllende_0_2"))
+CURRENT_PROMPTS = (STIKKORD_0_2, BASIS_0_2, UTFYLLENDE_0_2)

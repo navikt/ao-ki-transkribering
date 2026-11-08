@@ -154,3 +154,26 @@ test("a failed template load blocks generation and offers an explicit retry", as
   assert.equal(el("workspace-prompt-fields").disabled, true);
   assert.equal(run("meetingWorkspace.overrides()"), null);
 });
+
+test("0.2 loads its repetition penalty, validates edits and retains the released baseline", async () => {
+  const {el, run} = await loaded();
+  el("referat-scenario").value = "basis_0_2";
+  run(`appFetch = async () => ({ok:true,json:async()=>({prompt:{id:'basis_0_2',title:'Basis 0.2'},
+    system_prompt:'System',user_prompt:'{transkripsjon}',temperature:0.2,top_p:0.9,
+    max_tokens:2048,repeat_penalty:1.2,context_tokens:32768})});`);
+  await run("meetingWorkspace.syncPrompt()");
+  assert.equal(el("workspace-repeat-field").hidden, false);
+  assert.equal(el("workspace-repeat").value, "1.2");
+  assert.equal(run("meetingWorkspace.overrides()"), null);
+  el("workspace-repeat").value = "1.05";
+  run("meetingWorkspace.changed()");
+  assert.equal(run("meetingWorkspace.overrides().repeat_penalty"), 1.05);
+  assert.equal(run("meetingWorkspace.validate()"), true);
+  for (const value of ["0.9", "2.1", ""]) {
+    el("workspace-repeat").value = value;
+    assert.equal(run("meetingWorkspace.validate()"), false);
+  }
+  run("meetingWorkspace.resetPrompt()");
+  assert.equal(el("workspace-repeat").value, "1.2");
+  assert.equal(run("meetingWorkspace.overrides()"), null);
+});

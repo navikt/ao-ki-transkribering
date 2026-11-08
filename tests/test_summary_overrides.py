@@ -54,7 +54,7 @@ def test_overrides_use_exact_custom_prompt_and_report_effective_settings(client)
 
 
 def test_parameter_only_override_keeps_baseline_prompt(client):
-    response = client.post("/referat", json={"transkripsjon": "Kilde", "overrides": {"temperature": 0.0}})
+    response = client.post("/referat", json={"transkripsjon": "Kilde", "scenario": "basis_0_1", "overrides": {"temperature": 0.0}})
     assert response.status_code == 200
     call = routes.kall_llm.await_args
     assert call.args[:2] == (BASIS_0_1.system_prompt, BASIS_0_1.user_prompt.format(transkripsjon="Kilde"))
@@ -71,6 +71,7 @@ def test_parameter_only_override_keeps_baseline_prompt(client):
     {"temperature": -0.1}, {"temperature": 2.1}, {"temperature": "0.2"},
     {"top_p": 0}, {"top_p": 1.1}, {"max_tokens": 127}, {"max_tokens": 8193},
     {"max_tokens": 512.5}, {"max_tokens": True}, {"context_tokens": 131072}, {"model": "other"},
+    {"repeat_penalty": True}, {"repeat_penalty": 0.9}, {"repeat_penalty": 2.1},
 ])
 def test_invalid_overrides_never_reach_model(client, overrides):
     response = client.post("/referat", json={"transkripsjon": "Kilde", "overrides": overrides})

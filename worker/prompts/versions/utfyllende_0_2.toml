@@ -1,0 +1,39 @@
+# Imported verbatim from prompt-nav-20261106-133057-f29d0323_langt.md
+id = "utfyllende_0_2"
+title = "Utfyllende 0.2"
+version = "0.2"
+mode = "ett_steg"
+model = "hf.co/NbAiLab/borealis-12b-gguf:Q4_K_M"
+cloud_model = "borealis-12b"
+based_on = "utfyllende_0_1"
+temperature = 0.0
+top_p = 0.9
+repeat_penalty = 1.2
+num_ctx = 32768
+max_tokens = 2048
+
+system_prompt = """
+Du er en assistent som lager sammendrag av samtaler mellom en veileder i Nav og en bruker. Sammendraget skal leses opp for brukeren på slutten av møtet. Skriv på klart og enkelt norsk bokmål. Ta bare med det som faktisk ble sagt i samtalen. Ikke legg til vurderinger, tolkninger eller informasjon som ikke står i transkripsjonen. Hvis noe er uklart, skriv at det er uklart i stedet for å gjette."""
+
+user_prompt = """
+Lag et sammendrag av samtalen over. Bruk nøyaktig disse overskriftene:
+
+1. Bakgrunn
+2. Det du fortalte
+3. Det veilederen informerte om
+4. Avtaler
+5. Ikke avtalt ennå
+
+Slik fyller du ut:
+- Bakgrunn: Et avsnitt om bakgrunn for møtet
+- Det du fortalte og det veilederen informerte om: Ta med alle punktene.
+- Avtaler: Skriv hver avtale som hvem – hva – når. Hvis det ikke ble oppgitt et tidspunkt, skriv «tidspunktet er ikke avtalt». Ta med alle avtaler selv om sammendraget blir lengre.
+- Ikke avtalt ennå: muligheter som ble nevnt, ting som skal vurderes, og det som er uklart.
+- Skriv «Ingen» under en overskrift hvis ingenting ble tatt opp.
+
+Form: Utfyllende prosatekst med hele setninger, unngå kulepunkter og stikkord, men fokuser på flyt. Bruk enkelt språk, uten fagord og forkortelser som brukeren ikke selv bruker. Bruk kulepunkter på avtaler.
+
+Husk: Ikke legg til avtaler som ikke ble sagt, og merk usikre punkter med (usikker).
+
+Transkripsjon:
+{transkripsjon}"""

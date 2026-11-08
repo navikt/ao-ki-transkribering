@@ -17,12 +17,12 @@ from worker.prompts.versions import BASIS_0_1, STIKKORD_0_1, UTFYLLENDE_0_1
 CURRENT = [STIKKORD_0_1, BASIS_0_1, UTFYLLENDE_0_1]
 
 
-def test_exactly_three_current_choices_with_unchanged_basis_in_the_middle():
+def test_first_release_remains_available_with_its_original_baseline():
     choices = list_referat_scenarier()
-    current = [item for item in choices if "prompt" in item]
+    current = [item for item in choices if item["id"] in {profile.id for profile in CURRENT}]
     assert [item["id"] for item in current] == [profile.id for profile in CURRENT]
-    assert [item["id"] for item in current if item["standard"]] == [BASIS_0_1.id]
-    assert STANDARD_REFERAT_SCENARIO == BASIS_0_1.id
+    assert not any(item["current"] or item["standard"] for item in current)
+    assert STANDARD_REFERAT_SCENARIO == "basis_0_2"
     for profile in CURRENT:
         assert profile.system_prompt == BASIS_0_1.system_prompt
         assert (profile.model, profile.cloud_model, profile.temperature, profile.top_p, profile.num_ctx, profile.mode) == (

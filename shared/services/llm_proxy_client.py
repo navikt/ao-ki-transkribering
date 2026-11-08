@@ -39,6 +39,7 @@ class SummaryOverrides(BaseModel):
     user_prompt: str | None = Field(default=None, min_length=1, max_length=18000)
     temperature: float | None = Field(default=None, ge=0, le=2, allow_inf_nan=False, strict=True)
     top_p: float | None = Field(default=None, gt=0, le=1, allow_inf_nan=False, strict=True)
+    repeat_penalty: float | None = Field(default=None, ge=1, le=2, allow_inf_nan=False, strict=True)
     max_tokens: int | None = Field(default=None, ge=128, le=8192, strict=True)
 
     @model_validator(mode="after")
@@ -130,6 +131,8 @@ def _build_payload(system: str, bruker: str, modell: str | None, stream: bool, m
         "temperature": _OPTIONS["temperature"],
         "max_tokens": max_tokens if max_tokens is not None else _OPTIONS["num_predict"],
         **{key: value for key, value in (generation or {}).items() if key in {"temperature", "top_p"}},
+        **({"extra_body": {"repeat_penalty": generation["repeat_penalty"]}}
+           if generation and generation.get("repeat_penalty") is not None else {}),
     }
 
 
