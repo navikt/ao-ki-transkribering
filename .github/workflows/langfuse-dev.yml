@@ -1,6 +1,20 @@
 name: Langfuse dev pilot
 
 on:
+  workflow_call:
+    inputs:
+      deploy:
+        type: boolean
+        default: false
+      prerequisites_verified:
+        type: boolean
+        default: false
+      clickhouse_host:
+        type: string
+        default: ao-ki-langfuse-clickhouse-tls.ao-ki-taskforce.svc.cluster.local
+      bucket_name:
+        type: string
+        default: ''
   workflow_dispatch:
     inputs:
       deploy:
@@ -12,8 +26,9 @@ on:
         type: boolean
         default: false
       clickhouse_host:
-        description: Existing private ClickHouse TLS DNS name, ports 8443 and 9440
+        description: Private ClickHouse TLS DNS name, ports 8443 and 9440
         type: string
+        default: ao-ki-langfuse-clickhouse-tls.ao-ki-taskforce.svc.cluster.local
       bucket_name:
         description: Globally unique dev bucket name, owned by the web application
         type: string
@@ -51,6 +66,7 @@ jobs:
     outputs:
       web: ${{ steps.web.outputs.image }}
       worker: ${{ steps.worker.outputs.image }}
+      clickhouse: ${{ steps.clickhouse.outputs.image }}
     steps:
       - uses: actions/checkout@v4
       - uses: nais/docker-build-push@v0
@@ -62,7 +78,7 @@ jobs:
           docker_context: images/langfuse
           dockerfile: images/langfuse/Dockerfile
           target: web
-          image_suffix: -langfuse-web
+          image_suffix: langfuse-web
       - uses: nais/docker-build-push@v0
         id: worker
         with:
@@ -72,7 +88,7 @@ jobs:
           docker_context: images/langfuse
           dockerfile: images/langfuse/Dockerfile
           target: worker
-          image_suffix: -langfuse-worker
+          image_suffix: langfuse-worker
       - name: Smoke-test both vendor entrypoints without network services
         env:
           WEB_IMAGE: ${{ steps.web.outputs.image }}
@@ -80,6 +96,15 @@ jobs:
         run: |
           docker run --rm --mount "type=bind,source=$GITHUB_WORKSPACE/tests,target=/smoke,readonly" --entrypoint node "$WEB_IMAGE" /smoke/langfuse_container_smoke.mjs web
           docker run --rm --mount "type=bind,source=$GITHUB_WORKSPACE/tests,target=/smoke,readonly" --entrypoint node "$WORKER_IMAGE" /smoke/langfuse_container_smoke.mjs worker
+      - uses: nais/docker-build-push@v0
+        id: clickhouse
+        with:
+          team: ao-ki-taskforce
+          identity_provider: ${{ secrets.NAIS_WORKLOAD_IDENTITY_PROVIDER }}
+          project_id: ${{ vars.NAIS_MANAGEMENT_PROJECT_ID }}
+          docker_context: images/clickhouse
+          dockerfile: images/clickhouse/Dockerfile
+          image_suffix: langfuse-clickhouse
 
   deploy:
     if: ${{ inputs.deploy && inputs.prerequisites_verified }}
@@ -104,6 +129,12 @@ jobs:
         run: |
           python scripts/render-langfuse-nais.py --web-image "$WEB_IMAGE" --worker-image "$WORKER_IMAGE" --bucket "$BUCKET" --clickhouse-host "$CLICKHOUSE_HOST" --component web > /tmp/langfuse-web.yaml
           python scripts/render-langfuse-nais.py --web-image "$WEB_IMAGE" --worker-image "$WORKER_IMAGE" --bucket "$BUCKET" --clickhouse-host "$CLICKHOUSE_HOST" --component worker > /tmp/langfuse-worker.yaml
+      - name: Deploy private ClickHouse and its persistent disk first
+        uses: nais/deploy/actions/deploy@v2
+        env:
+          CLUSTER: dev-gcp
+          RESOURCE: .nais/langfuse/clickhouse-data-dev.yaml,.nais/langfuse/clickhouse-dev.yaml
+          VAR: image=${{ needs.build.outputs.clickhouse }}
       - name: Deploy web and complete migrations first
         uses: nais/deploy/actions/deploy@v2
         env:

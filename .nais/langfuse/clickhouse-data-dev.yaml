@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: ao-ki-langfuse-clickhouse-data
+  namespace: ao-ki-taskforce
+  labels:
+    team: ao-ki-taskforce
+    app: ao-ki-langfuse-clickhouse
+spec:
+  accessModes: [ReadWriteOnce]
+  volumeMode: Filesystem
+  storageClassName: premium-rwo
+  resources:
+    requests:
+      storage: 50Gi

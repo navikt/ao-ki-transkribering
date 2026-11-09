@@ -1,0 +1,115 @@
+apiVersion: nais.io/v1alpha1
+kind: Application
+metadata:
+  name: ao-ki-langfuse-clickhouse
+  namespace: ao-ki-taskforce
+  labels:
+    team: ao-ki-taskforce
+spec:
+  image: '{{image}}'
+  port: 8123
+  replicas:
+    min: 1
+    max: 1
+  strategy:
+    type: Recreate
+  resources:
+    requests:
+      cpu: '2'
+      memory: 8Gi
+    limits:
+      cpu: '2'
+      memory: 8Gi
+  startup:
+    path: /ping
+    failureThreshold: 90
+    periodSeconds: 10
+  liveness:
+    path: /ping
+    initialDelay: 30
+  readiness:
+    path: /ping
+    initialDelay: 10
+  filesFrom:
+    - persistentVolumeClaim: ao-ki-langfuse-clickhouse-data
+      mountPath: /var/lib/clickhouse
+    - secret: ao-ki-langfuse-clickhouse-tls
+      mountPath: /var/run/clickhouse-tls
+  envFrom:
+    - secret: ao-ki-langfuse-clickhouse-auth
+  observability:
+    autoInstrumentation:
+      enabled: false
+    logging:
+      destinations:
+        - id: loki
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ao-ki-langfuse-clickhouse-tls
+  namespace: ao-ki-taskforce
+  labels:
+    team: ao-ki-taskforce
+spec:
+  type: ClusterIP
+  selector:
+    app: ao-ki-langfuse-clickhouse
+  ports:
+    - name: https
+      port: 8443
+      targetPort: 8443
+    - name: native-tls
+      port: 9440
+      targetPort: 9440
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: ao-ki-langfuse-clickhouse-tls
+  namespace: ao-ki-taskforce
+  labels:
+    team: ao-ki-taskforce
+spec:
+  podSelector:
+    matchLabels:
+      app: ao-ki-langfuse-clickhouse
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: ao-ki-langfuse
+        - podSelector:
+            matchLabels:
+              app: ao-ki-langfuse-worker
+      ports:
+        - port: 8443
+          protocol: TCP
+        - port: 9440
+          protocol: TCP
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: ao-ki-langfuse-clickhouse-client
+  namespace: ao-ki-taskforce
+  labels:
+    team: ao-ki-taskforce
+spec:
+  podSelector:
+    matchExpressions:
+      - key: app
+        operator: In
+        values: [ao-ki-langfuse, ao-ki-langfuse-worker]
+  policyTypes: [Egress]
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              app: ao-ki-langfuse-clickhouse
+      ports:
+        - port: 8443
+          protocol: TCP
+        - port: 9440
+          protocol: TCP

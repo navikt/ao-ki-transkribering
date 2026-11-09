@@ -34,6 +34,10 @@ def render(web_image, worker_image, bucket, clickhouse_host):
         "CLICKHOUSE_MIGRATION_URL": f"clickhouse://{clickhouse_host}:9440",
         "CLICKHOUSE_MIGRATION_SSL": "true", "LANGFUSE_IDENTITY_DIR": "/var/run/langfuse-identities",
     }
+    internal_clickhouse = clickhouse_host == "ao-ki-langfuse-clickhouse-tls.ao-ki-taskforce.svc.cluster.local"
+    if internal_clickhouse:
+        common.update(NODE_EXTRA_CA_CERTS="/var/run/clickhouse-ca/ca.crt",
+                      SSL_CERT_FILE="/var/run/clickhouse-ca/ca.crt")
     apps = []
     for component, image in (("web", web_image), ("worker", worker_image)):
         name = "ao-ki-langfuse" if component == "web" else "ao-ki-langfuse-worker"
@@ -72,6 +76,10 @@ def render(web_image, worker_image, bucket, clickhouse_host):
                                          "autoLoginIgnorePaths": ["/api/public/otel/v1/traces"]}}
             spec["envFrom"].append({"secret": "ao-ki-langfuse-bootstrap"})
             spec["accessPolicy"]["inbound"] = {"rules": [{"application": "ao-ki-transkribering"}]}
+        if internal_clickhouse:
+            spec["filesFrom"].append({"configmap": "ao-ki-langfuse-clickhouse-ca", "mountPath": "/var/run/clickhouse-ca"})
+            spec["accessPolicy"]["outbound"]["external"] = [
+                item for item in spec["accessPolicy"]["outbound"]["external"] if item["host"] != clickhouse_host]
         apps.append({"apiVersion": "nais.io/v1alpha1", "kind": "Application", "metadata": {
             "name": name, "namespace": "ao-ki-taskforce", "labels": {"team": "ao-ki-taskforce"},
         }, "spec": spec})

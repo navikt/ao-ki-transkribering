@@ -1,0 +1,29 @@
+<clickhouse>
+  <logger><level>warning</level><console>true</console></logger>
+  <listen_host>0.0.0.0</listen_host>
+  <http_port>8123</http_port>
+  <https_port>8443</https_port>
+  <tcp_port_secure>9440</tcp_port_secure>
+  <path>/var/lib/clickhouse/</path>
+  <tmp_path>/var/lib/clickhouse/tmp/</tmp_path>
+  <user_files_path>/var/lib/clickhouse/user_files/</user_files_path>
+  <format_schema_path>/var/lib/clickhouse/format_schemas/</format_schema_path>
+  <access_control_path>/var/lib/clickhouse/access/</access_control_path>
+  <users_config>/etc/clickhouse-server/nais-users.xml</users_config>
+  <timezone>UTC</timezone>
+  <max_connections>128</max_connections>
+  <max_concurrent_queries>20</max_concurrent_queries>
+  <max_server_memory_usage_to_ram_ratio>0.8</max_server_memory_usage_to_ram_ratio>
+  <background_pool_size>16</background_pool_size>
+  <background_schedule_pool_size>8</background_schedule_pool_size>
+  <background_buffer_flush_schedule_pool_size>2</background_buffer_flush_schedule_pool_size>
+  <background_message_broker_schedule_pool_size>2</background_message_broker_schedule_pool_size>
+  <background_distributed_schedule_pool_size>2</background_distributed_schedule_pool_size>
+  <openSSL>
+    <server>
+      <certificateFile>/var/run/clickhouse-tls/tls.crt</certificateFile>
+      <privateKeyFile>/var/run/clickhouse-tls/tls.key</privateKeyFile>
+      <disableProtocols>sslv2,sslv3,tlsv1,tlsv1_1</disableProtocols>
+    </server>
+  </openSSL>
+</clickhouse>

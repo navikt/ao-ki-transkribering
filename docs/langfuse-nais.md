@@ -1,12 +1,32 @@
 # Langfuse Dev Deployment Preparation
 
-Status: Applications **not deployed**. Dedicated dev Postgres and Valkey creation
-was requested through NAIS on 2026-11-02 after deployment approval. The user then
-chose to wait for confirmed durable ClickHouse storage rather than use disposable
-storage. No ClickHouse, Langfuse application or telemetry export has been enabled.
-Removal versus retention of the unused backing resources is awaiting the user's
-choice; they can incur idle charges. The existing application, production
-resources and GPUs are unchanged. This is separate from the local Compose pilot.
+Status (2026-11-09): Applications **not deployed**. The user approved trying the
+dev-only stack inside NAIS, including a 50 GiB persistent ClickHouse disk. Postgres
+reports Available and the dedicated Valkey is RUNNING. A server-side dry run of
+the 50 GiB premium-rwo claim succeeded; it has not been allocated yet. NAIS secret
+login must be refreshed before generating dev credentials. The main app,
+production resources, GPUs and production telemetry remain unchanged.
+
+The feature branch can be built without merging into main: dispatch the registered
+`deploy.yml` workflow with `--ref feat/langfuse-nais-dev -f langfuse_pilot=true`.
+All main-application image/deploy jobs are disabled on feature refs. The dispatcher
+calls the opt-in Langfuse workflow; `langfuse_deploy` remains false by default.
+Deployment requires reviewed prerequisites, credentials and a unique bucket name.
+
+ClickHouse runs as a NAIS Application with a separate PVC and ClusterIP-only TLS
+Service, not in the model GKE project. Its 2 CPU / 8 GiB allocation is additional
+to web/worker and the already-provisioned backing services. Private TLS certificates
+and credentials are required before deployment. The web and worker trust the
+private CA; database ports 8443/9440 allow only these two applications. Port 8123
+is used for platform health probes, not exposed by an ingress. Pod replacement
+and upgrades retain the PVC; Recreate prevents overlapping application replicas.
+
+This storage class has **Delete** reclaim policy: deleting the PVC deletes its
+disk. Keep the claim separate from app lifecycle and do not delete it to reset a
+failed rollout. This operator cannot change cluster-level PV reclaim policy.
+We own backup/restore, certificates, upgrades and incident recovery. A successful
+restart test is not a backup. Do not enable real telemetry before retention and
+restore checks are complete.
 
 ## Target
 
@@ -15,8 +35,9 @@ resources and GPUs are unchanged. This is separate from the local Compose pilot.
 - `ao-ki-langfuse-worker`: background processing on NAIS dev-gcp, no ingress.
 - Dedicated NAIS Postgres `langfuse` and Valkey `langfuse`.
 - GCS bucket owned by web; worker gets bucket-scoped access through its own identity.
-- Separately approved, persistent ClickHouse service with verified private routing,
-  HTTPS port 8443, native TLS port 9440 and a matching DNS certificate.
+- NAIS ClickHouse Application with persistent disk, internal TLS Service
+  `ao-ki-langfuse-clickhouse-tls.ao-ki-taskforce.svc.cluster.local`, HTTPS port 8443
+  and native TLS port 9440, with a matching DNS certificate.
 
 The SDK stays disabled until ingestion and access checks succeed. See
 [research and source references](langfuse-nais-findings.md) for compatibility details.

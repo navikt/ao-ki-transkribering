@@ -40,7 +40,7 @@ def test_renderer_rejects_unreviewed_endpoint_forms(host):
 def test_workflow_is_opt_in_dev_only_and_does_not_apply_backing_services():
     workflow = yaml.safe_load((ROOT / ".github/workflows/langfuse-dev.yml").read_text())
     trigger = workflow.get("on", workflow.get(True))
-    assert set(trigger) == {"workflow_dispatch"}
+    assert set(trigger) == {"workflow_dispatch", "workflow_call"}
     inputs = trigger["workflow_dispatch"]["inputs"]
     assert inputs["deploy"]["default"] is False
     assert inputs["prerequisites_verified"]["default"] is False
@@ -54,3 +54,35 @@ def test_workflow_is_opt_in_dev_only_and_does_not_apply_backing_services():
     assert postgres["spec"]["majorVersion"] == "18"
     assert valkey["spec"]["maxMemoryPolicy"] == "noeviction"
     assert valkey["spec"]["persistence"]["disabled"] is False
+
+
+def test_private_clickhouse_uses_persistent_storage_and_no_public_ingress():
+    pvc = yaml.safe_load((ROOT / ".nais/langfuse/clickhouse-data-dev.yaml").read_text())
+    assert pvc["spec"]["resources"]["requests"]["storage"] == "50Gi"
+    assert pvc["spec"]["accessModes"] == ["ReadWriteOnce"]
+    app, service, inbound, outbound = yaml.safe_load_all((ROOT / ".nais/langfuse/clickhouse-dev.yaml").read_text())
+    assert app["spec"]["strategy"] == {"type": "Recreate"}
+    assert app["spec"]["replicas"] == {"min": 1, "max": 1}
+    assert not app["spec"].get("ingresses")
+    assert app["spec"]["filesFrom"][0]["persistentVolumeClaim"] == pvc["metadata"]["name"]
+    assert service["spec"]["type"] == "ClusterIP"
+    assert {p["port"] for p in service["spec"]["ports"]} == {8443, 9440}
+    assert {p["port"] for p in inbound["spec"]["ingress"][0]["ports"]} == {8443, 9440}
+    assert outbound["spec"]["policyTypes"] == ["Egress"]
+
+
+def test_internal_clickhouse_mounts_ca_and_does_not_create_public_egress():
+    host = "ao-ki-langfuse-clickhouse-tls.ao-ki-taskforce.svc.cluster.local"
+    apps = renderer.render(IMAGE, IMAGE, "team-langfuse-dev-events", host)
+    for app in apps:
+        env = {e["name"]: e["value"] for e in app["spec"]["env"]}
+        assert env["NODE_EXTRA_CA_CERTS"] == "/var/run/clickhouse-ca/ca.crt"
+        assert env["SSL_CERT_FILE"] == "/var/run/clickhouse-ca/ca.crt"
+        assert host not in {e["host"] for e in app["spec"]["accessPolicy"]["outbound"]["external"]}
+
+
+def test_branch_dispatch_cannot_deploy_the_main_application():
+    workflow = yaml.safe_load((ROOT / ".github/workflows/deploy.yml").read_text())
+    for name in ("build-frontend", "build-backend"):
+        assert "github.ref_name == 'main'" in workflow["jobs"][name]["if"]
+    assert "github.ref_name == 'feat/langfuse-nais-dev'" in workflow["jobs"]["langfuse-dev"]["if"]

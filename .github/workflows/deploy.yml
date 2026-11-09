@@ -4,9 +4,27 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
+    inputs:
+      langfuse_pilot:
+        description: Build the separate Langfuse pilot from its feature branch (never production)
+        type: boolean
+        default: false
+      langfuse_deploy:
+        description: Deploy the dev-only Langfuse pilot after prerequisites are verified
+        type: boolean
+        default: false
+      langfuse_prerequisites_verified:
+        description: Dev credentials, private TLS, storage and costs are reviewed
+        type: boolean
+        default: false
+      langfuse_bucket:
+        description: Unique dev event bucket name
+        type: string
+        default: ''
 
 jobs:
   build-frontend:
+    if: github.ref_name == 'main' && !inputs.langfuse_pilot
     name: Build and push frontend image
     runs-on: ubuntu-latest
     permissions:
@@ -28,6 +46,7 @@ jobs:
           build_args: REQUIREMENTS=requirements/api.txt
 
   build-backend:
+    if: github.ref_name == 'main' && !inputs.langfuse_pilot
     name: Build and push backend (ML worker) image
     runs-on: ubuntu-latest
     permissions:
@@ -83,3 +102,16 @@ jobs:
           CLUSTER: prod-gcp
           RESOURCE: .nais/prod.yaml,.nais/alerts.yaml
           VAR: image=${{ needs.build-frontend.outputs.image }}
+
+  langfuse-dev:
+    if: github.event_name == 'workflow_dispatch' && github.ref_name == 'feat/langfuse-nais-dev' && inputs.langfuse_pilot
+    permissions:
+      contents: read
+      id-token: write
+    uses: ./.github/workflows/langfuse-dev.yml
+    with:
+      deploy: ${{ inputs.langfuse_deploy }}
+      prerequisites_verified: ${{ inputs.langfuse_prerequisites_verified }}
+      clickhouse_host: ao-ki-langfuse-clickhouse-tls.ao-ki-taskforce.svc.cluster.local
+      bucket_name: ${{ inputs.langfuse_bucket }}
+    secrets: inherit
