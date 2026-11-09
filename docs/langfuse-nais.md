@@ -1,11 +1,49 @@
-# Langfuse Dev Deployment Preparation
+# Langfuse Dev Deployment
 
-Status (2026-11-09): Applications **not deployed**. The user approved trying the
-dev-only stack inside NAIS, including a 50 GiB persistent ClickHouse disk. Postgres
-reports Available and the dedicated Valkey is RUNNING. A server-side dry run of
-the 50 GiB premium-rwo claim succeeded; it has not been allocated yet. NAIS secret
-login must be refreshed before generating dev credentials. The main app,
-production resources, GPUs and production telemetry remain unchanged.
+Status (2026-11-09): **Deployed and synthetically verified in NAIS dev-gcp**,
+namespace `ao-ki-taskforce`, from `feat/langfuse-nais-dev`. Web, worker and
+ClickHouse are ready with zero restarts. Dedicated NAIS Postgres reports Available
+and managed Valkey is running. The 50 GiB premium-rwo ClickHouse claim is bound.
+The main app, production resources, GPUs and production telemetry remain unchanged.
+
+## Verified Deployment
+
+- Web/API: https://ao-ki-langfuse.intern.dev.nav.no . Browser requests redirect
+  to login; non-browser unauthenticated requests receive 401.
+- Web and worker use Langfuse 4.76.0, built by successful feature workflow run
+  `42614542385` at commit `bc2964c`. Main application deployment jobs were skipped.
+- Postgres and native ClickHouse migrations completed. Both use verified TLS.
+- A metadata-only synthetic OTLP span was accepted and subsequently found in
+  `events_full`, verifying the API, event bucket, Valkey queue and worker path.
+- Missing and invalid project keys return 401 without a browser redirect at the
+  OTLP endpoint. No actual meeting content was submitted.
+- A synthetic ClickHouse row survived application restart/pod replacement.
+- Event bucket: `nais-dev-2e7b-ao-ki-taskforce-langfuse-events`, private,
+  with a 30-day object lifecycle. Worker access is bucket-scoped.
+
+Use the bootstrap login email `pilot@transkriberit.invalid`. Authorized operators
+can retrieve `LANGFUSE_INIT_USER_PASSWORD` from the NAIS secret
+`ao-ki-langfuse-bootstrap`; do not put it in Git or chat. The outer Entra login
+does not automatically create a Langfuse account or project membership.
+
+### Remaining Pilot Limitations
+
+- The worker's legacy API usage analytics job reports missing
+  `system.query_log` in the minimal ClickHouse configuration. Synthetic ingestion
+  succeeds independently; resolve this background job before production readiness.
+- Backup/restore and database-wide retention are not verified. Restart persistence
+  is not a backup, and the event bucket lifecycle does not remove database traces.
+- The private ClickHouse leaf certificate expires after 90 days. Renewal and
+  application rollout remain operator responsibilities, not automated yet.
+- Credential rotation/reconnection and browser sign-in with the bootstrap account
+  still need operator verification. The public ingress login gate was checked.
+- Real app telemetry stays disabled. LangChain and LangGraph are not installed
+  by this deployment.
+
+The startup adapter combines platform trust roots with the private ClickHouse CA;
+replacing the platform roots caused Valkey TLS verification failures during the
+first rollout. The corrected image passed regression and container-entrypoint
+tests and is the deployed web/worker image.
 
 The feature branch can be built without merging into main: dispatch the registered
 `deploy.yml` workflow with `--ref feat/langfuse-nais-dev -f langfuse_pilot=true`.
@@ -31,7 +69,7 @@ restore checks are complete.
 ## Target
 
 - `ao-ki-langfuse`: web/API on NAIS dev-gcp, browser ingress
-  `https://ao-ki-langfuse.intern.dev.nav.no` (not live yet).
+  `https://ao-ki-langfuse.intern.dev.nav.no`.
 - `ao-ki-langfuse-worker`: background processing on NAIS dev-gcp, no ingress.
 - Dedicated NAIS Postgres `langfuse` and Valkey `langfuse`.
 - GCS bucket owned by web; worker gets bucket-scoped access through its own identity.
@@ -42,7 +80,9 @@ restore checks are complete.
 The SDK stays disabled until ingestion and access checks succeed. See
 [research and source references](langfuse-nais-findings.md) for compatibility details.
 
-## Live Checks on 2026-11-02
+## Historical Preparation Checks on 2026-11-02
+
+The following records preparation, not the current deployment status above.
 
 GCloud/NAIS authentication was refreshed. Dev-gcp exposes the new
 `nais.io/v1` Postgres and Valkey resources, and this user can create Postgres in
@@ -123,7 +163,7 @@ can incur costs, including when no meeting is running.
 | Postgres | 250m CPU / 1Gi RAM / 20Gi disk in resource manifest | Platform primary/standby, storage and backups; not a single free container |
 | Valkey | Dedicated 1GB SingleNode, persistent, noeviction | Managed instance fee while provisioned |
 | GCS | Private event bucket, 30-day object lifecycle | Stored bytes, operations and possible transfer charges |
-| ClickHouse | Not selected or provisioned | CPU, persistent disks, backups and networking must be priced |
+| ClickHouse | 2 CPU / 8Gi RAM / 50Gi SSD, single replica | CPU, persistent disk, backups and networking must be priced |
 | GPUs | No additions or changes | Existing model GPU bill continues independently |
 
 This is a bill of materials, **not a priced NOK/month quotation**. Use the actual
@@ -176,7 +216,7 @@ service-account IAM bindings before accepting the deployment.
 
 `.github/workflows/langfuse-dev.yml` is manual only. Its default builds images
 without deploying. It is not part of the existing main/push or production pipeline.
-It is not available remotely until the changes are committed/pushed.
+It is available on the pushed feature branch through the dispatcher described above.
 
 Deployment requires explicit `deploy=true`, `prerequisites_verified=true`, the
 reviewed ClickHouse DNS name, and a unique bucket name. This acknowledgement is
