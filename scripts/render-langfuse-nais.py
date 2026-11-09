@@ -36,8 +36,7 @@ def render(web_image, worker_image, bucket, clickhouse_host):
     }
     internal_clickhouse = clickhouse_host == "ao-ki-langfuse-clickhouse-tls.ao-ki-taskforce.svc.cluster.local"
     if internal_clickhouse:
-        common.update(NODE_EXTRA_CA_CERTS="/var/run/clickhouse-ca/ca.crt",
-                      SSL_CERT_FILE="/var/run/clickhouse-ca/ca.crt")
+        common["LANGFUSE_CLICKHOUSE_CA_FILE"] = "/var/run/clickhouse-ca/ca.crt"
     apps = []
     for component, image in (("web", web_image), ("worker", worker_image)):
         name = "ao-ki-langfuse" if component == "web" else "ao-ki-langfuse-worker"

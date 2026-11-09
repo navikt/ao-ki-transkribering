@@ -1,4 +1,4 @@
-import {chmodSync, mkdtempSync, rmSync} from "node:fs";
+import {chmodSync, mkdtempSync, rmSync, readFileSync, writeFileSync} from "node:fs";
 import {tmpdir} from "node:os";
 import {join} from "node:path";
 import {spawn, spawnSync} from "node:child_process";
@@ -50,6 +50,15 @@ export function configureEnvironment(env, component, makeIdentity) {
   return configured;
 }
 
+export function configureTrust(env, directory, read = path => readFileSync(path, "utf8"),
+  write = (path, data) => writeFileSync(path, data, {mode: 0o600})) {
+  if (!env.LANGFUSE_CLICKHOUSE_CA_FILE) return env;
+  const platform = "/etc/ssl/certs/ca-certificates.crt";
+  const bundle = join(directory, "ca-bundle.pem");
+  write(bundle, read(platform) + "\n" + read(env.LANGFUSE_CLICKHOUSE_CA_FILE));
+  return {...env, NODE_EXTRA_CA_CERTS: bundle, SSL_CERT_FILE: bundle, REDIS_TLS_CA_PATH: platform};
+}
+
 export function run(component, args) {
   if (!args.length) throw new Error("Missing upstream startup command");
   const directory = mkdtempSync(join(process.env.LANGFUSE_IDENTITY_DIR || tmpdir(), "langfuse-tls-"));
@@ -66,6 +75,7 @@ export function run(component, args) {
       chmodSync(file, 0o600);
       return file;
     });
+    env = configureTrust(env, directory);
   } catch (error) { cleanup(); throw error; }
   const child = spawn(`/app/${component}/entrypoint.sh`, args, {env, stdio: "inherit"});
   const terminate = () => child.kill("SIGTERM");

@@ -13,6 +13,20 @@ function environment() {
     CLICKHOUSE_USER:"langfuse", CLICKHOUSE_PASSWORD:"private_hex_only_123"};
 }
 
+test("private ClickHouse trust preserves platform roots for Valkey and public services", async () => {
+  const {configureTrust} = await import("../images/langfuse/nais-bootstrap.mjs");
+  const writes = [];
+  const configured = configureTrust({LANGFUSE_CLICKHOUSE_CA_FILE:"/clickhouse/ca.crt"}, "/private",
+    file => file === "/etc/ssl/certs/ca-certificates.crt" ? "PLATFORM ROOTS\n" : "CLICKHOUSE ROOT\n",
+    (file, data) => writes.push([file, data]));
+  assert.deepEqual(writes, [["/private/ca-bundle.pem", "PLATFORM ROOTS\n\nCLICKHOUSE ROOT\n"]]);
+  assert.equal(configured.NODE_EXTRA_CA_CERTS, "/private/ca-bundle.pem");
+  assert.equal(configured.SSL_CERT_FILE, "/private/ca-bundle.pem");
+  assert.equal(configured.REDIS_TLS_CA_PATH, "/etc/ssl/certs/ca-certificates.crt");
+  const old = {NODE_EXTRA_CA_CERTS:"/platform-ca.pem"};
+  assert.deepEqual(configureTrust(old, "/private"), old);
+});
+
 test("web uses separate runtime and migration client certificates with strict TLS", async () => {
   const {configureEnvironment} = await import("../images/langfuse/nais-bootstrap.mjs");
   let index = 0;

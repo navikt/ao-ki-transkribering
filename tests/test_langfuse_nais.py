@@ -76,8 +76,9 @@ def test_internal_clickhouse_mounts_ca_and_does_not_create_public_egress():
     apps = renderer.render(IMAGE, IMAGE, "team-langfuse-dev-events", host)
     for app in apps:
         env = {e["name"]: e["value"] for e in app["spec"]["env"]}
-        assert env["NODE_EXTRA_CA_CERTS"] == "/var/run/clickhouse-ca/ca.crt"
-        assert env["SSL_CERT_FILE"] == "/var/run/clickhouse-ca/ca.crt"
+        assert env["LANGFUSE_CLICKHOUSE_CA_FILE"] == "/var/run/clickhouse-ca/ca.crt"
+        assert "NODE_EXTRA_CA_CERTS" not in env
+        assert "SSL_CERT_FILE" not in env
         assert host not in {e["host"] for e in app["spec"]["accessPolicy"]["outbound"]["external"]}
 
 
