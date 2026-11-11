@@ -11,6 +11,7 @@ from worker.prompts.normalisering import normaliser_til_bokmal
 from shared.services.model_auth import authenticated_headers
 from shared.diagnostics import event
 from shared.metrics import metrics, observe, observe_stream
+from shared.services.llm_observability import generation, generation_stream, record_usage
 
 
 def _int_env(name: str, default: int) -> int:
@@ -197,6 +198,7 @@ async def _count_tokens(system: str, bruker: str, modell: str | None) -> int | N
 
 
 @observe("llm_generate")
+@generation
 async def kall(system: str, bruker: str, modell: str | None = None, *, max_tokens: int | None = None,
                raw: bool = False, json_mode: bool = False, response_schema: dict | None = None,
                generation: dict | None = None) -> str:
@@ -222,6 +224,7 @@ async def kall(system: str, bruker: str, modell: str | None = None, *, max_token
         resp = await klient.post(_chat_url(), json=payload, headers=await authenticated_headers(_chat_url(), _headers()))
         resp.raise_for_status()
         data = resp.json()
+        record_usage(data.get("usage"))
         if any(choice.get("finish_reason") == "length" for choice in data.get("choices", [])):
             raise IncompleteModelResponse("Modellen nådde svargrensen før svaret var ferdig.")
         text = _extract_text_from_response(data)
@@ -267,6 +270,7 @@ async def hent_status() -> LlmStatus:
 
 
 @observe_stream("llm_stream")
+@generation_stream
 async def stream_tokens(system: str, bruker: str, modell: str | None = None, *, max_tokens: int | None = None):
     """Async generator som gir (token, er_ferdig, full_normalisert_tekst)."""
     if LLM_BACKEND == "ollama":
@@ -322,6 +326,7 @@ async def stream_tokens(system: str, bruker: str, modell: str | None = None, *, 
                 except json.JSONDecodeError:
                     continue
                 token = _extract_text_from_delta(chunk)
+                record_usage(chunk.get("usage"))
                 if not token:
                     continue
                 if tilstand == "undecided":

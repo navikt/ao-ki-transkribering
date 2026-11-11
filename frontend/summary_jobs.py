@@ -9,6 +9,7 @@ from fastapi import HTTPException
 from shared.diagnostics import event, failure
 from shared.services.jobs import JobStore
 from shared.metrics import metrics
+from shared.services.llm_observability import track as track_llm
 
 
 class SummaryJobs:
@@ -94,7 +95,10 @@ class SummaryJobs:
         try:
             async with self.semaphore:
                 self._dequeue(key)
-                with self.telemetry.track("summary_job"):
+                metadata = self.store.read(key)
+                with self.telemetry.track("summary_job"), track_llm(
+                    "summary", template=metadata.get("scenario"), variant=metadata.get("veileder_variant"),
+                ):
                     self.store.update_path(path, {"status": "genererer", "melding": "Genererer …"})
                     event("llm.job_started", job_id=key)
                     async for result in generate():

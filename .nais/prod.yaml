@@ -50,14 +50,24 @@ spec:
 
   accessPolicy:
     outbound:
+      rules:
+        - application: ao-ki-langfuse
       external:
         - host: litellm-ohuqkjyjvq-ez.a.run.app
+        - host: ao-ki-langfuse.intern.nav.no
 
   envFrom:
     - secret: ao-ki-transkribering-secrets
     - secret: ao-ki-model-api
+    - secret: ao-ki-langfuse-client
 
   env:
+    - name: LANGFUSE_ENABLED
+      value: "true"
+    - name: LANGFUSE_BASE_URL
+      value: "https://ao-ki-langfuse.intern.nav.no"
+    - name: LANGFUSE_ENVIRONMENT
+      value: "prod"
     - name: METRICS_ENABLED
       value: "true"
     - name: METRICS_PORT
