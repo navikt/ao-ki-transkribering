@@ -48,10 +48,12 @@ def test_summary_submission_is_idempotent_and_result_survives_status_connection(
 async def test_queue_limits_active_work_and_survives_client_waiter_cancellation(tmp_path):
     service = SummaryJobs(JobStore(tmp_path), concurrency=1, capacity=2)
     release = asyncio.Event()
+    first_started = asyncio.Event()
     started = []
 
     async def generate():
         started.append(True)
+        first_started.set()
         await release.wait()
         yield {"type": "ferdig", "tekst": "Resultat"}
 
@@ -62,7 +64,7 @@ async def test_queue_limits_active_work_and_survives_client_waiter_cancellation(
     with pytest.raises(HTTPException) as exc:
         service.submit(keys[2], "owner", "fingerprint", {}, generate, routes._job_error)
     assert exc.value.status_code == 429
-    await asyncio.sleep(0)
+    await asyncio.wait_for(first_started.wait(), timeout=1)
     assert len(started) == 1
 
     async def browser():
