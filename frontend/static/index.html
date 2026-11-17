@@ -16,6 +16,7 @@
       <button type="button" id="view-simple" aria-pressed="true" onclick="meetingWorkspace.setView('simple')">Enkel</button>
       <button type="button" id="view-advanced" aria-pressed="false" onclick="meetingWorkspace.setView('advanced')">Avansert</button>
     </div>
+    <button type="button" class="feedback-launch" data-open-feedback hidden>Gi tilbakemelding</button>
     <span id="workspace-custom-indicator" class="workspace-custom" role="status" hidden>Egne innstillinger er aktive</span>
   </div>
 </header>
@@ -408,44 +409,73 @@
   </div><!-- /app-main-hoyre -->
   </div><!-- /app-main-grid -->
   <details id="session-feedback" class="session-feedback" hidden>
-    <summary>Gi tilbakemelding</summary>
-    <p>Hjelp oss å forbedre tjenesten. Ikke skriv navn eller andre personopplysninger i kommentaren.</p>
+    <summary><span>Hvordan fungerte det?</span><span class="feedback-subtitle">Gi oss en kort tilbakemelding</span></summary>
     <form>
       <fieldset>
-        <legend>Din vurdering</legend>
-        <label for="feedback-target">Hva gjelder tilbakemeldingen?</label>
-        <select id="feedback-target" name="target">
-          <option value="general">Tjenesten generelt</option>
-          <option value="batch">Transkripsjon fra lydfil</option>
-          <option value="sanntid">Transkripsjon fra opptak</option>
-        </select>
-        <label for="feedback-rating">Hvor nyttig var tjenesten?</label>
-        <select id="feedback-rating" name="rating" required>
-          <option value="">Velg vurdering</option>
-          <option value="1">1 – Ikke nyttig</option><option value="2">2</option>
-          <option value="3">3</option><option value="4">4</option><option value="5">5 – Svært nyttig</option>
-        </select>
-        <label for="feedback-category">Tema</label>
-        <select id="feedback-category" name="category">
-          <option value="general">Generelt</option><option value="transcription">Transkripsjon</option>
-          <option value="speakers">Talere</option><option value="summary_accuracy">Feil i referatet</option>
-          <option value="missing_content">Manglende innhold</option><option value="speed">Hastighet</option>
-          <option value="usability">Brukervennlighet</option>
-        </select>
-        <label for="feedback-comment">Kommentar (valgfritt)</label>
-        <textarea id="feedback-comment" name="comment" rows="3" maxlength="4000"></textarea>
-        <div data-attachment-option hidden>
-          <label><input type="checkbox" name="attach"> Del valgt transkripsjon og eventuelt referat for undersøkelse</label>
-          <p>Kun for møter som kan deles med undersøkelsesteamet. Kontroller innholdet nedenfor før du sender.
-             Lyd og bearbeidet referat legges ikke ved. Ved et valgt referat deles transkripsjonen som ble brukt til å lage det.</p>
-          <pre data-feedback-preview hidden></pre>
+        <legend class="feedback-sr-only">Tilbakemelding</legend>
+        <div class="feedback-field">
+          <label for="feedback-target">Hva vil du vurdere?</label>
+          <select id="feedback-target" name="target">
+            <option value="general">Tjenesten generelt</option>
+            <option value="batch">Transkripsjonen fra lydfil</option>
+            <option value="sanntid">Transkripsjonen fra opptaket</option>
+          </select>
+        </div>
+        <div class="feedback-field">
+          <p id="feedback-rating-label">Hvor nyttig var det?</p>
+          <input type="hidden" name="rating" value="">
+          <div class="feedback-ratings" role="group" aria-labelledby="feedback-rating-label">
+            <button type="button" data-rating="1" aria-pressed="false" aria-label="1 – Ikke nyttig">1</button>
+            <button type="button" data-rating="2" aria-pressed="false" aria-label="2 – Lite nyttig">2</button>
+            <button type="button" data-rating="3" aria-pressed="false" aria-label="3 – Middels nyttig">3</button>
+            <button type="button" data-rating="4" aria-pressed="false" aria-label="4 – Nyttig">4</button>
+            <button type="button" data-rating="5" aria-pressed="false" aria-label="5 – Svært nyttig">5</button>
+          </div>
+          <div class="feedback-scale"><span>Ikke nyttig</span><span>Svært nyttig</span></div>
+        </div>
+        <div class="feedback-field">
+          <label for="feedback-category">Hva gjelder det? <span class="feedback-optional">Valgfritt</span></label>
+          <select id="feedback-category" name="category">
+            <option value="general">Generelt</option><option value="transcription">Ord eller setninger i transkripsjonen</option>
+            <option value="speakers">Hvem som sa hva</option><option value="summary_accuracy">Feil i referatet</option>
+            <option value="missing_content">Noe mangler</option><option value="speed">Ventetid</option>
+            <option value="usability">Brukervennlighet</option>
+          </select>
+        </div>
+        <div class="feedback-field">
+          <label for="feedback-comment">Er det noe vi bør vite? <span class="feedback-optional">Valgfritt</span></label>
+          <textarea id="feedback-comment" name="comment" rows="3" maxlength="4000"
+                    placeholder="Hva fungerte bra, eller hva kunne vært bedre?" aria-describedby="feedback-comment-help"></textarea>
+          <p id="feedback-comment-help" class="feedback-help">Unngå navn og andre personopplysninger i kommentaren.</p>
+        </div>
+        <div data-attachment-option class="feedback-attachments" hidden>
+          <label class="feedback-check"><input type="checkbox" name="attach"><span>Del møteinnhold for å hjelpe oss å undersøke</span></label>
+          <p class="feedback-help">Valgfritt. Del bare innhold som er avklart for dette formålet.</p>
+          <div data-attachment-details hidden>
+            <p data-feedback-includes></p>
+            <details class="feedback-preview-details"><summary>Se teksten som blir delt</summary><pre data-feedback-preview></pre></details>
+            <div data-audio-option hidden>
+              <label class="feedback-check"><input type="checkbox" name="audio"><span>Legg også ved lyd</span></label>
+              <div data-audio-details hidden>
+                <p data-audio-label class="feedback-help"></p>
+                <label for="feedback-audio-file">Velg en lydfil hvis du vil bruke en annen</label>
+                <input id="feedback-audio-file" name="audio-file" type="file" accept="audio/*,video/webm">
+                <p class="feedback-help">Hele lydfilen deles. Maks. 350 MB.</p>
+              </div>
+            </div>
+          </div>
         </div>
       </fieldset>
-      <p>Vurdering, kommentar og teknisk informasjon lagres for oppfølging av teamet.
-         Automatisk opprydding starter etter 30 dager; sikkerhetskopier ved sletting kan beholdes lenger.</p>
-      <button type="submit" class="knapp knapp-sekundær">Send tilbakemelding</button>
-      <button type="button" class="knapp knapp-sekundær" data-feedback-new hidden>Ny tilbakemelding</button>
-      <p role="status" aria-live="polite"></p>
+      <details class="feedback-privacy"><summary>Hvem kan se tilbakemeldingen?</summary>
+        <p>Teamet som forbedrer Transkriberit, følger opp tilbakemeldingen. Vurdering, kommentar og teknisk informasjon lagres.
+           Møteinnhold og lyd deles bare når du velger det. Opprydding starter etter 30 dager.</p>
+      </details>
+      <div class="feedback-actions">
+        <button type="submit" class="knapp knapp-primær">Send tilbakemelding</button>
+        <button type="button" class="knapp knapp-sekundær" data-feedback-new hidden>Gi en ny tilbakemelding</button>
+      </div>
+      <p role="status" aria-live="polite" class="feedback-status"></p>
+      <details data-feedback-receipt class="feedback-privacy" hidden><summary>Vis referanse</summary><p data-feedback-case></p></details>
     </form>
   </details>
 </main>

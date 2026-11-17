@@ -940,8 +940,43 @@ button[aria-busy="true"]::after {
   .referat-footer { align-items: flex-start; flex-direction: column; }
 }
 
-.session-feedback { margin: 1rem 0; padding: 1rem; border: 1px solid var(--color-gray-300, #ccc); border-radius: .5rem; }
-.session-feedback summary { cursor: pointer; font-weight: 600; }
-.session-feedback fieldset { display: grid; gap: .5rem; margin: 1rem 0; border: 0; padding: 0; }
-.session-feedback select, .session-feedback textarea { width: 100%; max-width: 42rem; }
-.session-feedback pre { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 18rem; overflow: auto; padding: .75rem; background: #f4f4f4; }
+/* Explicit feedback */
+.feedback-launch { margin-left: auto; background: none; border: 1px solid var(--color-gray-300); border-radius: var(--radius-md); padding: .4rem .75rem; font: inherit; font-size: var(--font-sm); cursor: pointer; color: var(--color-blue-700); }
+.feedback-launch:hover { background: var(--color-blue-50); }
+.session-feedback { max-width: 44rem; margin: 1.5rem auto 0; border: 1px solid var(--color-gray-200); border-radius: var(--radius-lg); background: var(--color-gray-50); scroll-margin-top: 1rem; }
+.session-feedback > summary { cursor: pointer; padding: 1rem 1.25rem; font-weight: 600; }
+.feedback-subtitle { display: block; margin-left: 1rem; color: var(--color-gray-700); font-size: var(--font-sm); font-weight: 400; }
+.session-feedback form { padding: 0 1.25rem 1.25rem; }
+.session-feedback fieldset { display: grid; gap: 1.25rem; min-width: 0; border: 0; }
+.feedback-field { display: grid; gap: .35rem; }
+.feedback-field > label, #feedback-rating-label { font-weight: 600; }
+.feedback-optional { font-size: var(--font-sm); font-weight: 400; color: var(--color-gray-700); margin-left: .3rem; }
+.session-feedback select, .session-feedback textarea { width: 100%; padding: .6rem .75rem; border: 1px solid var(--color-gray-500); border-radius: var(--radius-md); background: white; font: inherit; color: inherit; }
+.feedback-ratings { display: flex; gap: .5rem; max-width: 25rem; }
+.feedback-ratings button { flex: 1; min-height: 3rem; border: 1px solid var(--color-gray-500); border-radius: var(--radius-md); background: white; font: inherit; font-size: var(--font-lg); font-weight: 600; color: var(--color-gray-900); cursor: pointer; }
+.feedback-ratings button:hover { background: var(--color-blue-50); }
+.feedback-ratings button[aria-pressed="true"] { background: var(--color-blue-700); border-color: var(--color-blue-700); color: white; box-shadow: inset 0 0 0 2px white; }
+.feedback-scale { display: flex; justify-content: space-between; max-width: 25rem; font-size: var(--font-sm); color: var(--color-gray-700); }
+.session-feedback :focus-visible, .feedback-launch:focus-visible { outline: 3px solid var(--color-blue-700); outline-offset: 3px; }
+.feedback-help { font-size: var(--font-sm); color: var(--color-gray-700); }
+.feedback-attachments { border-top: 1px solid var(--color-gray-200); padding-top: 1rem; }
+.feedback-check { display: flex; align-items: flex-start; gap: .6rem; cursor: pointer; }
+.feedback-check input { margin-top: .35rem; width: 1.1rem; height: 1.1rem; flex-shrink: 0; accent-color: var(--color-blue-700); }
+[data-attachment-details] { margin-top: .75rem; padding: .75rem; background: white; border-radius: var(--radius-md); font-size: var(--font-sm); }
+[data-audio-option], [data-audio-details] { margin-top: .75rem; }
+[data-audio-details] > * + * { margin-top: .5rem; }
+[data-audio-details] input[type="file"] { width: 100%; }
+.feedback-preview-details { margin-top: .5rem; }
+.session-feedback pre { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 16rem; overflow: auto; padding: .75rem; background: var(--color-gray-50); font: inherit; }
+.feedback-privacy { margin-top: 1rem; font-size: var(--font-sm); color: var(--color-gray-700); }
+.feedback-privacy summary, .feedback-preview-details summary { cursor: pointer; color: var(--color-blue-700); }
+.feedback-privacy p { margin-top: .5rem; overflow-wrap: anywhere; }
+.feedback-actions { margin-top: 1.25rem; }
+.feedback-status { margin-top: .75rem; }
+.feedback-status:empty { display: none; }
+.feedback-sr-only { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+@media (max-width: 640px) {
+  .session-feedback > summary { padding: .85rem; }
+  .session-feedback form { padding: 0 .85rem .85rem; }
+  .feedback-optional { display: inline-block; }
+}

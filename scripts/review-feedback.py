@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """List feedback or download one case using the reviewer's own GCP credentials."""
 import argparse
+import hashlib
 import json
 import os
 import re
@@ -17,6 +18,7 @@ def main():
     download = commands.add_parser('download', help='Download one complete package to a new owner-only file')
     download.add_argument('case_id')
     download.add_argument('--output', required=True)
+    download.add_argument('--audio-output', help='Also download the attached audio to this new owner-only file')
     args = parser.parse_args()
     if args.command == 'list' and not 1 <= args.limit <= 100:
         parser.error('--limit must be between 1 and 100')
@@ -36,6 +38,17 @@ def main():
         fd = os.open(args.output, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
         with os.fdopen(fd, 'wb') as output:
             output.write(raw)
+        if args.audio_output:
+            audio = (json.loads(raw).get('attachments') or {}).get('audio')
+            if not audio or audio.get('object') != f'audio/{args.case_id}':
+                raise ValueError('No matching audio attachment')
+            audio_fd = os.open(args.audio_output, os.O_RDWR | os.O_CREAT | os.O_EXCL, 0o600)
+            with os.fdopen(audio_fd, 'w+b') as output:
+                client.bucket(args.bucket).blob(audio['object']).download_to_file(output, timeout=60)
+                output.seek(0)
+                checksum = hashlib.file_digest(output, 'sha256').hexdigest()
+                if checksum != audio['sha256']:
+                    raise ValueError('Audio checksum mismatch')
         print('Downloaded case. Local copies are outside bucket cleanup.')
 
 

@@ -72,6 +72,8 @@ spec:
   env:
     - name: FEEDBACK_BUCKET
       value: "ao-ki-transkribering-feedback-prod"
+    - name: FEEDBACK_AUDIO_ENABLED
+      value: "true"
     - name: FEEDBACK_ATTACHMENTS_ENABLED
       value: "true"
     - name: LANGFUSE_ENABLED

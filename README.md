@@ -692,20 +692,32 @@ The **Gi tilbakemelding** panel collects a 1–5 usefulness rating, issue catego
 and optional comment. Users explicitly select a transcript or one of the ten most
 recent completed generations. Optional attachments contain either the current
 selected transcript or the exact input transcript and original output of the
-selected generation. Audio and the editable summary are never attached. The
-preview shows the text before submission. Feedback and previews are kept only in
+selected generation. Users can additionally opt in to share audio: the original
+uploaded file, the complete stopped microphone recording, or a manually selected
+file. Audio is never selected automatically. The editable summary is not attached.
+The preview shows the text and describes the audio source before submission. Feedback and previews are kept only in
 page memory until submitted; closing the page discards unsent feedback.
 
 `FEEDBACK_BUCKET` enables the panel and authenticated submission API. Unset it to
 disable collection. `FEEDBACK_ATTACHMENTS_ENABLED=true` additionally permits text
 attachments; otherwise the API rejects them. The dev/prod manifests configure
-separate private NAIS-managed GCS buckets and enable text attachments. Local
+separate private NAIS-managed GCS buckets and enable text and audio attachments.
+`FEEDBACK_AUDIO_ENABLED=true` enables audio only when text sharing is also enabled;
+unset it or set it to `false` to disable audio separately. Local
 runs default to disabled; to exercise storage locally, use a dedicated test bucket
 and Application Default Credentials. Never use real meeting content for smoke tests.
 
 Each case is one atomic JSON object at `cases/<opaque-case-id>.json`, containing
 rating, category, comment, model/prompt metadata, app image, generation duration,
-optional trace reference and explicitly attached text. User principal IDs and
+optional trace reference and explicitly attached text. Opted-in audio is stored
+separately at `audio/<opaque-case-id>`, with its SHA-256, byte count and media type
+in the case manifest. Uploads are bounded at 350 MiB, use a temporary owner-only
+disk file instead of retaining the full body in server memory, and discard that
+file on completion or failure. Audio is conditionally created before the case
+manifest; only manifests appear in the review listing. Retrying cannot overwrite
+a different audio attachment. Abandoned audio uploads are subject to the same
+30-day bucket lifecycle, even if no case was completed. A browser crash before
+final submission can therefore leave an unlisted audio object until cleanup. User principal IDs and
 job IDs are not copied into the case. Case IDs are owner-scoped; they are not a
 claim of anonymization. Server-side ownership checks apply to referenced jobs.
 Exact generation inputs stay in the existing six-hour job store and are never
@@ -756,8 +768,12 @@ Review with your own approved GCP credentials, in a controlled environment:
 
 ```bash
 .venv/bin/python scripts/review-feedback.py --bucket ao-ki-transkribering-feedback-prod list --limit 20
-.venv/bin/python scripts/review-feedback.py --bucket ao-ki-transkribering-feedback-prod download CASE_ID --output /approved/local/path/case.json
+.venv/bin/python scripts/review-feedback.py --bucket ao-ki-transkribering-feedback-prod download CASE_ID --output /approved/local/path/case.json --audio-output /approved/local/path/recording.wav
 ```
+
+Omit `--audio-output` for text-only cases. For original uploads use an output
+extension matching the manifest's media type. Audio downloads verify the manifest's
+SHA-256. Original filenames are not stored.
 
 Listing returns bounded case metadata without comments or meeting text; it reads
 at most 100 packages and is ordered by object name, not recency. Downloads create a

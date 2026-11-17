@@ -1,6 +1,8 @@
 // ---- Juridisk bekreftelse ----
 const samtykkeHake = document.getElementById("samtykke-hake");
 let _aktivTranskripsjonskilde = null;
+let _feedbackBatchAudio = null;
+const _feedbackUploads = new Map();
 let _referatScenarier = [];
 let _lydInngangBekreftet = false;
 let _transkripsjonTilgjengelig = true;
@@ -148,6 +150,8 @@ async function sendTilServer(blob, filnavn) {
     if (!res.ok) throw new Error("Opplasting feilet: " + res.status);
     const data = await res.json();
     jobbId = data.jobb_id;
+    _feedbackUploads.set(jobbId, blob);
+    if (_feedbackUploads.size > 10) _feedbackUploads.delete(_feedbackUploads.keys().next().value);
   } catch (err) {
     fremdrift.classList.remove("synlig");
     viseFeil(err.message);
@@ -232,6 +236,8 @@ async function hentResultat(jobbId) {
   document.getElementById("fremdrift-fase").textContent = "";
   document.getElementById("fremdrift-tid").textContent = "";
   delete document.getElementById("fremdrift-tid").dataset.estimert;
+  _feedbackBatchAudio = _feedbackUploads.get(jobbId) || null;
+  _feedbackUploads.delete(jobbId);
   visResultat(data);
 }
 
@@ -1496,6 +1502,7 @@ async function _genererLlmJobb(handling, payload, onProgress, signal) {
   const model = document.getElementById("referat-modell").value;
   payload = {...payload, ...(model ? {modell: model} : {})};
   globalThis.meetingWorkspace?.captureRequest(payload);
+  const feedbackAudio = feedbackAudioSource(_aktivTranskripsjonskilde);
   const key = crypto.randomUUID();
   const submitUrl = `/llm/handlinger/${handling}/jobber/${key}`;
   let accepted = false;
@@ -1533,7 +1540,7 @@ async function _genererLlmJobb(handling, payload, onProgress, signal) {
     }
     await sessionAccess.waitForAuthentication(signal);
     if (state?.status === "ferdig") {
-      globalThis.sessionFeedback?.capture(key, payload, state);
+      globalThis.sessionFeedback?.capture(key, payload, state, feedbackAudio);
       return state;
     }
     if (state?.status === "feil") throw new Error(state.melding);
@@ -1808,7 +1815,23 @@ if (typeof MeetingWorkspace !== "undefined") globalThis.meetingWorkspace = new M
 if (typeof SessionFeedback !== "undefined") {
   globalThis.sessionFeedback = new SessionFeedback({
     root: document.getElementById("session-feedback"), request: appFetch,
+    launcher: document.querySelector("[data-open-feedback]"), audio: feedbackAudioSource,
     transcript: target => target === "batch" || target === "sanntid" ? _hentTranskripsjonTekst(target) : "",
   });
   globalThis.sessionFeedback.load();
+}
+
+function feedbackAudioSource(target) {
+  if (target === "batch" && _feedbackBatchAudio) {
+    const file = _feedbackBatchAudio;
+    return {label: "Den opprinnelige lydfilen fra denne transkripsjonen deles i sin helhet.", read: async () => file};
+  }
+  if (target === "sanntid" && recordingArchive && !recordingArchive.disposed) {
+    const archive = recordingArchive;
+    return {label: "Hele mikrofonopptaket deles, også tale etter at referatet ble laget. Stopp opptaket før du sender.", read: async () => {
+      if (archive.disposed || !archive.stopped) throw new Error("Opptaket er ikke tilgjengelig eller er fortsatt aktivt.");
+      return archive.wav();
+    }};
+  }
+  return null;
 }

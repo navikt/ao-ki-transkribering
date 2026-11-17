@@ -80,7 +80,7 @@ def test_gates_validation_and_limits(setup, monkeypatch):
     assert client.put(url, json=base, headers={'origin': 'https://evil.example'}).status_code == 403
     monkeypatch.setenv('FEEDBACK_ATTACHMENTS_ENABLED', 'false')
     assert client.put(url, json={**base, 'attach': True, 'transcript': 'private'}).status_code == 403
-    assert client.get('/feedback/config').json() == {'enabled': True, 'attachments': False, 'audio': False}
+    assert client.get('/feedback/config').json() == {'enabled': True, 'attachments': False, 'audio': False, 'max_audio_bytes': feedback.MAX_AUDIO_BYTES}
     monkeypatch.delenv('FEEDBACK_BUCKET')
     assert client.put(url, json=base).status_code == 503
     assert not packages
@@ -150,5 +150,114 @@ def test_feedback_routes_require_authentication(monkeypatch):
     app.include_router(feedback.router)
     app.add_middleware(EntraAuthMiddleware)
     client = TestClient(app)
+    assert client.put('/feedback/' + str(uuid4()) + '/audio', content=b'audio').status_code == 401
     assert client.get('/feedback/config').status_code == 401
     assert client.put('/feedback/' + str(uuid4()), json={'rating': 4, 'category': 'general'}).status_code == 401
+
+
+@pytest.fixture
+def audio_store(setup, monkeypatch):
+    import hashlib
+    monkeypatch.setenv('FEEDBACK_AUDIO_ENABLED', 'true')
+    objects = {}
+    def save_audio(key, stream, digest, content_type):
+        stream.seek(0)
+        raw = stream.read()
+        assert hashlib.sha256(raw).hexdigest() == digest
+        if key in objects and objects[key]['sha256'] != digest:
+            raise HTTPException(409, 'different audio')
+        objects[key] = {'object': f'audio/{key}', 'sha256': digest, 'bytes': len(raw), 'content_type': content_type}
+    def metadata(key, digest):
+        if key not in objects or objects[key]['sha256'] != digest:
+            raise HTTPException(409, 'missing audio')
+        return objects[key]
+    monkeypatch.setattr(feedback, 'save_audio', save_audio)
+    monkeypatch.setattr(feedback, 'audio_metadata', metadata)
+    return setup, objects
+
+
+def test_audio_requires_opt_in_and_is_scoped_to_submission_owner(audio_store):
+    (client, _, packages), objects = audio_store
+    submission = str(uuid4())
+    url = '/feedback/' + submission
+    raw = b'RIFF fictional test audio'
+    response = client.put(url + '/audio', content=raw, headers={'content-type': 'audio/wav'})
+    assert response.status_code == 200
+    digest = response.json()['sha256']
+    assert client.put(url + '/audio', content=raw, headers={'content-type': 'audio/wav'}).json() == response.json()
+    assert len(objects) == 1
+    assert client.put(url + '/audio', content=b'different', headers={'content-type': 'audio/wav'}).status_code == 409
+    payload = {'rating': 4, 'category': 'transcription', 'attach': True, 'transcript': 'fictional', 'audio_sha256': digest}
+    assert client.put(url, json=payload, headers={'test-owner': 'bob'}).status_code == 409
+    assert not packages
+    assert client.put(url, json={**payload, 'attach': False, 'transcript': None}).status_code == 403
+    assert client.put(url, json=payload).status_code == 200
+    package = next(iter(packages.values()))[0]
+    assert package['attachments']['audio']['sha256'] == digest
+    assert package['attachments']['audio']['bytes'] == len(raw)
+
+
+def test_audio_limits_and_disable_gate(audio_store, monkeypatch):
+    (client, _, _), objects = audio_store
+    url = '/feedback/' + str(uuid4()) + '/audio'
+    headers = {'content-type': 'audio/wav'}
+    assert client.put(url, content=b'', headers=headers).status_code == 422
+    assert client.put(url, content=b'bad', headers={'content-type': 'text/html'}).status_code == 415
+    monkeypatch.setattr(feedback, 'MAX_AUDIO_BYTES', 4)
+    assert client.put(url, content=b'12345', headers=headers).status_code == 413
+    assert not objects
+    monkeypatch.setenv('FEEDBACK_AUDIO_ENABLED', 'false')
+    assert client.put(url, content=b'123', headers=headers).status_code == 403
+    assert not objects
+
+
+def test_audio_cloud_failure_is_generic(audio_store, monkeypatch, caplog):
+    (client, _, _), _ = audio_store
+    def broken(*args):
+        raise RuntimeError('PRIVATE AUDIO OR CREDENTIAL')
+    monkeypatch.setattr(feedback, 'save_audio', broken)
+    response = client.put('/feedback/' + str(uuid4()) + '/audio', content=b'audio', headers={'content-type': 'audio/wav'})
+    assert response.status_code == 503
+    assert 'PRIVATE' not in response.text + caplog.text
+
+
+def test_real_audio_storage_helpers_keep_objects_immutable(monkeypatch):
+    import io
+    from google.api_core.exceptions import PreconditionFailed, NotFound
+    class Blob:
+        name = 'audio/case'
+        size = 5
+        content_type = 'audio/wav'
+        conflict = False
+        missing = False
+        existing = 'digest'
+        def upload_from_file(self, stream, **kwargs):
+            assert stream.tell() == 0
+            assert stream.read() == b'audio'
+            assert kwargs['if_generation_match'] == 0
+            if self.conflict:
+                raise PreconditionFailed('already exists')
+        def reload(self, **kwargs):
+            if self.missing:
+                raise NotFound('missing')
+            self.metadata = {'sha256': self.existing}
+    blob = Blob()
+    class Bucket:
+        def blob(self, name):
+            assert name == 'audio/case'
+            return blob
+    monkeypatch.setenv('FEEDBACK_BUCKET', 'test')
+    monkeypatch.setattr(feedback, 'bucket', lambda name: Bucket())
+    source = io.BytesIO(b'audio')
+    source.seek(5)
+    feedback.save_audio('case', source, 'digest', 'audio/wav')
+    blob.conflict = True
+    feedback.save_audio('case', source, 'digest', 'audio/wav')
+    blob.existing = 'another'
+    with pytest.raises(HTTPException) as exc:
+        feedback.save_audio('case', source, 'digest', 'audio/wav')
+    assert exc.value.status_code == 409
+    blob.missing = True
+    with pytest.raises(HTTPException) as exc:
+        feedback.audio_metadata('case', 'digest')
+    assert exc.value.status_code == 409

@@ -2,6 +2,7 @@
 import hashlib
 import json
 import os
+import tempfile
 from datetime import datetime, timezone
 from functools import lru_cache
 from typing import Literal
@@ -16,6 +17,7 @@ from shared.services import llm_observability
 
 router = APIRouter()
 MAX_BYTES = 2 * 1024 * 1024
+MAX_AUDIO_BYTES = 350 * 1024 * 1024
 
 
 class Feedback(BaseModel):
@@ -25,6 +27,7 @@ class Feedback(BaseModel):
     comment: str = Field(default="", max_length=4000)
     job_id: UUID | None = None
     attach: bool = False
+    audio_sha256: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
     transcript: str | None = Field(default=None, max_length=500000)
 
 
@@ -34,6 +37,20 @@ def enabled():
 
 def attachments_enabled():
     return enabled() and os.getenv("FEEDBACK_ATTACHMENTS_ENABLED", "false").lower() == "true"
+
+
+def audio_enabled():
+    return attachments_enabled() and os.getenv("FEEDBACK_AUDIO_ENABLED", "false").lower() == "true"
+
+
+def case_key(owner, submission_id):
+    return hashlib.sha256(f"{owner}:{submission_id}".encode()).hexdigest()
+
+
+def check_origin(request):
+    origin = request.headers.get("origin")
+    if origin and origin.rstrip("/") != f"{request.url.scheme}://{request.headers.get('host', '')}":
+        raise HTTPException(403, "Ugyldig avsender")
 
 
 @lru_cache(maxsize=4)
@@ -59,7 +76,7 @@ def save(case_id, payload, fingerprint):
 @router.get("/feedback/config")
 def config(response: Response):
     response.headers["Cache-Control"] = "no-store"
-    return {"enabled": enabled(), "attachments": attachments_enabled(), "audio": False}
+    return {"enabled": enabled(), "attachments": attachments_enabled(), "audio": audio_enabled(), "max_audio_bytes": MAX_AUDIO_BYTES}
 
 
 @router.put("/feedback/{submission_id}")
@@ -68,10 +85,7 @@ async def submit(submission_id: UUID, request: Request, response: Response):
     owner = _job_owner(request)
     if not enabled():
         raise HTTPException(503, "Tilbakemelding er ikke tilgjengelig nå.")
-    # Browser submissions must originate from this application.
-    origin = request.headers.get("origin")
-    if origin and origin.rstrip("/") != f"{request.url.scheme}://{request.headers.get('host', '')}":
-        raise HTTPException(403, "Ugyldig avsender")
+    check_origin(request)
     raw = bytearray()
     async for chunk in request.stream():
         if len(raw) + len(chunk) > MAX_BYTES:
@@ -90,8 +104,21 @@ async def submit(submission_id: UUID, request: Request, response: Response):
         raise HTTPException(409, "Referatet kan ikke deles. Generer et nytt referat først.")
     if feedback.attach and not job and not (feedback.transcript or "").strip():
         raise HTTPException(422, "Transkripsjon mangler")
-    case_id = hashlib.sha256(f"{owner}:{submission_id}".encode()).hexdigest()
+    case_id = case_key(owner, submission_id)
+    audio = None
+    if feedback.audio_sha256:
+        if not feedback.attach or not audio_enabled():
+            raise HTTPException(403, "Deling av lyd er ikke aktivert.")
+        try:
+            audio = await run_in_threadpool(audio_metadata, case_id, feedback.audio_sha256)
+        except HTTPException:
+            raise
+        except Exception:
+            raise HTTPException(503, "Kunne ikke kontrollere lydvedlegget. Prøv igjen.") from None
     canonical = feedback.model_dump(mode="json")
+    # Preserve fingerprints of text-only submissions made before audio support.
+    if feedback.audio_sha256 is None:
+        canonical.pop("audio_sha256")
     fingerprint = hashlib.sha256(json.dumps(canonical, sort_keys=True, ensure_ascii=False).encode()).hexdigest()
     package = {
         "schema_version": 1,
@@ -106,6 +133,8 @@ async def submit(submission_id: UUID, request: Request, response: Response):
     if feedback.attach:
         package["attachments"] = ({"transcript": job["feedback_source"], "summary": job["tekst"],
                                     "warnings": job.get("advarsler", [])} if job else {"transcript": feedback.transcript})
+    if audio:
+        package["attachments"]["audio"] = audio
     try:
         await run_in_threadpool(save, case_id, package, fingerprint)
     except HTTPException:
@@ -116,3 +145,59 @@ async def submit(submission_id: UUID, request: Request, response: Response):
     if job and job.get("trace_id"):
         await run_in_threadpool(llm_observability.feedback_score, case_id, job["trace_id"], feedback.rating)
     return {"case_id": case_id}
+
+
+def audio_metadata(case_id, digest):
+    from google.api_core.exceptions import NotFound
+    blob = bucket(os.environ["FEEDBACK_BUCKET"]).blob(f"audio/{case_id}")
+    try:
+        blob.reload(timeout=10)
+    except NotFound:
+        raise HTTPException(409, "Last opp lyden på nytt før du sender.") from None
+    if (blob.metadata or {}).get("sha256") != digest:
+        raise HTTPException(409, "Lydvedlegget stemmer ikke med denne tilbakemeldingen.")
+    return {"object": blob.name, "sha256": digest, "bytes": blob.size, "content_type": blob.content_type}
+
+
+def save_audio(case_id, stream, digest, content_type):
+    from google.api_core.exceptions import PreconditionFailed
+    blob = bucket(os.environ["FEEDBACK_BUCKET"]).blob(f"audio/{case_id}")
+    blob.metadata = {"sha256": digest}
+    try:
+        stream.seek(0)
+        blob.upload_from_file(stream, content_type=content_type, if_generation_match=0, timeout=60)
+    except PreconditionFailed:
+        audio_metadata(case_id, digest)
+
+
+@router.put("/feedback/{submission_id}/audio")
+async def upload_audio(submission_id: UUID, request: Request, response: Response):
+    response.headers["Cache-Control"] = "no-store"
+    owner = _job_owner(request)
+    check_origin(request)
+    if not audio_enabled():
+        raise HTTPException(403, "Deling av lyd er ikke aktivert.")
+    content_type = request.headers.get("content-type", "").split(";")[0].lower()
+    allowed = {"audio/wav", "audio/x-wav", "audio/mpeg", "audio/mp3", "audio/mp4", "audio/x-m4a",
+               "audio/webm", "video/webm", "audio/ogg", "audio/flac", "audio/x-flac", "application/ogg"}
+    if content_type not in allowed:
+        raise HTTPException(415, "Velg en lydfil i WAV-, MP3-, M4A-, WebM-, Ogg- eller FLAC-format.")
+    size = 0
+    digest = hashlib.sha256()
+    # Disk-backed and owner-only; bounded before cloud upload, closed on every exit.
+    with tempfile.TemporaryFile() as stream:
+        async for chunk in request.stream():
+            size += len(chunk)
+            if size > MAX_AUDIO_BYTES:
+                raise HTTPException(413, "Lydfilen er for stor. Maksimal størrelse er 350 MB.")
+            digest.update(chunk)
+            await run_in_threadpool(stream.write, chunk)
+        if not size:
+            raise HTTPException(422, "Lydfilen er tom.")
+        try:
+            await run_in_threadpool(save_audio, case_key(owner, submission_id), stream, digest.hexdigest(), content_type)
+        except HTTPException:
+            raise
+        except Exception:
+            raise HTTPException(503, "Kunne ikke laste opp lyden. Prøv igjen.") from None
+    return {"sha256": digest.hexdigest(), "bytes": size}
