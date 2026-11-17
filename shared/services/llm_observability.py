@@ -185,3 +185,24 @@ def generation_stream(function):
                         state["completed"] = True
                     yield item
     return measured
+
+
+def feedback_score(case_id, trace_id, rating):
+    """Synchronous acknowledgement; only numeric ratings leave the case store."""
+    if _client is None:
+        return False
+    try:
+        import httpx
+
+        response = httpx.post(
+            os.environ["LANGFUSE_BASE_URL"].rstrip("/") + "/api/public/scores",
+            auth=(os.environ["LANGFUSE_PUBLIC_KEY"], os.environ["LANGFUSE_SECRET_KEY"]),
+            json={"id": case_id, "traceId": trace_id, "name": "session_usefulness",
+                  "value": rating, "dataType": "NUMERIC"},
+            timeout=3, follow_redirects=False, trust_env=False,
+        )
+        response.raise_for_status()
+        return True
+    except Exception:
+        event("llm.feedback_score_unavailable")
+        return False

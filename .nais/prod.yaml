@@ -53,6 +53,7 @@ spec:
       rules:
         - application: ao-ki-langfuse
       external:
+        - host: storage.googleapis.com
         - host: litellm-ohuqkjyjvq-ez.a.run.app
         - host: ao-ki-langfuse.intern.nav.no
 
@@ -61,7 +62,18 @@ spec:
     - secret: ao-ki-model-api
     - secret: ao-ki-langfuse-client
 
+  gcp:
+    buckets:
+      - name: ao-ki-transkribering-feedback-prod
+        publicAccessPrevention: true
+        lifecycleCondition:
+          age: 30
+
   env:
+    - name: FEEDBACK_BUCKET
+      value: "ao-ki-transkribering-feedback-prod"
+    - name: FEEDBACK_ATTACHMENTS_ENABLED
+      value: "true"
     - name: LANGFUSE_ENABLED
       value: "true"
     - name: LANGFUSE_BASE_URL

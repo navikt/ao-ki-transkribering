@@ -939,3 +939,9 @@ button[aria-busy="true"]::after {
   .segment-liste th, .segment-liste td { padding: .25rem .35rem; }
   .referat-footer { align-items: flex-start; flex-direction: column; }
 }
+
+.session-feedback { margin: 1rem 0; padding: 1rem; border: 1px solid var(--color-gray-300, #ccc); border-radius: .5rem; }
+.session-feedback summary { cursor: pointer; font-weight: 600; }
+.session-feedback fieldset { display: grid; gap: .5rem; margin: 1rem 0; border: 0; padding: 0; }
+.session-feedback select, .session-feedback textarea { width: 100%; max-width: 42rem; }
+.session-feedback pre { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 18rem; overflow: auto; padding: .75rem; background: #f4f4f4; }

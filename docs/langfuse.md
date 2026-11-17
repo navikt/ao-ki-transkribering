@@ -130,3 +130,15 @@ See [Langfuse deletion guarantees](https://langfuse.com/docs/administration/data
 scan history, schedule and deletion procedure before making this unattended.
 The production dry run on 2026-11-11 found no eligible traces and requested no
 deletion. Unit tests cover deletion guards; no destructive production test was run.
+
+## Explicit user feedback scores
+
+The feedback API stores cases in a separate GCS bucket and can submit only their
+numeric usefulness rating to `/api/public/scores`. The case ID is the score ID;
+its trace reference comes from the owned summary job, never a client-supplied
+trace ID. No comments or meeting text are included. See the README's **User
+feedback** section for the exact ingress exception patch, storage setup, reviewer
+workflow and rollout verification. The exception has not been applied by the code
+change. Score submission is synchronous with a three-second timeout and fails
+independently of case storage. Stored cases remain available if score delivery
+fails; there is no automatic reconciliation yet.

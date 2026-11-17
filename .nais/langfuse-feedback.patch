@@ -1,0 +1,12 @@
+[
+  {
+    "op": "test",
+    "path": "/spec/azure/sidecar/autoLoginIgnorePaths",
+    "value": ["/api/public/otel/v1/traces"]
+  },
+  {
+    "op": "add",
+    "path": "/spec/azure/sidecar/autoLoginIgnorePaths/-",
+    "value": "/api/public/scores"
+  }
+]

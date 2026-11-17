@@ -11,6 +11,7 @@ from fastapi.responses import HTMLResponse
 from pathlib import Path
 from fastapi.staticfiles import StaticFiles
 from frontend.auth import EntraAuthMiddleware
+from frontend.feedback import router as feedback_router
 
 from frontend.routes.helse import router as helse_router
 from frontend.routes.referat import router as referat_router, summary_jobs
@@ -96,7 +97,7 @@ def create_app() -> FastAPI:
     def rot():
         return HTMLResponse(page, headers={"Cache-Control": "no-cache"})
 
-    routers = (helse_router, transkripsjon_router, referat_router, sanntid_router, recordings_router)
+    routers = (helse_router, transkripsjon_router, referat_router, sanntid_router, recordings_router, feedback_router)
     for router in routers:
         app.include_router(router)
 

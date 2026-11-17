@@ -54,13 +54,25 @@ spec:
   accessPolicy:
     outbound:
       external:
+        - host: storage.googleapis.com
         - host: litellm-ohuqkjyjvq-ez.a.run.app
 
   envFrom:
     - secret: ao-ki-transkribering-secrets
     - secret: ao-ki-model-api
 
+  gcp:
+    buckets:
+      - name: ao-ki-transkribering-feedback-dev
+        publicAccessPrevention: true
+        lifecycleCondition:
+          age: 30
+
   env:
+    - name: FEEDBACK_BUCKET
+      value: "ao-ki-transkribering-feedback-dev"
+    - name: FEEDBACK_ATTACHMENTS_ENABLED
+      value: "true"
     - name: METRICS_ENABLED
       value: "true"
     - name: METRICS_PORT

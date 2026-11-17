@@ -685,3 +685,94 @@ not identities; users must review them, especially around overlapping speech.
 
 Model switches restart the speech service and NAIS model-setting changes restart
 the API. Finish recordings before a cutover; active WebSockets can disconnect.
+
+## User feedback
+
+The **Gi tilbakemelding** panel collects a 1–5 usefulness rating, issue category
+and optional comment. Users explicitly select a transcript or one of the ten most
+recent completed generations. Optional attachments contain either the current
+selected transcript or the exact input transcript and original output of the
+selected generation. Audio and the editable summary are never attached. The
+preview shows the text before submission. Feedback and previews are kept only in
+page memory until submitted; closing the page discards unsent feedback.
+
+`FEEDBACK_BUCKET` enables the panel and authenticated submission API. Unset it to
+disable collection. `FEEDBACK_ATTACHMENTS_ENABLED=true` additionally permits text
+attachments; otherwise the API rejects them. The dev/prod manifests configure
+separate private NAIS-managed GCS buckets and enable text attachments. Local
+runs default to disabled; to exercise storage locally, use a dedicated test bucket
+and Application Default Credentials. Never use real meeting content for smoke tests.
+
+Each case is one atomic JSON object at `cases/<opaque-case-id>.json`, containing
+rating, category, comment, model/prompt metadata, app image, generation duration,
+optional trace reference and explicitly attached text. User principal IDs and
+job IDs are not copied into the case. Case IDs are owner-scoped; they are not a
+claim of anonymization. Server-side ownership checks apply to referenced jobs.
+Exact generation inputs stay in the existing six-hour job store and are never
+included in the polling response. Older/expired jobs cannot supply attachments.
+Retrying a submission reuses its ID and immutable payload; conflicting payloads
+are rejected. Failed storage never produces a success acknowledgement.
+
+GCS is the source of truth. A generation's numeric rating is also submitted as a
+`session_usefulness` Langfuse score, using the case ID for deduplication. Comments
+and attachments never enter Langfuse. Score delivery is best effort: failure emits
+`llm.feedback_score_unavailable` and does not invalidate a successfully saved case.
+There is no background score reconciliation in this first version. General and
+transcript-only feedback have no summary trace and remain in GCS.
+
+### Rollout and review
+
+1. Deploy the application manifests and image through the normal workflow. The
+   manifests provision buckets and a deletion lifecycle with `age: 30`.
+   No infrastructure was applied merely by adding this configuration.
+2. Before collecting real participant content, confirm the permitted investigation
+   purpose, authorized reviewers, location and retention. Set
+   `FEEDBACK_ATTACHMENTS_ENABLED=false` for ratings/comments only.
+3. Give the approved reviewer group bucket-scoped `roles/storage.objectViewer`;
+   employee application access does not grant investigation access. NAIS manages
+   application bucket access. Review the resulting IAM, bucket location and audit
+   logging before rollout; reviewer grants are not automated by this repo.
+4. Enable the exact `/api/public/scores` browser-auth exception on the **Langfuse**
+   application, retaining its project API Basic authentication. The current
+   production ignore list was verified to contain only the OTLP traces path.
+   `.nais/langfuse-feedback.patch` is a guarded JSON patch for that exact state:
+
+   ```bash
+   kubectl --context prod-gcp -n ao-ki-taskforce patch application ao-ki-langfuse \
+     --type=json --patch-file=.nais/langfuse-feedback.patch
+   ```
+
+   Keep the equivalent change in Langfuse's owning manifest before its next
+   deployment. The patch refuses a changed ignore list; inspect and merge rather
+   than replacing other entries. The internal service also uses the login proxy,
+   so it does not bypass this requirement. Do not exempt all public API paths.
+5. With fictional content, submit a rating and a selected generation attachment,
+   verify its preview against the stored case, retry a submission and confirm one
+   object, then verify a numeric score on the matching Langfuse trace. Check that
+   no comment/transcript/summary appears in Langfuse or logs. Confirm an
+   unauthorized account cannot read the bucket.
+
+Review with your own approved GCP credentials, in a controlled environment:
+
+```bash
+.venv/bin/python scripts/review-feedback.py --bucket ao-ki-transkribering-feedback-prod list --limit 20
+.venv/bin/python scripts/review-feedback.py --bucket ao-ki-transkribering-feedback-prod download CASE_ID --output /approved/local/path/case.json
+```
+
+Listing returns bounded case metadata without comments or meeting text; it reads
+at most 100 packages and is ordered by object name, not recency. Downloads create a
+new owner-only file and refuse to overwrite an existing path. Local downloads are
+outside automated cleanup. Review cases regularly, record findings in the team's
+existing issue process without copying participant content, and verify fixes with
+fictional regression examples. This is an investigation workflow, not automatic
+permission to reuse recordings as training or evaluation datasets.
+
+The bucket lifecycle starts deletion after 30 days independently of API uptime.
+It is asynchronous, not an exact expiry guarantee. GCS soft deletion may retain
+removed objects longer (commonly seven additional days); explicitly inspect the
+actual bucket policy and account for it before stating a deletion deadline. No
+minimum retention lock is configured, so early deletion remains possible. The
+Langfuse score follows Langfuse's separate retention policy, not the bucket's.
+See [NAIS bucket configuration](https://docs.nais.io/workloads/application/reference/spec/#gcpbuckets),
+[GCS lifecycle](https://docs.cloud.google.com/storage/docs/lifecycle) and
+[GCS soft deletion](https://docs.cloud.google.com/storage/docs/soft-delete).

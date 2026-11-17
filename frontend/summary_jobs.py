@@ -100,7 +100,9 @@ class SummaryJobs:
                 metadata = self.store.read(key)
                 with self.telemetry.track("summary_job"), track_llm(
                     "summary", template=metadata.get("scenario"), variant=metadata.get("veileder_variant"),
-                ):
+                ) as observation:
+                    span = observation.get("span")
+                    self.store.update_path(path, {"trace_id": span.trace_id if span else None})
                     self.store.update_path(path, {"status": "genererer", "melding": "Genererer …"})
                     event("llm.job_started", job_id=key)
                     async with aclosing(run_summary_workflow(generate)) as results:
@@ -110,7 +112,8 @@ class SummaryJobs:
                                 event("llm.job_progress", job_id=key)
                             elif result["type"] == "ferdig":
                                 self.store.update_path(path, {"status": "ferdig", "tekst": result["tekst"],
-                                                            "melding": "Ferdig", "advarsler": result.get("advarsler", [])})
+                                                            "melding": "Ferdig", "advarsler": result.get("advarsler", []),
+                                                            "elapsed_s": round(time.monotonic() - started, 3)})
                                 event("llm.job_completed", job_id=key, characters=len(result["tekst"]),
                                       elapsed_s=round(time.monotonic() - started, 3))
                                 return

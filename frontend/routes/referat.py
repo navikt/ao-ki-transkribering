@@ -320,6 +320,7 @@ async def start_llm_job(handling_id: str, jobb_id: UUID, foresporsel: LlmForespo
 
     return summary_jobs.submit(str(jobb_id), _job_owner(request), fingerprint, {
         "modell": foresporsel.modell or LLM_MODELL, "handling": handling.id, "scenario": scenario,
+        "feedback_source": foresporsel.transkripsjon,
         **_prompt_metadata(handling, foresporsel),
         **_veileder_valg(foresporsel, scenario),
     }, run, _job_error)

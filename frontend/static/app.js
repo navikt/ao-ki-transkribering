@@ -1532,7 +1532,10 @@ async function _genererLlmJobb(handling, payload, onProgress, signal) {
       signal?.removeEventListener("abort", abort);
     }
     await sessionAccess.waitForAuthentication(signal);
-    if (state?.status === "ferdig") return state;
+    if (state?.status === "ferdig") {
+      globalThis.sessionFeedback?.capture(key, payload, state);
+      return state;
+    }
     if (state?.status === "feil") throw new Error(state.melding);
     if (state?.melding) onProgress(state.melding);
     await new Promise(resolve => setTimeout(resolve, 1500));
@@ -1801,3 +1804,11 @@ lastReferatScenarier();
 lastSystemstatus();
 setInterval(lastSystemstatus, 30000);
 if (typeof MeetingWorkspace !== "undefined") globalThis.meetingWorkspace = new MeetingWorkspace();
+
+if (typeof SessionFeedback !== "undefined") {
+  globalThis.sessionFeedback = new SessionFeedback({
+    root: document.getElementById("session-feedback"), request: appFetch,
+    transcript: target => target === "batch" || target === "sanntid" ? _hentTranskripsjonTekst(target) : "",
+  });
+  globalThis.sessionFeedback.load();
+}

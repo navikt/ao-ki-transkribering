@@ -407,6 +407,47 @@
   </div><!-- /referat-kolonne -->
   </div><!-- /app-main-hoyre -->
   </div><!-- /app-main-grid -->
+  <details id="session-feedback" class="session-feedback" hidden>
+    <summary>Gi tilbakemelding</summary>
+    <p>Hjelp oss å forbedre tjenesten. Ikke skriv navn eller andre personopplysninger i kommentaren.</p>
+    <form>
+      <fieldset>
+        <legend>Din vurdering</legend>
+        <label for="feedback-target">Hva gjelder tilbakemeldingen?</label>
+        <select id="feedback-target" name="target">
+          <option value="general">Tjenesten generelt</option>
+          <option value="batch">Transkripsjon fra lydfil</option>
+          <option value="sanntid">Transkripsjon fra opptak</option>
+        </select>
+        <label for="feedback-rating">Hvor nyttig var tjenesten?</label>
+        <select id="feedback-rating" name="rating" required>
+          <option value="">Velg vurdering</option>
+          <option value="1">1 – Ikke nyttig</option><option value="2">2</option>
+          <option value="3">3</option><option value="4">4</option><option value="5">5 – Svært nyttig</option>
+        </select>
+        <label for="feedback-category">Tema</label>
+        <select id="feedback-category" name="category">
+          <option value="general">Generelt</option><option value="transcription">Transkripsjon</option>
+          <option value="speakers">Talere</option><option value="summary_accuracy">Feil i referatet</option>
+          <option value="missing_content">Manglende innhold</option><option value="speed">Hastighet</option>
+          <option value="usability">Brukervennlighet</option>
+        </select>
+        <label for="feedback-comment">Kommentar (valgfritt)</label>
+        <textarea id="feedback-comment" name="comment" rows="3" maxlength="4000"></textarea>
+        <div data-attachment-option hidden>
+          <label><input type="checkbox" name="attach"> Del valgt transkripsjon og eventuelt referat for undersøkelse</label>
+          <p>Kun for møter som kan deles med undersøkelsesteamet. Kontroller innholdet nedenfor før du sender.
+             Lyd og bearbeidet referat legges ikke ved. Ved et valgt referat deles transkripsjonen som ble brukt til å lage det.</p>
+          <pre data-feedback-preview hidden></pre>
+        </div>
+      </fieldset>
+      <p>Vurdering, kommentar og teknisk informasjon lagres for oppfølging av teamet.
+         Automatisk opprydding starter etter 30 dager; sikkerhetskopier ved sletting kan beholdes lenger.</p>
+      <button type="submit" class="knapp knapp-sekundær">Send tilbakemelding</button>
+      <button type="button" class="knapp knapp-sekundær" data-feedback-new hidden>Ny tilbakemelding</button>
+      <p role="status" aria-live="polite"></p>
+    </form>
+  </details>
 </main>
 <div id="handling-status" class="handling-status" role="status" aria-live="polite" aria-atomic="true" hidden></div>
 
@@ -428,6 +469,7 @@
 <script src="/static/recording.js?v=$asset_version"></script>
 <script src="/static/recording-lifecycle.js?v=$asset_version"></script>
 <script src="/static/workspace.js?v=$asset_version"></script>
+<script src="/static/feedback.js?v=$asset_version"></script>
 <script src="/static/app.js?v=$asset_version"></script>
 </body>
 </html>
