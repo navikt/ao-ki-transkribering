@@ -49,7 +49,16 @@ def case_key(owner, submission_id):
 
 def check_origin(request):
     origin = request.headers.get("origin")
-    if origin and origin.rstrip("/") != f"{request.url.scheme}://{request.headers.get('host', '')}":
+    if not origin:
+        return  # Authenticated non-browser clients do not send Origin.
+    configured = {value.strip().rstrip("/") for value in os.getenv("FEEDBACK_ALLOWED_ORIGINS", "").split(",") if value.strip()}
+    if configured:
+        allowed = origin.rstrip("/") in configured
+    else:
+        # Local development can use its direct URL. Deployed apps require an
+        # explicit list: TLS termination and proxy host rewrites are expected.
+        allowed = not os.getenv("NAIS_CLUSTER_NAME") and origin.rstrip("/") == str(request.base_url).rstrip("/")
+    if not allowed:
         raise HTTPException(403, "Ugyldig avsender")
 
 

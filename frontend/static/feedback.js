@@ -1,7 +1,7 @@
 /* Feedback remains in page memory until the user explicitly submits it. */
 class SessionFeedback {
-  constructor({root, request, transcript, audio = () => null, launcher = null}) {
-    Object.assign(this, {root, request, transcript, audio, launcher});
+  constructor({root, request, transcript, audio = () => null, currentTarget = () => null, launcher = null}) {
+    Object.assign(this, {root, request, transcript, audio, currentTarget, launcher});
     this.generations = new Map();
     this.pending = null;
     this.dirty = false;
@@ -12,6 +12,7 @@ class SessionFeedback {
       this.submit();
     });
     launcher?.addEventListener('click', () => {
+      this.prepare();
       root.open = true;
       root.scrollIntoView({behavior: 'smooth', block: 'start'});
       root.querySelector('[data-rating]')?.focus({preventScroll: true});
@@ -45,7 +46,15 @@ class SessionFeedback {
       root.querySelector('[role="status"]').textContent = '';
       this.preview();
     });
-    root.addEventListener('toggle', () => { if (root.open && !this.pending) this.preview(); });
+    root.addEventListener('toggle', () => { if (root.open && !this.pending) this.prepare(); });
+  }
+  prepare() {
+    const target = this.root.querySelector('[name="target"]');
+    const current = this.currentTarget();
+    if (!this.dirty && !this.pending && target.value === 'general' && current && this.transcript(current)?.trim()) {
+      target.value = current;
+    }
+    this.preview();
   }
   async load() {
     try {
@@ -89,9 +98,14 @@ class SessionFeedback {
     const withAudio = attach && this.root.querySelector('[name="audio"]').checked;
     this.root.querySelector('[data-audio-details]').hidden = !withAudio;
     const file = this.root.querySelector('[name="audio-file"]').files?.[0];
+    this.root.querySelector('[data-audio-choice]').textContent = content.audio
+      ? 'Del lyden som allerede finnes i denne nettleseren' : 'Legg også ved lyd';
+    const picker = this.root.querySelector('[data-audio-file-picker]');
+    picker.open = !content.audio || !!file;
+    this.root.querySelector('[data-audio-file-summary]').textContent = content.audio ? 'Bruk en annen lydfil' : 'Velg lydfil';
     this.root.querySelector('[data-audio-label]').textContent = file
       ? `Valgt lydfil: ${file.name} (${(file.size / 1024 / 1024).toFixed(1)} MB)`
-      : content.audio?.label || 'Ingen lokal lyd tilgjengelig. Velg lydfilen du vil dele.';
+      : content.audio?.label || 'Ingen lokal lyd er tilgjengelig for dette valget. Gjenopprett opptaket hvis det finnes, eller velg en lydfil.';
   }
   async submit() {
     if (this.sending) return;

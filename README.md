@@ -695,8 +695,20 @@ selected transcript or the exact input transcript and original output of the
 selected generation. Users can additionally opt in to share audio: the original
 uploaded file, the complete stopped microphone recording, or a manually selected
 file. Audio is never selected automatically. The editable summary is not attached.
-The preview shows the text and describes the audio source before submission. Feedback and previews are kept only in
+The preview shows the text and describes the audio source before submission.
+For a microphone recording, the app reads the WAV directly from browser storage;
+no download or manual file selection is needed. Stop the recording first. After a
+reload, restore the temporary recording before sharing it. Audio deleted or expired
+from browser storage cannot be recovered by the feedback form. The file picker is
+an explicit fallback, collapsed when a local audio source is available. Feedback and previews are kept only in
 page memory until submitted; closing the page discards unsent feedback.
+
+`FEEDBACK_ALLOWED_ORIGINS` lists the public application origins (comma separated).
+The dev/prod manifests match their ingress URLs. Origin checks use this list rather
+than the internal request URL, because the login/ingress proxy terminates HTTPS.
+Do not infer trusted origins from client-supplied forwarded headers. Deployed apps
+without the list reject browser submissions; local development can use its direct
+origin. Non-browser clients without Origin still require normal authentication.
 
 `FEEDBACK_BUCKET` enables the panel and authenticated submission API. Unset it to
 disable collection. `FEEDBACK_ATTACHMENTS_ENABLED=true` additionally permits text

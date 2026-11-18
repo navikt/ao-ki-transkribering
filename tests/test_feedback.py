@@ -261,3 +261,63 @@ def test_real_audio_storage_helpers_keep_objects_immutable(monkeypatch):
     with pytest.raises(HTTPException) as exc:
         feedback.audio_metadata('case', 'digest')
     assert exc.value.status_code == 409
+
+
+@pytest.mark.parametrize('audio', [False, True])
+def test_public_https_origin_survives_internal_proxy_url(audio_store, monkeypatch, audio):
+    (client, _, _), _ = audio_store
+    public = 'https://ao-ki-transkribering.intern.nav.no'
+    monkeypatch.setenv('FEEDBACK_ALLOWED_ORIGINS', public)
+    # The app sees HTTP behind the TLS-terminating proxy while the browser sends HTTPS.
+    url = '/feedback/' + str(uuid4())
+    headers = {'origin': public, 'host': 'ao-ki-transkribering.intern.nav.no'}
+    if audio:
+        response = client.put(url + '/audio', content=b'fictional audio', headers={**headers, 'content-type': 'audio/wav'})
+    else:
+        response = client.put(url, json={'rating': 4, 'category': 'general'}, headers=headers)
+    assert response.status_code == 200, response.text
+
+
+@pytest.mark.parametrize('origin', [
+    'https://ao-ki-transkribering.intern.nav.no',
+    'https://ao-ki-transkribering.ansatt.nav.no',
+])
+def test_origin_uses_public_allowlist_not_proxy_host(setup, monkeypatch, origin):
+    client, _, _ = setup
+    monkeypatch.setenv('FEEDBACK_ALLOWED_ORIGINS',
+                       'https://ao-ki-transkribering.intern.nav.no,https://ao-ki-transkribering.ansatt.nav.no')
+    response = client.put('/feedback/' + str(uuid4()), json={'rating': 4, 'category': 'general'},
+                          headers={'origin': origin, 'host': 'internal-api:8765'})
+    assert response.status_code == 200
+
+
+def test_untrusted_origin_cannot_spoof_proxy_headers(setup, monkeypatch):
+    client, _, packages = setup
+    monkeypatch.setenv('FEEDBACK_ALLOWED_ORIGINS', 'https://ao-ki-transkribering.intern.nav.no')
+    for origin in ['https://evil.example', 'null', 'https://ao-ki-transkribering.intern.nav.no.evil.example']:
+        response = client.put('/feedback/' + str(uuid4()), json={'rating': 4, 'category': 'general'}, headers={
+            'origin': origin, 'host': origin.replace('https://', ''),
+            'x-forwarded-host': origin.replace('https://', ''), 'x-forwarded-proto': 'https',
+        })
+        assert response.status_code == 403
+    assert not packages
+
+
+def test_deployment_without_origin_configuration_fails_closed(setup, monkeypatch):
+    client, _, packages = setup
+    monkeypatch.delenv('FEEDBACK_ALLOWED_ORIGINS', raising=False)
+    monkeypatch.setenv('NAIS_CLUSTER_NAME', 'prod-gcp')
+    response = client.put('/feedback/' + str(uuid4()), json={'rating': 4, 'category': 'general'},
+                          headers={'origin': 'http://testserver'})
+    assert response.status_code == 403
+    assert not packages
+
+
+def test_feedback_allowlists_match_manifest_ingresses():
+    from pathlib import Path
+    import yaml
+    for environment in ('dev', 'prod'):
+        manifest = yaml.safe_load(Path(f'.nais/{environment}.yaml').read_text().replace('{{image}}', 'test-image'))
+        spec = manifest['spec']
+        configured = next(item['value'] for item in spec['env'] if item['name'] == 'FEEDBACK_ALLOWED_ORIGINS')
+        assert set(configured.split(',')) == set(spec['ingresses'])

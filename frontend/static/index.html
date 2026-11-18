@@ -455,11 +455,14 @@
             <p data-feedback-includes></p>
             <details class="feedback-preview-details"><summary>Se teksten som blir delt</summary><pre data-feedback-preview></pre></details>
             <div data-audio-option hidden>
-              <label class="feedback-check"><input type="checkbox" name="audio"><span>Legg også ved lyd</span></label>
+              <label class="feedback-check"><input type="checkbox" name="audio"><span data-audio-choice>Legg også ved lyd</span></label>
               <div data-audio-details hidden>
                 <p data-audio-label class="feedback-help"></p>
-                <label for="feedback-audio-file">Velg en lydfil hvis du vil bruke en annen</label>
-                <input id="feedback-audio-file" name="audio-file" type="file" accept="audio/*,video/webm">
+                <details data-audio-file-picker>
+                  <summary data-audio-file-summary>Bruk en annen lydfil</summary>
+                  <label for="feedback-audio-file">Lydfil</label>
+                  <input id="feedback-audio-file" name="audio-file" type="file" accept="audio/*,video/webm">
+                </details>
                 <p class="feedback-help">Hele lydfilen deles. Maks. 350 MB.</p>
               </div>
             </div>

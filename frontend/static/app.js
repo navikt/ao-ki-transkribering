@@ -1816,6 +1816,7 @@ if (typeof SessionFeedback !== "undefined") {
   globalThis.sessionFeedback = new SessionFeedback({
     root: document.getElementById("session-feedback"), request: appFetch,
     launcher: document.querySelector("[data-open-feedback]"), audio: feedbackAudioSource,
+    currentTarget: () => _aktivTranskripsjonskilde || (recordingArchive && !recordingArchive.disposed ? "sanntid" : null),
     transcript: target => target === "batch" || target === "sanntid" ? _hentTranskripsjonTekst(target) : "",
   });
   globalThis.sessionFeedback.load();
@@ -1828,7 +1829,7 @@ function feedbackAudioSource(target) {
   }
   if (target === "sanntid" && recordingArchive && !recordingArchive.disposed) {
     const archive = recordingArchive;
-    return {label: "Hele mikrofonopptaket deles, også tale etter at referatet ble laget. Stopp opptaket før du sender.", read: async () => {
+    return {label: "Opptaket hentes direkte fra nettleserlagringen. Du trenger ikke laste ned eller velge fil. Hele opptaket deles, også tale etter at referatet ble laget. Stopp opptaket før du sender.", read: async () => {
       if (archive.disposed || !archive.stopped) throw new Error("Opptaket er ikke tilgjengelig eller er fortsatt aktivt.");
       return archive.wav();
     }};

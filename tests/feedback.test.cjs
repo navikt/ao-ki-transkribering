@@ -124,3 +124,52 @@ test('rating and unavailable audio are explained before any submission', async (
   assert.match(node('[role="status"]').textContent, /Velg en lydfil/);
   assert.equal(calls, 0);
 });
+
+test('audio comes directly from browser storage without choosing a file', async () => {
+  const requests = [];
+  const {feedback, node} = setup(async (url, options) => {
+    requests.push({url, body: options.body});
+    return {ok: true, json: async () => url.endsWith('/audio') ? {sha256: 'b'.repeat(64)} : {case_id: 'case'}};
+  });
+  const stored = new Blob(['stored recording'], {type: 'audio/wav'});
+  let reads = 0;
+  feedback.audio = () => ({label: 'Stored recording', read: async () => { reads++; return stored; }});
+  feedback.config.audio = true;
+  feedback.config.max_audio_bytes = 1000;
+  node('[name="attach"]').checked = true;
+  node('[name="audio"]').checked = true;
+  node('[name="audio-file"]').files = [];
+  feedback.preview();
+  assert.match(node('[data-audio-choice]').textContent, /denne nettleseren/);
+  assert.equal(node('[data-audio-file-picker]').open, false);
+  await feedback.submit();
+  assert.equal(reads, 1);
+  assert.equal(requests[0].body, stored);
+  assert.equal(JSON.parse(requests[1].body).audio_sha256, 'b'.repeat(64));
+});
+
+test('opening untouched feedback selects the current recovered recording', () => {
+  const {feedback, node} = setup(async () => {});
+  node('[name="target"]').value = 'general';
+  feedback.currentTarget = () => 'sanntid';
+  feedback.audio = () => ({label: 'Recovered recording', read: async () => {}});
+  feedback.prepare();
+  assert.equal(node('[name="target"]').value, 'sanntid');
+  assert.equal(node('[data-audio-file-picker]').open, false);
+  assert.equal(node('[data-audio-label]').textContent, 'Recovered recording');
+  // Deliberately choosing general feedback must not be overridden.
+  feedback.dirty = true;
+  node('[name="target"]').value = 'general';
+  feedback.prepare();
+  assert.equal(node('[name="target"]').value, 'general');
+});
+
+test('an older generation never silently takes audio from the current recording', () => {
+  const {feedback, node} = setup(async () => {});
+  node('[name="target"]').value = 'older-job';
+  feedback.generations.set('older-job', {transcript: 'Earlier meeting', summary: 'Earlier summary', audio: null});
+  feedback.audio = () => ({label: 'Newer meeting', read: async () => {}});
+  feedback.preview();
+  assert.equal(node('[data-audio-file-picker]').open, true);
+  assert.doesNotMatch(node('[data-audio-label]').textContent, /Newer meeting/);
+});

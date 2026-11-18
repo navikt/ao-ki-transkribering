@@ -69,6 +69,8 @@ spec:
           age: 30
 
   env:
+    - name: FEEDBACK_ALLOWED_ORIGINS
+      value: "https://ao-ki-transkribering.intern.dev.nav.no"
     - name: FEEDBACK_BUCKET
       value: "ao-ki-transkribering-feedback-dev"
     - name: FEEDBACK_AUDIO_ENABLED
