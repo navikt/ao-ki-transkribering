@@ -3,12 +3,14 @@ class SessionAccess {
   constructor({request = (...args) => fetch(...args), onChange = () => {}} = {}) {
     Object.assign(this, {request, onChange});
     this.required = false;
+    this.loginUrl = "/oauth2/login";
     this.waiters = new Set();
   }
-  requireLogin() {
-    if (this.required) return;
+  requireLogin(loginUrl = "/oauth2/login") {
+    if (this.required && this.loginUrl === loginUrl) return;
     this.required = true;
-    this.onChange(true);
+    this.loginUrl = loginUrl;
+    this.onChange(true, this.loginUrl);
   }
   async fetch(url, options) {
     if (this.required) {
@@ -16,7 +18,10 @@ class SessionAccess {
       return {ok: false, status: 401};
     }
     const response = await this.request(url, options);
-    if (response.status === 401) this.requireLogin();
+    if (response.status === 401) {
+      const passwordRequired = response.headers?.get("X-Access-Password-Required") === "true";
+      this.requireLogin(passwordRequired ? "/login" : "/oauth2/login");
+    }
     return response;
   }
   async recover() {
@@ -29,11 +34,16 @@ class SessionAccess {
         const response = await this.request("/system/status", {
           credentials: "same-origin", cache: "no-store", redirect: "error", signal: controller.signal,
         });
+        if (response.status === 401) {
+          const passwordRequired = response.headers?.get("X-Access-Password-Required") === "true";
+          this.requireLogin(passwordRequired ? "/login" : "/oauth2/login");
+        }
         if (!response.ok) return false;
         this.required = false;
+        this.loginUrl = "/oauth2/login";
         for (const resolve of this.waiters) resolve();
         this.waiters.clear();
-        this.onChange(false);
+        this.onChange(false, this.loginUrl);
         return true;
       } catch { return false; }
       finally { clearTimeout(timeout); }

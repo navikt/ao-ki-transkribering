@@ -6,12 +6,13 @@ import httpx
 from starlette.datastructures import Headers
 from starlette.responses import JSONResponse
 
+from frontend.identity import authentication_required
+
 
 class EntraAuthMiddleware:
     def __init__(self, app):
         self.app = app
-        # A deployment cannot accidentally disable authentication with a local flag.
-        self.required = bool(os.getenv("NAIS_CLUSTER_NAME")) or os.getenv("AUTH_REQUIRED", "").lower() == "true"
+        self.required = authentication_required()
         self.endpoint = os.getenv("NAIS_TOKEN_INTROSPECTION_ENDPOINT", "")
         if self.required and not self.endpoint:
             raise RuntimeError("NAIS token introspection must be configured when authentication is required")

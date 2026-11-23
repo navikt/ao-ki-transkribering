@@ -48,6 +48,31 @@ oppdateres separat; se [drift](docs/operations.md).
 Operasjonelle logger, målinger, dashboard og alarmer er beskrevet i
 [monitorering](docs/monitoring.md), uten opptak, transkripsjoner eller referatinnhold.
 
+### Delt passord for testing
+
+Dev og prod krever et delt passord i tillegg til Entra-innlogging.
+Passordet er en midlertidig felles kontroll i piloten, uten en egen brukerliste i Entra.
+Denne testtilgangen er bare for syntetiske data, ikke ekte møteinnhold eller personopplysninger.
+Før du deployer må du legge `ACCESS_PASSWORD` og `ACCESS_SESSION_KEY` inn i den eksisterende
+`ao-ki-transkribering-secrets` i hvert miljø. Bruk et tilfeldig generert passord
+og en separat tilfeldig signeringsnøkkel på minst 32 byte, med ulike verdier i dev og prod.
+Ikke legg verdiene i Git, og ikke skriv dem til logger.
+`ACCESS_PASSWORD_REQUIRED=true` gjør at appen ikke starter hvis verdiene mangler.
+
+Passordet oppgis på `/login`. Tilgangen varer i åtte timer og gjelder også API-er og
+WebSocket-tilkoblinger; helsesjekkene er unntatt. Ved utløp åpner «Logg inn igjen»
+innloggingen i en ny fane, slik at et aktivt opptak kan fortsette lokalt.
+Etter innlogging kan «Jeg har logget inn» gjenoppta innsendingen.
+Allerede åpne referatstrømmer kan fullføres etter utløp.
+Passordet gir ikke egne tilganger til opptak eller transkripsjoner per bruker.
+
+Bytt passord eller signeringsnøkkel og restart appen for å kreve ny passordinnlogging.
+Mislykkede passordforsøk logges uten innsendte verdier. Grensen for innloggingsforsøk
+gjelder per prosess og nullstilles ved restart. Med flere replicas trengs en delt grense.
+For rollback: sett `ACCESS_PASSWORD_REQUIRED=false`, fjern bare `ACCESS_PASSWORD` og
+`ACCESS_SESSION_KEY` fra den eksisterende secreten, og deploy appen på nytt.
+Entra-innloggingen beholdes. Lokalt er passordkravet slått av når flagget og begge verdiene mangler.
+
 ---
 
 ## Ordliste (enkelt forklart)

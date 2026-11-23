@@ -23,7 +23,7 @@
 <main class="app-main">
   <div id="session-warning" class="session-warning" hidden role="alert">
     <span>Innloggingen er ikke lenger gyldig. Transkripsjon og referat venter. Et aktivt opptak fortsetter lokalt.</span>
-    <a class="knapp knapp-sekundær" href="/oauth2/login" target="_blank" rel="noopener noreferrer">Logg inn igjen</a>
+    <a id="session-login-link" class="knapp knapp-sekundær" href="/oauth2/login" target="_blank" rel="noopener noreferrer">Logg inn igjen</a>
     <button class="knapp knapp-sekundær" onclick="gjenopprettInnlogging(this)">Jeg har logget inn</button>
     <span id="session-recovery-status" role="status"></span>
   </div>

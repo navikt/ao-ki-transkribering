@@ -11,6 +11,7 @@ from fastapi.responses import HTMLResponse
 from pathlib import Path
 from fastapi.staticfiles import StaticFiles
 from frontend.auth import EntraAuthMiddleware
+from frontend.password_gate import PasswordGateConfig, PasswordGateMiddleware
 from frontend.feedback import router as feedback_router
 
 from frontend.routes.helse import router as helse_router
@@ -87,6 +88,8 @@ async def lifespan(app: FastAPI):
 def create_app() -> FastAPI:
     configure_diagnostics()
     app = FastAPI(title="Transkribering", lifespan=lifespan)
+    app.state.password_gate_config = PasswordGateConfig.from_env()
+    app.add_middleware(PasswordGateMiddleware, config=app.state.password_gate_config)
     app.add_middleware(EntraAuthMiddleware)
 
     _STATIC = Path(__file__).parent / "static"

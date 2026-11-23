@@ -1,6 +1,5 @@
 import hashlib
 import json
-import os
 from functools import partial
 from uuid import UUID
 
@@ -9,6 +8,7 @@ from fastapi import APIRouter, HTTPException, Request, Response
 from fastapi.responses import StreamingResponse
 from shared.diagnostics import failure
 
+from frontend.identity import authentication_required, owner_id
 from frontend.long_transcript import TranscriptProcessingError, generate, with_heartbeats
 from frontend.compact_summary import generate as generate_grounded
 from frontend.summary_jobs import SummaryJobs
@@ -272,13 +272,10 @@ def _prompt_metadata(handling, foresporsel):
 
 
 def _job_owner(request: Request) -> str:
-    user = getattr(request.state, "user", None)
-    if user is None and not os.getenv("NAIS_CLUSTER_NAME") and os.getenv("AUTH_REQUIRED", "").lower() != "true":
-        return "local"
-    principal = (user or {}).get("oid") or (user or {}).get("sub")
-    if not isinstance(principal, str) or not principal:
+    owner = owner_id(getattr(request.state, "user", None), auth_required=authentication_required())
+    if owner is None:
         raise HTTPException(401, "Innlogging kreves")
-    return hashlib.sha256(f"{user.get('tid', '')}:{principal}".encode()).hexdigest()
+    return owner
 
 
 def _job_error(exc: Exception) -> str:

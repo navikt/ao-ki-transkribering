@@ -14,6 +14,7 @@ const liveReferatComparison = new SummaryComparison(
   document.getElementById("live-referat-diff"), document.getElementById("live-referat-diff-tekst"));
 const sessionAccess = new SessionAccess({onChange: required => {
   document.getElementById("session-warning").hidden = !required;
+  document.getElementById("session-login-link").href = sessionAccess.loginUrl;
   if (!required) {
     recordingArchive?.resumeAfterLogin();
     lastSystemstatus();
