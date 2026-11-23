@@ -182,7 +182,9 @@ maxlength="{MAX_PASSWORD_LENGTH}" required{described_by}>
 <button type="submit">Åpne demoen</button></form>
 </main></body></html>"""
         return HTMLResponse(page, status_code=status, headers={
-            "Cache-Control": "no-store", "Referrer-Policy": "no-referrer",
+            # no-referrer turns a browser form POST's Origin into null, which
+            # our origin check must reject. Preserve it only for same-origin requests.
+            "Cache-Control": "no-store", "Referrer-Policy": "same-origin",
             "X-Content-Type-Options": "nosniff",
             "Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'; form-action 'self'; "
                                        "base-uri 'none'; frame-ancestors 'none'",

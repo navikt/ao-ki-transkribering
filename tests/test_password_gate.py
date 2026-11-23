@@ -540,3 +540,23 @@ def test_password_sessions_use_the_same_identity_as_existing_summary_jobs(build_
         response = login(client, password, {"Authorization": "Bearer synthetic"})
         assert response.status_code == 303
         assert response.cookies["__Host-ao_gate"].split(".")[3] == job_owner
+
+
+@pytest.mark.parametrize('path', ['/login', '/login?retry=1'])
+def test_login_page_preserves_origin_for_browser_form_posts(build_app, gate_environment, path):
+    password, _, _ = gate_environment
+    with TestClient(build_app(auth=True), base_url='https://demo.invalid') as client:
+        auth = {'Authorization': 'Bearer synthetic'}
+        page = client.get(path, headers=auth)
+        assert page.status_code == 200
+        # Fetch's append-Origin algorithm serializes a navigate-mode POST's
+        # origin as null under no-referrer. Same-origin preserves it for this
+        # form without sending referrer information to other origins.
+        assert page.headers['Referrer-Policy'] == 'same-origin'
+        for origin, expected in [('https://demo.invalid', 303), ('null', 403), ('https://evil.invalid', 403)]:
+            response = login(client, password, {**auth, 'Origin': origin})
+            assert response.status_code == expected
+        # Error responses render the same form and must preserve the policy too.
+        wrong = login(client, 'synthetic-wrong-password', {**auth, 'Origin': 'https://demo.invalid'})
+        assert wrong.status_code == 401
+        assert wrong.headers['Referrer-Policy'] == 'same-origin'
