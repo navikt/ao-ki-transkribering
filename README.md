@@ -53,8 +53,8 @@ Operasjonelle logger, målinger, dashboard og alarmer er beskrevet i
 Dev og prod krever et delt passord i tillegg til Entra-innlogging.
 Passordet er en midlertidig felles kontroll i piloten, uten en egen brukerliste i Entra.
 Denne testtilgangen er bare for syntetiske data, ikke ekte møteinnhold eller personopplysninger.
-Før du deployer må du legge `ACCESS_PASSWORD` og `ACCESS_SESSION_KEY` inn i den eksisterende
-`ao-ki-transkribering-secrets` i hvert miljø. Bruk et tilfeldig generert passord
+Før du deployer må `ACCESS_PASSWORD` og `ACCESS_SESSION_KEY` finnes i den NAIS-administrerte
+`ao-ki-pilot-access`-secreten i hvert miljø. Bruk et tilfeldig generert passord
 og en separat tilfeldig signeringsnøkkel på minst 32 byte, med ulike verdier i dev og prod.
 Ikke legg verdiene i Git, og ikke skriv dem til logger.
 `ACCESS_PASSWORD_REQUIRED=true` gjør at appen ikke starter hvis verdiene mangler.
@@ -69,9 +69,23 @@ Passordet gir ikke egne tilganger til opptak eller transkripsjoner per bruker.
 Bytt passord eller signeringsnøkkel og restart appen for å kreve ny passordinnlogging.
 Mislykkede passordforsøk logges uten innsendte verdier. Grensen for innloggingsforsøk
 gjelder per prosess og nullstilles ved restart. Med flere replicas trengs en delt grense.
-For rollback: sett `ACCESS_PASSWORD_REQUIRED=false`, fjern bare `ACCESS_PASSWORD` og
-`ACCESS_SESSION_KEY` fra den eksisterende secreten, og deploy appen på nytt.
+For rollback: sett `ACCESS_PASSWORD_REQUIRED=false`, fjern `ao-ki-pilot-access` fra appens
+`envFrom`, og deploy appen på nytt. Kontroller at ingen andre miljøkilder setter
+`ACCESS_PASSWORD` eller `ACCESS_SESSION_KEY`; disse verdiene aktiverer også passordkravet.
 Entra-innloggingen beholdes. Lokalt er passordkravet slått av når flagget og begge verdiene mangler.
+
+Hent pilotpassordet fra `ao-ki-pilot-access` i NAIS Console, eller lagre bare passordet
+lokalt med NAIS CLI etter `nais login -n`:
+
+```bash
+nais secret get ao-ki-pilot-access --team ao-ki-taskforce --environment prod-gcp \
+  --key ACCESS_PASSWORD --to-file /approved/local/path/pilot-password.txt \
+  --reason "Retrieve shared password for authorized pilot participants"
+```
+
+Bruk en beskyttet lokal mappe og del bare `ACCESS_PASSWORD` med pilotdeltakere via
+teamets godkjente kanal. `ACCESS_SESSION_KEY` skal ikke deles. Hemmelighetsverdier
+håndteres gjennom NAIS API; direkte Kubernetes-lesing av Secrets er sperret.
 
 ---
 

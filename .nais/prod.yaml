@@ -59,6 +59,7 @@ spec:
 
   envFrom:
     - secret: ao-ki-transkribering-secrets
+    - secret: ao-ki-pilot-access
     - secret: ao-ki-model-api
     - secret: ao-ki-langfuse-client
 
@@ -92,7 +93,7 @@ spec:
       value: "0.0.0.0"
     - name: AUTH_REQUIRED
       value: "true"
-    # ACCESS_PASSWORD and ACCESS_SESSION_KEY come from the existing ao-ki-transkribering-secrets; provision them before deploying.
+    # Pilot credentials come from the NAIS-managed ao-ki-pilot-access secret.
     - name: ACCESS_PASSWORD_REQUIRED
       value: "true"
     - name: MODEL_API_IAM_AUTH
