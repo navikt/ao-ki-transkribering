@@ -29,6 +29,9 @@ def test_referat_scenarier_lister_faste_promptvalg():
     scenarier = list_referat_scenarier()
 
     assert [scenario["id"] for scenario in scenarier] == [
+        "stikkord_0_3",
+        "basis_0_3",
+        "utfyllende_0_3",
         "stikkord_0_2",
         "basis_0_2",
         "utfyllende_0_2",
@@ -42,7 +45,7 @@ def test_referat_scenarier_lister_faste_promptvalg():
         "samarbeidsmote",
         "egendefinert",
     ]
-    assert [scenario["id"] for scenario in scenarier if scenario["standard"]] == ["basis_0_2"]
+    assert [scenario["id"] for scenario in scenarier if scenario["standard"]] == ["basis_0_3"]
 
 
 def test_handling_bygger_prompt_fra_transkripsjon():
@@ -206,15 +209,20 @@ def test_ukjent_referat_scenario_gir_400():
     assert "Ukjent referat-scenario" in res.json()["detail"]
 
 
-def test_referat_uten_scenario_bruker_basis_0_2(monkeypatch):
+def test_referat_uten_scenario_bruker_basis_0_3(monkeypatch):
     app = FastAPI()
     app.include_router(router)
-    kall = AsyncMock(return_value="Referat")
+    from frontend.output_contract import HEADINGS
+    result = "\n\n".join(heading + "\n" + (
+        "Ingen avtaler er oppgitt." if heading == "4. Avtaler" else "Ikke oppgitt."
+    ) for heading in HEADINGS)
+    kall = AsyncMock(return_value=result)
     monkeypatch.setattr(referat_routes, "kall_llm", kall)
     response = TestClient(app).post("/referat", json={"transkripsjon": "Vi avtaler et nytt møte."})
     assert response.status_code == 200
-    assert response.json()["scenario"] == "basis_0_2"
-    assert response.json()["prompt"]["version"] == "0.2"
+    assert response.json()["scenario"] == "basis_0_3"
+    assert response.json()["prompt"]["version"] == "0.3"
+    assert kall.await_count == 1
     assert "1. Bakgrunn" in kall.await_args.args[1]
 
 

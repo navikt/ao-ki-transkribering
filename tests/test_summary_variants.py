@@ -22,7 +22,7 @@ def test_first_release_remains_available_with_its_original_baseline():
     current = [item for item in choices if item["id"] in {profile.id for profile in CURRENT}]
     assert [item["id"] for item in current] == [profile.id for profile in CURRENT]
     assert not any(item["current"] or item["standard"] for item in current)
-    assert STANDARD_REFERAT_SCENARIO == "basis_0_2"
+    assert STANDARD_REFERAT_SCENARIO == "basis_0_3"
     for profile in CURRENT:
         assert profile.system_prompt == BASIS_0_1.system_prompt
         assert (profile.model, profile.cloud_model, profile.temperature, profile.top_p, profile.num_ctx, profile.mode) == (

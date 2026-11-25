@@ -56,7 +56,8 @@ def test_model_metadata_uses_canonical_allowlisted_names(exporter, model):
 
 
 @pytest.mark.parametrize("template", ["basis_0_1", "stikkord_0_1", "utfyllende_0_1",
-                                      "basis_0_2", "stikkord_0_2", "utfyllende_0_2"])
+                                      "basis_0_2", "stikkord_0_2", "utfyllende_0_2",
+                                      "basis_0_3", "stikkord_0_3", "utfyllende_0_3"])
 def test_versioned_prompts_are_safe_metadata(exporter, template):
     with observations.track("summary", template=template):
         pass

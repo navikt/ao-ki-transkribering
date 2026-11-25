@@ -12,12 +12,14 @@ from frontend.identity import authentication_required, owner_id
 from frontend.long_transcript import TranscriptProcessingError, generate, with_heartbeats
 from frontend.compact_summary import generate as generate_grounded
 from frontend.summary_jobs import SummaryJobs
+from frontend.output_contract import released_contract
 from shared.core.runtime import job_store
 from shared.core.settings import LLM_MODELL
 from shared.services.jobs import JobStore
 from shared.services.llm_proxy_client import (
     LlmForesporsel,
     LlmStatus,
+    ModelResponseError,
     er_kontekstfeil,
     hent_status as hent_llm_status,
     kall as kall_llm,
@@ -178,7 +180,7 @@ async def _kjor_handling(handling_id: str, foresporsel: LlmForesporsel):
         raise HTTPException(status_code=503, detail="Kan ikke nå AI-proxyen")
     except httpx.HTTPStatusError as e:
         raise _http_error_for_llm(e)
-    except TranscriptProcessingError as exc:
+    except (TranscriptProcessingError, ModelResponseError) as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
     except HTTPException:
         raise
@@ -227,6 +229,7 @@ def _handling_events(handling, foresporsel, *, stream=None):
             foresporsel.modell, call=partial(kall_llm, raw=True, generation=generation),
             max_tokens=options.max_tokens if options and options.max_tokens is not None else profile.max_tokens,
             context_tokens=profile.num_ctx, count=count_llm_tokens,
+            output_contract=released_contract(profile, options),
         )
     grounded = handling.id in {"referat", "rullerende_referat", "sammendrag"}
     engine = generate_grounded if grounded else generate
@@ -285,7 +288,7 @@ def _job_error(exc: Exception) -> str:
         return "Modellen brukte for lang tid. Prøv igjen."
     if isinstance(exc, httpx.RequestError):
         return "Kan ikke nå AI-proxyen. Prøv igjen."
-    if isinstance(exc, TranscriptProcessingError):
+    if isinstance(exc, (TranscriptProcessingError, ModelResponseError)):
         return str(exc)
     return "Genereringen feilet. Prøv igjen."
 
@@ -366,7 +369,7 @@ def _stream_handling(handling_id: str, foresporsel: LlmForesporsel):
             yield sse({"type": "feil", "melding": "Kan ikke nå AI-proxyen"})
         except httpx.HTTPStatusError as e:
             yield sse({"type": "feil", "melding": _sse_melding_for_llm(e)})
-        except TranscriptProcessingError as exc:
+        except (TranscriptProcessingError, ModelResponseError) as exc:
             yield sse({"type": "feil", "melding": str(exc)})
         except Exception as exc:
             failure("llm.stream_failed", exc)

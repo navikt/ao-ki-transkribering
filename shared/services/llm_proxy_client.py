@@ -163,7 +163,15 @@ def _extract_text_from_delta(data: dict) -> str:
     return ""
 
 
-class IncompleteModelResponse(RuntimeError):
+class ModelResponseError(RuntimeError):
+    pass
+
+
+class IncompleteModelResponse(ModelResponseError):
+    pass
+
+
+class RefusedModelResponse(ModelResponseError):
     pass
 
 
@@ -225,6 +233,11 @@ async def kall(system: str, bruker: str, modell: str | None = None, *, max_token
         resp.raise_for_status()
         data = resp.json()
         record_usage(data.get("usage"))
+        if data.get("error"):
+            raise ModelResponseError("Modelltjenesten rapporterte en feil. Prøv igjen.")
+        if any(choice.get("finish_reason") == "content_filter" or choice.get("message", {}).get("refusal")
+               for choice in data.get("choices", [])):
+            raise RefusedModelResponse("Modellen avviste forespørselen. Ingen referattekst vises.")
         if any(choice.get("finish_reason") == "length" for choice in data.get("choices", [])):
             raise IncompleteModelResponse("Modellen nådde svargrensen før svaret var ferdig.")
         text = _extract_text_from_response(data)
@@ -325,6 +338,13 @@ async def stream_tokens(system: str, bruker: str, modell: str | None = None, *, 
                     chunk = json.loads(innhold)
                 except json.JSONDecodeError:
                     continue
+                if chunk.get("error"):
+                    raise ModelResponseError("Modelltjenesten rapporterte en feil. Prøv igjen.")
+                if any(choice.get("finish_reason") == "content_filter" or choice.get("delta", {}).get("refusal")
+                       for choice in chunk.get("choices", [])):
+                    raise RefusedModelResponse("Modellen avviste forespørselen. Ingen referattekst vises.")
+                if any(choice.get("finish_reason") == "length" for choice in chunk.get("choices", [])):
+                    raise IncompleteModelResponse("Modellen nådde svargrensen før svaret var ferdig.")
                 token = _extract_text_from_delta(chunk)
                 record_usage(chunk.get("usage"))
                 if not token:
@@ -351,3 +371,4 @@ async def stream_tokens(system: str, bruker: str, modell: str | None = None, *, 
                 else:
                     svar_deler.append(token)
                     yield token, False, ""
+    raise IncompleteModelResponse("Svaret fra modellen ble avbrutt. Prøv igjen.")

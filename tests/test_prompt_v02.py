@@ -12,13 +12,15 @@ import pytest
 from frontend.routes import referat as routes
 from shared.services import llm_proxy_client
 from worker.prompts.handlinger import list_referat_scenarier
-from worker.prompts.versions import CURRENT_PROMPTS
+from worker.prompts.versions import CURRENT_PROMPTS, STIKKORD_0_2, BASIS_0_2, UTFYLLENDE_0_2
+
+RELEASE_02 = (STIKKORD_0_2, BASIS_0_2, UTFYLLENDE_0_2)
 
 
 @pytest.mark.parametrize("profile,checksum,temperature,repeat", [
-    (CURRENT_PROMPTS[0], "68378b5b2b2b32f440ac833350ae419fe0a4354d0bb84eab340b2289efab1201", 0.2, 1.05),
-    (CURRENT_PROMPTS[1], "d8beff3ae211c44b438de3650025ad1db7c9aa880d6e9fab597b9b030f5d0bb9", 0.2, 1.2),
-    (CURRENT_PROMPTS[2], "da682c13903b44f6df202940717beb9d85f7dc48f848ab052519f6c7fd8eb5e4", 0, 1.2),
+    (STIKKORD_0_2, "68378b5b2b2b32f440ac833350ae419fe0a4354d0bb84eab340b2289efab1201", 0.2, 1.05),
+    (BASIS_0_2, "d8beff3ae211c44b438de3650025ad1db7c9aa880d6e9fab597b9b030f5d0bb9", 0.2, 1.2),
+    (UTFYLLENDE_0_2, "da682c13903b44f6df202940717beb9d85f7dc48f848ab052519f6c7fd8eb5e4", 0, 1.2),
 ], ids=lambda value: getattr(value, "id", None))
 def test_import_matches_markdown_source_fingerprints(profile, checksum, temperature, repeat):
     assert hashlib.sha256((profile.system_prompt + "\0" + profile.user_prompt).encode()).hexdigest() == checksum
@@ -34,11 +36,12 @@ def test_import_matches_markdown_source_fingerprints(profile, checksum, temperat
 def test_three_current_choices_and_old_versions_remain_discoverable():
     choices = list_referat_scenarier()
     assert [item["id"] for item in choices if item["current"]] == [p.id for p in CURRENT_PROMPTS]
-    assert [item["id"] for item in choices if item["standard"]] == ["basis_0_2"]
-    assert {p.id.replace("_0_2", "_0_1") for p in CURRENT_PROMPTS} <= {item["id"] for item in choices}
+    assert [item["id"] for item in choices if item["standard"]] == ["basis_0_3"]
+    assert {p.id.replace("_0_3", suffix) for p in CURRENT_PROMPTS for suffix in ("_0_1", "_0_2")} <= {
+        item["id"] for item in choices if not item["current"]}
 
 
-@pytest.mark.parametrize("profile", CURRENT_PROMPTS, ids=lambda p: p.id)
+@pytest.mark.parametrize("profile", RELEASE_02, ids=lambda p: p.id)
 @pytest.mark.parametrize("endpoint", ["/referat", "/referat/stream", "/referat/rullerende/stream"])
 def test_generation_uses_exact_prompt_settings_and_explicit_model(monkeypatch, profile, endpoint):
     call = AsyncMock(return_value="Avtaler\nIngen")

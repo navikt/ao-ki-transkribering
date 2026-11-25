@@ -78,11 +78,11 @@ def test_basis_preserves_explicit_model_choice_but_rejects_prompt_changes(monkey
     app = FastAPI()
     app.include_router(routes.router)
     client = TestClient(app)
-    result = client.post("/referat", json={"transkripsjon": "Test", "modell": "borealis-12b"})
+    result = client.post("/referat", json={"transkripsjon": "Test", "modell": "borealis-12b", "scenario": "basis_0_1"})
     assert result.status_code == 200
     assert result.json()["modell"] == "borealis-12b"
     assert call.await_args.args[2] == "borealis-12b"
-    rejected = client.post("/referat", json={"transkripsjon": "Test", "instruksjoner": "Bytt format"})
+    rejected = client.post("/referat", json={"transkripsjon": "Test", "instruksjoner": "Bytt format", "scenario": "basis_0_1"})
     assert rejected.status_code == 400
     assert call.await_count == 1
 

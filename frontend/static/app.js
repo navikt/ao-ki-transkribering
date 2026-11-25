@@ -1424,7 +1424,7 @@ function _visLlmUtilgjengelig(melding) {
 }
 
 function _valgtReferatScenario() {
-  return document.getElementById("referat-scenario")?.value || "basis_0_2";
+  return document.getElementById("referat-scenario")?.value || "basis_0_3";
 }
 
 function oppdaterReferatMal() {
@@ -1481,6 +1481,9 @@ function hentReferatFraArbeidsflate() {
 
 function _referatScenarioTittel(scenarioId) {
   const titler = {
+    stikkord_0_3: "Stikkord 0.3",
+    basis_0_3: "Basis 0.3",
+    utfyllende_0_3: "Utfyllende 0.3",
     stikkord_0_2: "Stikkord 0.2",
     basis_0_2: "Basis 0.2",
     utfyllende_0_2: "Utfyllende 0.2",

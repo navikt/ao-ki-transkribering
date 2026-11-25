@@ -10,6 +10,7 @@ import httpx
 
 from shared.services.llm_proxy_client import er_kontekstfeil, input_token_budget
 from worker.prompts.versions import load_texts
+from frontend.output_contract import CORRECTION, OutputAttempts
 
 log = logging.getLogger(__name__)
 PromptBuilder = Callable[[str], tuple[str, str]]
@@ -145,17 +146,24 @@ async def generate(
     max_tokens: int | None = None,
     count: TokenCounter | None = None,
     context_tokens: int | None = None,
+    output_contract: bool = False,
 ):
     """Yield progress and final output; never send intermediate notes to the user."""
     budget = (context_tokens - (max_tokens or 512) - 512) if context_tokens is not None else (
         input_token_budget(max_tokens) if max_tokens is not None else input_token_budget())
     output_options = {"max_tokens": max_tokens} if max_tokens is not None else {}
     sizer = PromptSizer(model, count)
+    output_attempts = OutputAttempts() if output_contract else None
+
+    def sizing_build(source):
+        system, user = build(source)
+        return system + CORRECTION, user
+
     for attempt in range(4):
         emitted = False
         try:
             prepared = text
-            async for event in _prepare(text, build, model, call, budget, sizer):
+            async for event in _prepare(text, sizing_build if output_contract else build, model, call, budget, sizer):
                 if event["type"] == "prepared":
                     prepared = event["tekst"]
                 else:
@@ -163,8 +171,11 @@ async def generate(
             if prepared != text:
                 yield {"type": "progress", "melding": "Sammenstiller hele møtet …"}
             system, user = build(prepared)
-            if stream is None:
-                result = await call(system, user, model, **output_options)
+            if stream is None or output_contract:
+                if output_attempts:
+                    result = await output_attempts.final(system, user, model, call, output_options)
+                else:
+                    result = await call(system, user, model, **output_options)
                 if not result.strip():
                     raise TranscriptProcessingError("Modellen ga et tomt svar. Prøv igjen.")
                 yield {"type": "ferdig", "tekst": result, **({"advarsler": [

@@ -130,3 +130,92 @@ def test_konfig_til_options_med_num_predict():
     k = Konfig("test", num_ctx=4096, num_predict=400, temperature=0.1)
     opts = k.til_options()
     assert opts["num_predict"] == 400
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("streaming", [False, True])
+@pytest.mark.parametrize("ending", ["missing_done", "length", "complete"])
+async def test_ollama_requires_done_and_rejects_length_for_both_call_modes(monkeypatch, streaming, ending):
+    import httpx
+
+    from shared.services.llm_proxy_client import IncompleteModelResponse
+    from worker.ollama import klient
+
+    answer = "Et ferdig svar på bokmål."
+    chunks = [{"response": answer, "done": False}]
+    if ending != "missing_done":
+        chunks.append({"response": "", "done": True, "done_reason": "length" if ending == "length" else "stop"})
+    requests = []
+
+    def respond(request):
+        requests.append(json.loads(request.content))
+        return httpx.Response(200, text="\n".join(json.dumps(chunk) for chunk in chunks) + "\n")
+
+    original = httpx.AsyncClient
+    monkeypatch.setattr(klient.httpx, "AsyncClient", lambda **kwargs: original(
+        transport=httpx.MockTransport(respond), **kwargs))
+    events = []
+
+    async def consume():
+        if streaming:
+            async for event in klient.stream_tokens("Regler", "Kilde", "modell", max_tokens=4096):
+                events.append(event)
+            return events[-1][2]
+        return await klient.kall("Regler", "Kilde", "modell", max_tokens=4096)
+
+    if ending == "complete":
+        assert await consume() == answer
+        if streaming:
+            assert events[-1] == ("", True, answer)
+            assert sum(done for _, done, _ in events) == 1
+    else:
+        with pytest.raises(IncompleteModelResponse):
+            await consume()
+        assert all(not done and full == "" for _, done, full in events)
+    assert len(requests) == 1
+    assert requests[0]["options"]["num_predict"] == 4096
+    assert requests[0]["model"] == "modell"
+    assert requests[0]["stream"] is True
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("raw", [False, True])
+@pytest.mark.parametrize("body", ["", _linje(response="Partial response", done=False)])
+async def test_ollama_sync_missing_done_never_returns_even_an_empty_or_raw_response(monkeypatch, raw, body):
+    import httpx
+
+    from shared.services.llm_proxy_client import IncompleteModelResponse
+    from worker.ollama import klient
+
+    original = httpx.AsyncClient
+    monkeypatch.setattr(klient.httpx, "AsyncClient", lambda **kwargs: original(
+        transport=httpx.MockTransport(lambda request: httpx.Response(200, text=body)), **kwargs))
+    with pytest.raises(IncompleteModelResponse):
+        await klient.kall("Regler", "Kilde", raw=raw)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("streaming", [False, True])
+@pytest.mark.parametrize("chunk", [
+    {"error": "PRIVATE_PROVIDER_ERROR"},
+    {"done": True, "done_reason": "content_filter"},
+    {"done": True, "refusal": "PRIVATE_REFUSAL"},
+])
+async def test_ollama_provider_errors_and_refusals_are_not_incomplete_outputs(monkeypatch, streaming, chunk):
+    import httpx
+
+    from shared.services.llm_proxy_client import IncompleteModelResponse, ModelResponseError, RefusedModelResponse
+    from worker.ollama import klient
+
+    original = httpx.AsyncClient
+    monkeypatch.setattr(klient.httpx, "AsyncClient", lambda **kwargs: original(
+        transport=httpx.MockTransport(lambda request: httpx.Response(200, text=json.dumps(chunk) + "\n")), **kwargs))
+    expected = ModelResponseError if "error" in chunk else RefusedModelResponse
+    with pytest.raises(expected) as caught:
+        if streaming:
+            async for _ in klient.stream_tokens("Regler", "Kilde"):
+                pytest.fail("A failed response must not complete")
+        else:
+            await klient.kall("Regler", "Kilde")
+    assert not isinstance(caught.value, IncompleteModelResponse)
+    assert "PRIVATE" not in str(caught.value)

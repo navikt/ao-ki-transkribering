@@ -89,7 +89,8 @@ def test_legacy_actions_cannot_silently_ignore_overrides(client, endpoint, scena
 
 @pytest.mark.parametrize("endpoint", ["/referat/stream", "/referat/rullerende/stream"])
 def test_streamed_overrides_keep_custom_metadata(client, endpoint):
-    response = client.post(endpoint, json={"transkripsjon": "Kilde", "overrides": {"max_tokens": 4096}})
+    response = client.post(endpoint, json={"transkripsjon": "Kilde", "scenario": "basis_0_1",
+                                           "overrides": {"max_tokens": 4096}})
     assert response.status_code == 200
     events = [json.loads(line[6:]) for line in response.text.splitlines() if line.startswith("data: ")]
     result = next(item for item in events if item["type"] == "ferdig")

@@ -22,7 +22,8 @@ _MODELS = {
 _TEMPLATES = frozenset({"veiledermote", "generelt_mote", "samarbeidsmote", "egendefinert",
                         "minimalt_sammendrag", "utfyllende_sammendrag",
                         "basis_0_1", "stikkord_0_1", "utfyllende_0_1",
-                        "basis_0_2", "stikkord_0_2", "utfyllende_0_2"})
+                        "basis_0_2", "stikkord_0_2", "utfyllende_0_2",
+                        "basis_0_3", "stikkord_0_3", "utfyllende_0_3"})
 _ATTRIBUTES = frozenset({
     "langfuse.observation.type", "langfuse.observation.model.name",
     "langfuse.observation.usage_details", "langfuse.observation.level",

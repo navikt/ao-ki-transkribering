@@ -129,12 +129,19 @@ test("summary jobs capture the model choice once for submission and retries", as
   assert.equal(result.modell, "borealis-4b");
 });
 
-test("Basis 0.2 is the initial template and result metadata shows its version safely", () => {
+test("Basis 0.3 is the initial template and result metadata keeps the actual release", () => {
   const {element, run} = workspace();
+  assert.equal(run("_valgtReferatScenario()"), "basis_0_3");
+  for (const version of ["1", "2", "3"]) {
+    for (const title of ["Stikkord", "Basis", "Utfyllende"]) {
+      assert.equal(run(`_referatScenarioTittel('${title.toLowerCase()}_0_${version}')`), `${title} 0.${version}`);
+    }
+  }
+  element("referat-scenario").value = "basis_0_2";
   assert.equal(run("_valgtReferatScenario()"), "basis_0_2");
   assert.equal(run("_referatScenarioTittel('basis_0_1')"), "Basis 0.1");
   const html = fs.readFileSync(path.join(__dirname, "../frontend/static/index.html"), "utf8");
-  assert.match(html, /<option value="basis_0_2" selected>Basis 0\.2<\/option>/);
+  assert.match(html, /<option value="basis_0_3" selected>Basis 0\.3<\/option>/);
   run("_visReferatResultat('Ingen avtaler.', 'borealis-4b', [], {title:'Basis 0.1'})");
   assert.equal(element("referat-modell-info").textContent, "Modell: borealis-4b · Basis 0.1");
 });
@@ -143,23 +150,31 @@ test("three primary prompt choices precede the retained legacy group in fallback
   const html = fs.readFileSync(path.join(__dirname, "../frontend/static/index.html"), "utf8");
   const select = html.match(/<select id="referat-scenario"[\s\S]*?<\/select>/)[0];
   const primary = [...select.split("<optgroup")[0].matchAll(/<option value="([^"]+)"/g)].map(match => match[1]);
-  assert.deepEqual(primary, ["stikkord_0_2", "basis_0_2", "utfyllende_0_2"]);
-  assert.match(select, /<option value="basis_0_2" selected>/);
+  assert.deepEqual(primary, ["stikkord_0_3", "basis_0_3", "utfyllende_0_3"]);
+  assert.match(select, /<option value="basis_0_3" selected>/);
+  for (const version of ["1", "2"]) {
+    for (const title of ["Stikkord", "Basis", "Utfyllende"]) {
+      assert.ok(select.split("<optgroup")[1].includes(`value="${title.toLowerCase()}_0_${version}">${title} 0.${version}</option>`));
+    }
+  }
   assert.match(select, /<optgroup label="Tidligere maler">[\s\S]*value="veiledermote"/);
 });
 
 test("scenario discovery keeps three primary choices and groups older alternatives", async () => {
   const {element, run} = workspace();
-  element("referat-scenario").value = "basis_0_2";
+  element("referat-scenario").value = "basis_0_3";
   await run(`
     const select = document.getElementById('referat-scenario');
     select.children = [];
     select.appendChild = child => select.children.push(child);
     document.createElement = tag => ({tagName:tag, children:[], appendChild(child) {this.children.push(child);}});
     fetch = async () => ({ok:true, json:async()=>({scenarier:[
-      {id:'stikkord_0_2', current:true, prompt:{version:'0.2'}},
-      {id:'basis_0_2', current:true, standard:true, prompt:{version:'0.2'}},
-      {id:'utfyllende_0_2', current:true, prompt:{version:'0.2'}},
+      {id:'stikkord_0_3', current:true, prompt:{version:'0.3'}},
+      {id:'basis_0_3', current:true, standard:true, prompt:{version:'0.3'}},
+      {id:'utfyllende_0_3', current:true, prompt:{version:'0.3'}},
+      {id:'stikkord_0_2', current:false, prompt:{version:'0.2'}},
+      {id:'basis_0_2', current:false, prompt:{version:'0.2'}},
+      {id:'utfyllende_0_2', current:false, prompt:{version:'0.2'}},
       {id:'basis_0_1', current:false, prompt:{version:'0.1'}},
       {id:'minimalt_sammendrag'}, {id:'utfyllende_sammendrag'}, {id:'veiledermote'},
     ]})});
@@ -167,12 +182,22 @@ test("scenario discovery keeps three primary choices and groups older alternativ
   `);
   const children = element("referat-scenario").children;
   assert.deepEqual(Array.from(children.filter(child => child.tagName === "option"), child => child.value),
-    ["stikkord_0_2", "basis_0_2", "utfyllende_0_2"]);
+    ["stikkord_0_3", "basis_0_3", "utfyllende_0_3"]);
   const legacy = children.find(child => child.tagName === "optgroup");
   assert.equal(legacy.label, "Tidligere maler");
   assert.ok(legacy.children.some(child => child.value === "veiledermote"));
   assert.ok(legacy.children.some(child => child.value === "basis_0_1"));
-  assert.equal(children.find(child => child.value === "basis_0_2").selected, true);
+  for (const id of ["stikkord_0_2", "basis_0_2", "utfyllende_0_2"]) {
+    assert.ok(legacy.children.some(child => child.value === id));
+  }
+  assert.equal(children.find(child => child.value === "basis_0_3").selected, true);
+  element("referat-scenario").value = "basis_0_2";
+  element("referat-scenario").children = [];
+  await run("lastReferatScenarier()");
+  const reloaded = element("referat-scenario").children;
+  assert.equal(reloaded.find(child => child.value === "basis_0_3").selected, false);
+  assert.equal(reloaded.find(child => child.tagName === "optgroup").children
+    .find(child => child.value === "basis_0_2").selected, true);
 });
 
 test("copy buttons show pending and confirmed feedback without changing their labels", async () => {

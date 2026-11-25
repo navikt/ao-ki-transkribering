@@ -11,16 +11,17 @@ låses for hele opptaket, også ved gjenoppretting; referatmodellen kan byttes f
 neste generering uten å transkribere lyden på nytt. I lokal modus brukes den
 konfigurerte modellen.
 
-De tre hovedmalene er **Stikkord 0.2**, **Basis 0.2** (standard) og
-**Utfyllende 0.2**. Versjon 0.1 er uendret og finnes sammen med eldre maler
-under **Tidligere maler**. 0.2 er importert fra de tre leverte veilederpromptene.
+De tre hovedmalene er **Stikkord 0.3**, **Basis 0.3** (standard) og
+**Utfyllende 0.3**. Versjon 0.1 og 0.2 er uendret og finnes sammen med eldre maler
+under **Tidligere maler**. 0.3 kontrollerer svarstrukturen før referatet vises,
+men bekrefter ikke at innholdet er riktig.
 Se [promptoppsettet](møtereferat_prompt.md) for versjoner og forskjeller.
 
 **Enkel** visning er standard: opptak, lydstatus og referat, med transkripsjon og
 redigering sammenfoldet. **Avansert** viser transkripsjon, modellvalg, prompteditor
 og diagnostikk. Bytte av visning avbryter ikke opptak eller generering.
 De tre versjonerte malene kan tilpasses midlertidig med egne system-/brukerprompter,
-temperature, top-p, repetisjonsstraff (for 0.2) og svartokens (128–8192).
+temperature, top-p, repetisjonsstraff (for 0.2 og 0.3) og svartokens (128–8192).
 Kontekstgrensen er skrivebeskyttet.
 Egne innstillinger gjelder også i enkel visning og er tydelig merket.
 Tilpasninger lagres bare i sidens minne; eksporter en JSON-variant for å beholde dem.

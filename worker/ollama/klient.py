@@ -49,6 +49,12 @@ async def stream_tokens(system: str, bruker: str, modell: str | None = None, *, 
                     chunk = json.loads(linje)
                 except json.JSONDecodeError:
                     continue
+                if chunk.get("error"):
+                    from shared.services.llm_proxy_client import ModelResponseError
+                    raise ModelResponseError("Modelltjenesten rapporterte en feil. Prøv igjen.")
+                if chunk.get("done_reason") == "content_filter" or chunk.get("refusal"):
+                    from shared.services.llm_proxy_client import RefusedModelResponse
+                    raise RefusedModelResponse("Modellen avviste forespørselen. Ingen referattekst vises.")
                 token = chunk.get("response", "")
                 if token:
                     if tilstand == "undecided":
@@ -75,6 +81,9 @@ async def stream_tokens(system: str, bruker: str, modell: str | None = None, *, 
                         svar_deler.append(token)
                         yield token, False, ""
                 if chunk.get("done"):
+                    if chunk.get("done_reason") == "length":
+                        from shared.services.llm_proxy_client import IncompleteModelResponse
+                        raise IncompleteModelResponse("Modellen nådde svargrensen før svaret var ferdig.")
                     # Fallback: flush remaining buffer if we never left thinking
                     if tilstand in ("undecided", "thinking") and buf:
                         flushed = normaliser_til_bokmal(buf)
@@ -87,6 +96,8 @@ async def stream_tokens(system: str, bruker: str, modell: str | None = None, *, 
                     full = normaliser_til_bokmal("".join(svar_deler).strip())
                     yield "", True, full
                     return
+    from shared.services.llm_proxy_client import IncompleteModelResponse
+    raise IncompleteModelResponse("Svaret fra modellen ble avbrutt. Prøv igjen.")
 
 
 async def kall(system: str, bruker: str, modell: str | None = None, *, max_tokens: int | None = None,
@@ -123,11 +134,18 @@ async def kall(system: str, bruker: str, modell: str | None = None, *, max_token
                     chunk = json.loads(linje)
                 except json.JSONDecodeError:
                     continue
+                if chunk.get("error"):
+                    from shared.services.llm_proxy_client import ModelResponseError
+                    raise ModelResponseError("Modelltjenesten rapporterte en feil. Prøv igjen.")
+                if chunk.get("done_reason") == "content_filter" or chunk.get("refusal"):
+                    from shared.services.llm_proxy_client import RefusedModelResponse
+                    raise RefusedModelResponse("Modellen avviste forespørselen. Ingen referattekst vises.")
                 deler.append(chunk.get("response", ""))
                 if chunk.get("done"):
                     if chunk.get("done_reason") == "length":
                         from shared.services.llm_proxy_client import IncompleteModelResponse
                         raise IncompleteModelResponse("Modellen nådde svargrensen før svaret var ferdig.")
-                    break
-    rå = "".join(deler)
-    return rå if raw else normaliser_til_bokmal(rå)
+                    rå = "".join(deler)
+                    return rå if raw else normaliser_til_bokmal(rå)
+    from shared.services.llm_proxy_client import IncompleteModelResponse
+    raise IncompleteModelResponse("Svaret fra modellen ble avbrutt. Prøv igjen.")

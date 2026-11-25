@@ -177,3 +177,37 @@ test("0.2 loads its repetition penalty, validates edits and retains the released
   assert.equal(el("workspace-repeat").value, "1.2");
   assert.equal(run("meetingWorkspace.overrides()"), null);
 });
+
+test("the editor falls back to Basis 0.3 when no template is selected", async () => {
+  const {el, run} = await loaded();
+  el("referat-scenario").value = "";
+  await run("meetingWorkspace.syncPrompt()");
+  assert.equal(run("meetingWorkspace.definition.prompt.id"), "basis_0_3");
+  assert.equal(el("workspace-prompt-fields").disabled, false);
+});
+
+test("0.3 profiles are editable with their released output budgets and reset without changing the baseline", async () => {
+  const {el, run} = await loaded();
+  for (const [id, title, budget] of [
+    ["stikkord_0_3", "Stikkord 0.3", 2048],
+    ["basis_0_3", "Basis 0.3", 3072],
+    ["utfyllende_0_3", "Utfyllende 0.3", 4096],
+  ]) {
+    el("referat-scenario").value = id;
+    run(`appFetch = async () => ({ok:true,json:async()=>({prompt:{id:'${id}',title:'${title}',version:'0.3'},
+      system_prompt:'Released system',user_prompt:'Source: {transkripsjon}',temperature:0.2,top_p:0.9,
+      max_tokens:${budget},context_tokens:32768})});`);
+    await run("meetingWorkspace.syncPrompt()");
+    assert.equal(run(`meetingWorkspace.versioned('${id}')`), true);
+    assert.equal(el("workspace-prompt-title").textContent, title);
+    assert.equal(el("workspace-max-tokens").value, String(budget));
+    assert.equal(run("meetingWorkspace.overrides()"), null);
+    el("workspace-system").value = "Changed system";
+    run("meetingWorkspace.changed()");
+    assert.equal(run("meetingWorkspace.overrides().system_prompt"), "Changed system");
+    assert.equal(run("meetingWorkspace.definition.system_prompt"), "Released system");
+    run("meetingWorkspace.resetPrompt()");
+    assert.equal(run("meetingWorkspace.overrides()"), null);
+    assert.equal(el("workspace-system").value, "Released system");
+  }
+});

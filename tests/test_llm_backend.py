@@ -224,3 +224,114 @@ def test_model_http_errors_return_readable_errors(monkeypatch, stream, status, m
         assert '"type": "ferdig"' not in response.text
     else:
         assert response.status_code == {400: 502, 401: 502, 503: 503}[status]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("streaming", [False, True])
+@pytest.mark.parametrize("finish_reason,refusal,error", [
+    ("length", None, llm_client.IncompleteModelResponse),
+    ("content_filter", None, llm_client.RefusedModelResponse),
+    ("stop", "Request refused", llm_client.RefusedModelResponse),
+])
+async def test_openai_incomplete_and_refused_outputs_never_complete(
+    monkeypatch, streaming, finish_reason, refusal, error,
+):
+    payloads = []
+    candidate = "Provider candidate that must not become a completed response."
+
+    def respond(request):
+        payloads.append(json.loads(request.content))
+        message = {"content": candidate}
+        if refusal:
+            message["refusal"] = refusal
+        if streaming:
+            choice = {"delta": message, "finish_reason": finish_reason}
+            return httpx.Response(200, text=f"data: {json.dumps({'choices': [choice]})}\n\ndata: [DONE]\n\n")
+        return httpx.Response(200, json={"choices": [{"message": message, "finish_reason": finish_reason}]})
+
+    original = httpx.AsyncClient
+    monkeypatch.setattr(llm_client, "LLM_BACKEND", "openai")
+    monkeypatch.setattr(llm_client, "authenticated_headers", AsyncMock(return_value={}))
+    monkeypatch.setattr(llm_client.httpx, "AsyncClient", lambda **kwargs: original(
+        transport=httpx.MockTransport(respond), **kwargs))
+    events = []
+    with pytest.raises(error) as caught:
+        if streaming:
+            async for event in llm_client.stream_tokens("Regler", "Kilde", max_tokens=3072):
+                events.append(event)
+        else:
+            await llm_client.kall("Regler", "Kilde", max_tokens=3072)
+    assert not events
+    assert candidate not in str(caught.value)
+    assert payloads[0]["stream"] is streaming
+    assert payloads[0]["max_tokens"] == 3072
+    if error is llm_client.RefusedModelResponse:
+        assert not isinstance(caught.value, llm_client.IncompleteModelResponse)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("finish_reason", ["length", "content_filter", "refusal", "missing_done"])
+async def test_openai_stream_failure_after_tokens_never_emits_completed_candidate(monkeypatch, finish_reason):
+    first = {"choices": [{"delta": {"content": "Partial provider candidate longer than the buffer."}}]}
+    delta = {"refusal": "Request refused"} if finish_reason == "refusal" else {}
+    terminal = {"choices": [{"delta": delta, "finish_reason": finish_reason}]}
+    text = f"data: {json.dumps(first)}\n\n"
+    if finish_reason != "missing_done":
+        text += f"data: {json.dumps(terminal)}\n\ndata: [DONE]\n\n"
+    original = httpx.AsyncClient
+    monkeypatch.setattr(llm_client, "LLM_BACKEND", "openai")
+    monkeypatch.setattr(llm_client, "authenticated_headers", AsyncMock(return_value={}))
+    monkeypatch.setattr(llm_client.httpx, "AsyncClient", lambda **kwargs: original(
+        transport=httpx.MockTransport(lambda request: httpx.Response(200, text=text)), **kwargs))
+    expected = (llm_client.RefusedModelResponse if finish_reason in {"content_filter", "refusal"}
+                else llm_client.IncompleteModelResponse)
+    events = []
+    with pytest.raises(expected):
+        async for event in llm_client.stream_tokens("Regler", "Kilde"):
+            events.append(event)
+    assert any(token for token, _, _ in events)
+    assert all(not done and full == "" for _, done, full in events)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("streaming", [False, True])
+async def test_openai_complete_output_retains_existing_text_and_completion(monkeypatch, streaming):
+    answer = "Et ferdig svar på bokmål."
+    choice = {"finish_reason": "stop", "delta" if streaming else "message": {"content": answer}}
+
+    def respond(request):
+        if streaming:
+            return httpx.Response(200, text=f"data: {json.dumps({'choices': [choice]})}\n\ndata: [DONE]\n\n")
+        return httpx.Response(200, json={"choices": [choice]})
+
+    original = httpx.AsyncClient
+    monkeypatch.setattr(llm_client, "LLM_BACKEND", "openai")
+    monkeypatch.setattr(llm_client, "authenticated_headers", AsyncMock(return_value={}))
+    monkeypatch.setattr(llm_client.httpx, "AsyncClient", lambda **kwargs: original(
+        transport=httpx.MockTransport(respond), **kwargs))
+    if streaming:
+        events = [event async for event in llm_client.stream_tokens("Regler", "Kilde")]
+        assert events[-1] == ("", True, answer)
+        assert sum(done for _, done, _ in events) == 1
+    else:
+        assert await llm_client.kall("Regler", "Kilde") == answer
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("streaming", [False, True])
+async def test_openai_reported_provider_error_is_not_an_output_retry(monkeypatch, streaming):
+    data = {"error": {"message": "PRIVATE_PROVIDER_ERROR"}}
+    original = httpx.AsyncClient
+    monkeypatch.setattr(llm_client, "LLM_BACKEND", "openai")
+    monkeypatch.setattr(llm_client, "authenticated_headers", AsyncMock(return_value={}))
+    monkeypatch.setattr(llm_client.httpx, "AsyncClient", lambda **kwargs: original(
+        transport=httpx.MockTransport(lambda request: httpx.Response(
+            200, text=f"data: {json.dumps(data)}\n\n" if streaming else json.dumps(data))), **kwargs))
+    with pytest.raises(llm_client.ModelResponseError) as caught:
+        if streaming:
+            async for _ in llm_client.stream_tokens("Regler", "Kilde"):
+                pytest.fail("A failed response must not complete")
+        else:
+            await llm_client.kall("Regler", "Kilde")
+    assert not isinstance(caught.value, llm_client.IncompleteModelResponse)
+    assert "PRIVATE" not in str(caught.value)
