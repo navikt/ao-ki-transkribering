@@ -49,6 +49,10 @@ class Metrics:
                                   ["operation"], buckets=DURATION_BUCKETS, registry=self.registry)
         self.active = Gauge("transkriberit_operations_inflight", "Active operations",
                             ["operation"], registry=self.registry)
+        self.ui_actions = Counter("transkriberit_ui_actions_total", "Tracked button presses",
+                                  ["action"], registry=self.registry)
+        self.recording_elapsed = Histogram("transkriberit_recording_elapsed_seconds", "Elapsed microphone session on stop",
+                                           buckets=(30, 60, 300, 900, 1800, 3600, 7200, 10800), registry=self.registry)
         self.retries = Counter("transkriberit_speech_retries_total", "Scheduled speech retries", registry=self.registry)
         self.queued = Gauge("transkriberit_summary_queued", "Summary jobs waiting for a slot", registry=self.registry)
         self.oldest_queued = Gauge("transkriberit_summary_oldest_queued_timestamp_seconds",

@@ -16,7 +16,7 @@
       <button type="button" id="view-simple" aria-pressed="true" onclick="meetingWorkspace.setView('simple')">Enkel</button>
       <button type="button" id="view-advanced" aria-pressed="false" onclick="meetingWorkspace.setView('advanced')">Avansert</button>
     </div>
-    <button type="button" class="feedback-launch" data-open-feedback hidden>Gi tilbakemelding</button>
+    <button type="button" class="feedback-launch" data-usage-action="open_feedback" data-open-feedback hidden>Gi tilbakemelding</button>
     <span id="workspace-custom-indicator" class="workspace-custom" role="status" hidden>Egne innstillinger er aktive</span>
   </div>
 </header>
@@ -81,10 +81,10 @@
             </select>
           </label>
           <div class="opptaks-rad opptaks-rad-kompakt">
-            <button class="knapp knapp-sekundær" id="knapp-start" onclick="startOpptak()">
+            <button class="knapp knapp-sekundær" id="knapp-start" data-usage-action="start_recording" onclick="startOpptak()">
               Start opptak
             </button>
-            <button class="knapp knapp-sekundær" id="knapp-stopp" onclick="stoppOpptak()" disabled>
+            <button class="knapp knapp-sekundær" id="knapp-stopp" data-usage-action="stop_recording" onclick="stoppOpptak()" disabled>
               Stopp og transkriber
             </button>
             <span class="timer" id="timer" style="display:none">
@@ -113,10 +113,10 @@
         <div class="modul-tittel">Opptak</div>
         <p>Lyd lagres midlertidig i denne nettleseren, i opptil 8 timer. Last ned eller slett etter motet.</p>
         <div class="opptaks-rad">
-          <button class="knapp knapp-fare" id="sanntid-start-knapp" onclick="startSanntid()">
+          <button class="knapp knapp-fare" id="sanntid-start-knapp" data-usage-action="start_recording" onclick="startSanntid()">
             Start opptak
           </button>
-          <button class="knapp knapp-sekundær" id="sanntid-stopp-knapp" onclick="stoppSanntid()" disabled>
+          <button class="knapp knapp-sekundær" id="sanntid-stopp-knapp" data-usage-action="stop_recording" onclick="stoppSanntid()" disabled>
             Stopp
           </button>
           <span class="timer" id="sanntid-timer" style="display:none">
@@ -227,8 +227,8 @@
       <!-- ── Etter opptak ── -->
       <div id="sanntid-knapper" style="display:none">
         <div class="knapper-rad">
-          <button class="knapp knapp-primær" onclick="kopierSanntidTekst(this)">Kopier transkripsjon</button>
-          <button class="knapp knapp-sekundær" onclick="nullstillSanntid()">Nullstill</button>
+          <button class="knapp knapp-primær" data-usage-action="copy_transcript" onclick="kopierSanntidTekst(this)">Kopier transkripsjon</button>
+          <button class="knapp knapp-sekundær" data-usage-action="new_meeting" onclick="nullstillSanntid()">Nullstill</button>
         </div>
       </div>
 
@@ -267,8 +267,8 @@
     </div>
 
     <div class="knapper-rad">
-      <button class="knapp knapp-primær" onclick="kopierDialog(this)">Kopier transkripsjon</button>
-      <button class="knapp knapp-sekundær" onclick="nyttOpptak()">Nytt opptak</button>
+      <button class="knapp knapp-primær" data-usage-action="copy_transcript" onclick="kopierDialog(this)">Kopier transkripsjon</button>
+      <button class="knapp knapp-sekundær" data-usage-action="new_meeting" onclick="nyttOpptak()">Nytt opptak</button>
     </div>
     <p class="fotnote">
       Transkripsjonen lagres ikke og forsvinner når du lukker eller laster siden på nytt.
@@ -323,7 +323,7 @@
         <label for="referat-instruksjoner">Egne instruksjoner</label>
         <textarea id="referat-instruksjoner" rows="4" maxlength="4000"></textarea>
       </div>
-      <button class="knapp knapp-sekundær knapp-xs" onclick="hentReferatFraArbeidsflate()">Generer</button>
+      <button class="knapp knapp-sekundær knapp-xs" data-usage-action="generate_summary" onclick="hentReferatFraArbeidsflate()">Generer</button>
       <span id="referat-mal-status" class="fotnote" role="status"></span>
     </div>
     <div id="referat-tomtilstand">
@@ -382,7 +382,7 @@
     </div>
     <div class="referat-footer" style="display:none" id="referat-footer">
       <button class="knapp knapp-sekundær knapp-xs"
-              onclick="kopierReferat(this)">Kopier</button>
+              data-usage-action="copy_summary" onclick="kopierReferat(this)">Kopier</button>
       <span id="referat-modell-info"></span>
       <span style="margin-left:auto" class="fotnote">
         Gjennomgå innhold og mottaker før du deler eller lagrer referatet

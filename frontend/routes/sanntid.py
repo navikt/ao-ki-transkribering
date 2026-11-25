@@ -12,6 +12,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from shared.core.settings import TRANSKRIPSJON_BACKEND
 from shared.diagnostics import event, failure, recording_id
+from shared.metrics import metrics
 from frontend.recording_diagnostics import RecordingSocket, observe_task
 from shared.services.transkripsjon_client import transkriber_remote_pcm
 from worker.transkribering.sanntid import (
@@ -24,6 +25,19 @@ from worker.transkribering.sanntid import (
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
+
+
+class UsageAction(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    meeting_id: UUID
+    action: Literal["start_recording", "stop_recording", "generate_summary", "copy_summary",
+                    "copy_transcript", "open_feedback", "new_meeting"]
+
+
+@router.post("/diagnostics/usage", status_code=204)
+async def usage_action(report: UsageAction):
+    metrics.ui_actions.labels(report.action).inc()
+    event("usage.button_pressed", **report.model_dump(mode="json"))
 
 
 class RecordingCloseReport(BaseModel):
@@ -49,6 +63,7 @@ async def recording_close_report(report: RecordingCloseReport):
 
 class RecordingCaptureReport(BaseModel):
     model_config = ConfigDict(extra="forbid")
+    meeting_id: UUID | None = None
     recording_id: UUID
     kind: Literal["visibility_changed", "audio_state_changed", "track_changed",
                   "wake_lock_changed", "capture_interrupted", "capture_recovered",
@@ -65,6 +80,8 @@ class RecordingCaptureReport(BaseModel):
 @router.post("/diagnostics/recording-capture", status_code=204)
 async def recording_capture_report(report: RecordingCaptureReport):
     # Browser evidence cannot prove that missing audio was actually spoken.
+    if report.kind == "capture_stopped":
+        metrics.recording_elapsed.observe(report.elapsed_s)
     event("recording.browser_capture", **report.model_dump(mode="json"))
 
 

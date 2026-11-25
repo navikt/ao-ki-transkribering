@@ -2,6 +2,8 @@
 
 import re
 
+from shared.diagnostics import event
+
 from shared.services.llm_proxy_client import IncompleteModelResponse
 from worker.prompts.versions import BASIS_0_3, STIKKORD_0_3, UTFYLLENDE_0_3
 
@@ -76,5 +78,6 @@ class OutputAttempts:
             if reason is None:
                 return result
             self.failures += 1
+            event("llm.output_rejected", attempt=self.failures, reason=reason, model=model)
             if self.failures >= 2:
                 raise FinalOutputError(reason) from None

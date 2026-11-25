@@ -22,6 +22,34 @@ const sessionAccess = new SessionAccess({onChange: required => {
 }});
 const appFetch = (...args) => sessionAccess.fetch(...args);
 
+const meetingStorageKey = "transkriberit.meetingId";
+let meetingId;
+try { meetingId = sessionStorage.getItem(meetingStorageKey); } catch {}
+function currentMeetingId() {
+  if (!meetingId) {
+    meetingId = crypto.randomUUID();
+    try { sessionStorage.setItem(meetingStorageKey, meetingId); } catch {}
+  }
+  return meetingId;
+}
+
+function resetMeetingId() {
+  meetingId = null;
+  try { sessionStorage.removeItem(meetingStorageKey); } catch {}
+}
+
+function reportUsage(action) {
+  appFetch("/diagnostics/usage", {
+    method: "POST", headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({meeting_id: currentMeetingId(), action}), keepalive: true,
+  }).catch(() => {});
+}
+
+document.addEventListener("click", event => {
+  const button = event.target.closest?.("button[data-usage-action]");
+  if (button && !button.disabled) reportUsage(button.dataset.usageAction);
+}, true);
+
 async function gjenopprettInnlogging(button) {
   if (button) button.disabled = true;
   const status = document.getElementById("session-recovery-status");
@@ -504,6 +532,7 @@ function toggleSegmenter() {
 }
 
 function nyttOpptak() {
+  resetMeetingId();
   document.getElementById("fil-input").value = "";
   _aktivTranskripsjonskilde = null;
   const resultatSeksjon = document.getElementById("seksjon-resultat");
@@ -1023,6 +1052,7 @@ async function startAudioWorklet() {
   const context = audioCtx;
   const socket = sanntidWs;
   let lastGapKey = "";
+  const captureMeetingId = currentMeetingId();
   opptakLivssyklus = new RecordingLifecycle({
     onstate: visOpptakHelse,
     ongaps: gaps => {
@@ -1035,7 +1065,7 @@ async function startAudioWorklet() {
     report: report => {
       appFetch("/diagnostics/recording-capture", {
         method: "POST", headers: {"Content-Type": "application/json"},
-        body: JSON.stringify({recording_id: socket.recordingId, ...report}), keepalive: true,
+        body: JSON.stringify({recording_id: socket.recordingId, meeting_id: captureMeetingId, ...report}), keepalive: true,
       }).catch(() => {});
     },
   });
@@ -1241,6 +1271,7 @@ function nullstillSanntid() {
     settSanntidStatus("Slett lokal lyd før du nullstiller transkripsjonen.");
     return;
   }
+  resetMeetingId();
   _aktivTranskripsjonskilde = null;
   document.getElementById("sanntid-tekst").innerHTML = "";
   document.getElementById("sanntid-taler-rad").innerHTML = "";
@@ -1509,6 +1540,7 @@ async function _genererLlmJobb(handling, payload, onProgress, signal) {
   const feedbackAudio = feedbackAudioSource(_aktivTranskripsjonskilde);
   const key = crypto.randomUUID();
   const submitUrl = `/llm/handlinger/${handling}/jobber/${key}`;
+  const jobMeetingId = currentMeetingId();
   let accepted = false;
   while (true) {
     signal?.throwIfAborted();
@@ -1519,7 +1551,7 @@ async function _genererLlmJobb(handling, payload, onProgress, signal) {
     let state;
     try {
       const res = await appFetch(accepted ? `/llm/jobber/${key}` : submitUrl, {
-        ...(accepted ? {} : {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify(payload)}),
+        ...(accepted ? {} : {method: "POST", headers: {"Content-Type": "application/json", "X-Meeting-ID": jobMeetingId}, body: JSON.stringify(payload)}),
         cache: "no-store", signal: controller.signal,
       });
       if (res.redirected || res.headers?.get("content-type")?.includes("text/html")) {

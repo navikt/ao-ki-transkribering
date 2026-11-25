@@ -4,9 +4,9 @@ from functools import partial
 from uuid import UUID
 
 import httpx
-from fastapi import APIRouter, HTTPException, Request, Response
+from fastapi import APIRouter, Header, HTTPException, Request, Response
 from fastapi.responses import StreamingResponse
-from shared.diagnostics import failure
+from shared.diagnostics import event, failure, meeting_id
 
 from frontend.identity import authentication_required, owner_id
 from frontend.long_transcript import TranscriptProcessingError, generate, with_heartbeats
@@ -294,7 +294,8 @@ def _job_error(exc: Exception) -> str:
 
 
 @router.post("/llm/handlinger/{handling_id}/jobber/{jobb_id}", status_code=202)
-async def start_llm_job(handling_id: str, jobb_id: UUID, foresporsel: LlmForesporsel, request: Request, response: Response):
+async def start_llm_job(handling_id: str, jobb_id: UUID, foresporsel: LlmForesporsel, request: Request, response: Response,
+                        x_meeting_id: UUID | None = Header(default=None)):
     response.headers["Cache-Control"] = "no-store"
     if not foresporsel.transkripsjon.strip():
         raise HTTPException(400, "Transkripsjon mangler")
@@ -313,17 +314,24 @@ async def start_llm_job(handling_id: str, jobb_id: UUID, foresporsel: LlmForespo
     ).encode()).hexdigest()
 
     async def run():
+        event("llm.summary_context", job_id=str(jobb_id), model=foresporsel.modell or LLM_MODELL,
+              scenario=scenario)
         async for result in _handling_events(handling, foresporsel):
             if result["type"] == "ferdig" and handling.normaliser_output and not _prompt_metadata(handling, foresporsel):
                 result["tekst"] = normaliser_til_bokmal(result["tekst"])
             yield result
 
-    return summary_jobs.submit(str(jobb_id), _job_owner(request), fingerprint, {
-        "modell": foresporsel.modell or LLM_MODELL, "handling": handling.id, "scenario": scenario,
-        "feedback_source": foresporsel.transkripsjon,
-        **_prompt_metadata(handling, foresporsel),
-        **_veileder_valg(foresporsel, scenario),
-    }, run, _job_error)
+    # The queued task inherits the meeting ID without changing request fingerprints.
+    token = meeting_id.set(str(x_meeting_id) if x_meeting_id else None)
+    try:
+        return summary_jobs.submit(str(jobb_id), _job_owner(request), fingerprint, {
+            "modell": foresporsel.modell or LLM_MODELL, "handling": handling.id, "scenario": scenario,
+            "feedback_source": foresporsel.transkripsjon,
+            **_prompt_metadata(handling, foresporsel),
+            **_veileder_valg(foresporsel, scenario),
+        }, run, _job_error)
+    finally:
+        meeting_id.reset(token)
 
 
 @router.get("/llm/jobber/{jobb_id}")

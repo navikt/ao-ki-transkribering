@@ -7,6 +7,7 @@ import time
 import traceback
 from contextvars import ContextVar
 
+meeting_id = ContextVar("meeting_id", default=None)
 recording_id = ContextVar("recording_id", default=None)
 logger = logging.getLogger("transkriberit.diagnostics")
 logger.setLevel(logging.INFO)
@@ -23,7 +24,7 @@ def configure_diagnostics():
 def event(name, *, level=logging.INFO, **fields):
     try:
         message = json.dumps({"event": name, "level": logging.getLevelName(level).lower(), "timestamp": time.time(),
-                              "recording_id": recording_id.get(), **fields},
+                              "recording_id": recording_id.get(), "meeting_id": meeting_id.get(), **fields},
                              allow_nan=False, default=lambda value: None)
     except (TypeError, ValueError):
         # Diagnostics must not terminate a recording or stringify unknown objects.

@@ -174,3 +174,16 @@ def test_browser_timing_fields_are_bounded(events):
                   last_heartbeat_age_s=8, heartbeat_count=9)
     assert client.post("/diagnostics/recording-close", json=report).status_code == 204
     assert client.post("/diagnostics/recording-close", json={**report, "last_message_age_s": -1}).status_code == 422
+
+
+def test_usage_logs_only_allowlisted_actions(events):
+    app = FastAPI()
+    app.include_router(sanntid.router)
+    payload = {"meeting_id": "28e3ad24-f6c8-48b6-987d-8898b8701386", "action": "copy_summary"}
+    with TestClient(app) as client:
+        assert client.post("/diagnostics/usage", json=payload).status_code == 204
+        assert client.post("/diagnostics/usage", json={**payload, "action": "private text"}).status_code == 422
+        assert client.post("/diagnostics/usage", json={**payload, "content": "private text"}).status_code == 422
+    logged = [entry for entry in events() if entry["event"] == "usage.button_pressed"]
+    assert len(logged) == 1
+    assert {key: logged[0][key] for key in payload} == payload
