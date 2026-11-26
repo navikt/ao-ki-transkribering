@@ -49,6 +49,15 @@
           <option value="batch">Lydfil</option>
         </select>
       </label>
+      <label class="scenario-velger">
+        <span>Antall talere</span>
+        <select id="n-talere-velger">
+          <option value="0">Auto-detekter</option>
+          <option value="2" selected>2 (typisk Nav-møte)</option>
+          <option value="3">3</option>
+          <option value="4">4</option>
+        </select>
+      </label>
     </div>
 
     <div class="juridisk-kort">
@@ -71,15 +80,6 @@
       <details class="avansert">
         <summary>Avanserte valg</summary>
         <div class="avansert-innhold">
-          <label class="form-label">
-            Antall talere
-            <select id="n-talere-velger" class="form-select">
-              <option value="0">Auto-detekter</option>
-              <option value="2" selected>2 (typisk Nav-møte)</option>
-              <option value="3">3</option>
-              <option value="4">4</option>
-            </select>
-          </label>
           <div class="opptaks-rad opptaks-rad-kompakt">
             <button class="knapp knapp-sekundær" id="knapp-start" data-usage-action="start_recording" onclick="startOpptak()">
               Start opptak
