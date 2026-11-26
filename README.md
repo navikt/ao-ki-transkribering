@@ -3,10 +3,10 @@
 Transkriberings- og referatverktøy for møter og veiledersamtaler.
 
 NAIS-oppsettet bruker NB-Whisper Large for transkripsjon, Nemotron Diarization
-for estimert talerskille og Borealis 4B Q8 via llama.cpp som standard for referater. Modellene
+for estimert talerskille og Borealis 12B via llama.cpp som standard for referater. Modellene
 kjører i et separat GKE-cluster bak en autentisert Cloud Run-gateway.
 I nettleseren kan du velge NB-Whisper Large eller Small for lyd, og Borealis 12B
-eller 4B for referat. Large og 4B er standard. Transkripsjonsmodellen
+eller 4B for referat. Large og 12B er standard i NAIS. Transkripsjonsmodellen
 låses for hele opptaket, også ved gjenoppretting; referatmodellen kan byttes før
 neste generering uten å transkribere lyden på nytt. I lokal modus brukes den
 konfigurerte modellen.
@@ -286,7 +286,7 @@ python -m uvicorn frontend.app:app --host 127.0.0.1 --port 8765
 | `NEMOTRON_CPU_THREADS` | `4` | CPU-traader for Nemotron |
 | `WHISPER_SANNTID_MODELL` | `modeller/nb-whisper-medium` | Modell for sanntidsmodus |
 | `LLM_BACKEND` | `openai` | `openai` for OpenAI-kompatibel proxy, eller `ollama` for lokal Ollama |
-| `LLM_MODELL` | `borealis-4b` (`borealis-4b:latest` ved `LLM_BACKEND=ollama`) | LLM for møtereferat og sammendrag |
+| `LLM_MODELL` | `borealis-4b` (`borealis-4b:latest` ved `LLM_BACKEND=ollama`; `borealis-12b` i NAIS) | LLM for møtereferat og sammendrag |
 | `LLM_MAX_TOKENS` | `256` (`1024` i NAIS) | Standard svarbudsjett for proxy-baserte LLM-kall. Basis 0.1 bruker 2048, og eldre utfyllende sammendrag 3072 tokener. Prompt og svar deler modellens kontekstvindu. |
 | `LLM_CONTEXT_TOKENS` | `8192` (`32768` ved lokal Ollama, eller `OLLAMA_NUM_CTX`) | Kontekstvindu per forespørsel, inkludert instruksjoner og svar. Må samsvare med modellserveren; øker ikke serverens grense. `LLM_NUM_CTX` støttes som eldre alias. |
 | `AI_PROXY_URL` | `http://127.0.0.1:9000` | OpenAI-kompatibelt LLM-endepunkt ved `LLM_BACKEND=openai` |
