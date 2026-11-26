@@ -115,3 +115,9 @@ def test_concurrent_retry_for_same_recording_does_not_repeat_inference():
         release.set()
         assert first.result(timeout=5) is second.result(timeout=5)
     assert len(calls) == 1
+
+
+def test_speaker_limit_is_configurable():
+    turns = [{"start": 0, "end": 10, "speaker": "SPEAKER_00"}, {"start": 10, "end": 18, "speaker": "SPEAKER_01"},
+             {"start": 18, "end": 24, "speaker": "SPEAKER_02"}, {"start": 24, "end": 25, "speaker": "SPEAKER_03"}]
+    assert [t["speaker"] for t in merge_to_dominant(turns, 3)] == ["SPEAKER_00", "SPEAKER_01", "SPEAKER_02", "SPEAKER_02"]

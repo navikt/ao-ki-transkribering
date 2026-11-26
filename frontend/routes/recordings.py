@@ -32,6 +32,7 @@ class Session:
     task: asyncio.Task | None = None
     result: dict | None = None
     speakers: object = None
+    n_talere: int = 2
     collector: SegmentSamler = field(default_factory=SegmentSamler)
 
 
@@ -51,7 +52,8 @@ async def process(session, key, sequence, start, raw):
     try:
         pcm = np.frombuffer(raw, dtype="<f4").copy()
         if TRANSKRIPSJON_BACKEND == "remote":
-            reply = await transkriber_remote_pcm(pcm, session_id=key, chunk_start=start / RATE, model=session.model)
+            reply = await transkriber_remote_pcm(pcm, session_id=key, chunk_start=start / RATE, model=session.model,
+                                                n_talere=session.n_talere)
             result = reply.model_dump()
             speakers = None
         else:
@@ -77,7 +79,7 @@ async def process(session, key, sequence, start, raw):
 
 @router.post("/recordings/{key}/chunks/{sequence}")
 async def upload_chunk(key: UUID, sequence: int, request: Request,
-                       start_sample: int = Query(ge=0, le=16000 * 8 * 3600), modell: str | None = None):
+                       start_sample: int = Query(ge=0, le=16000 * 8 * 3600), modell: str | None = None, talere: int = Query(2, ge=0, le=4)):
     try:
         selected_model = resolve_model(modell, transcription_models(TRANSKRIPSJON_BACKEND, TRANSKRIPSJON_MODELL))
     except ValueError as exc:
@@ -100,7 +102,7 @@ async def upload_chunk(key: UUID, sequence: int, request: Request,
             raise HTTPException(429, "Recording capacity reached")
         # Browser retains processed results; after a restart it can resume at its
         # first unfinished chunk. Speaker continuity may reset in that case.
-        session = sessions[key] = Session(model=selected_model, sequence=sequence - 1, end=start_sample)
+        session = sessions[key] = Session(model=selected_model, n_talere=talere, sequence=sequence - 1, end=start_sample)
     if session.model != selected_model:
         raise HTTPException(409, "Modellen kan ikke endres under et opptak")
     digest = hashlib.sha256(str(start_sample).encode() + bytes(raw)).hexdigest()

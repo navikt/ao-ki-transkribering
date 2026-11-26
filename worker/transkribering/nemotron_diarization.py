@@ -118,7 +118,7 @@ class SpeechSessions:
         self.records = {key: value for key, value in self.records.items()
                         if key in self.active or now - value.touched < self.ttl}
 
-    def transcribe(self, pcm, asr, diarizer, session_id=None, chunk_start=0):
+    def transcribe(self, pcm, asr, diarizer, session_id=None, chunk_start=0, speakers=2):
         with self.condition:
             while session_id and session_id in self.active:
                 self.condition.wait()
@@ -145,7 +145,7 @@ class SpeechSessions:
             relative_turns = [{**t, "start": t["start"] - chunk_start, "end": t["end"] - chunk_start}
                               for t in state.turns]
             result = {"text": result["text"],
-                      "segments": label_words(result["chunks"], merge_to_dominant(relative_turns)),
+                      "segments": label_words(result["chunks"], merge_to_dominant(relative_turns, speakers)),
                       "duration": len(pcm) / SAMPLE_RATE, "language": "norwegian",
                       "warnings": result.get("warnings", [])}
             if session_id:

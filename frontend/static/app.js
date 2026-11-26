@@ -894,7 +894,8 @@ async function startSanntid(restored = []) {
 
   // Retryable HTTP chunks retain the audio independently of the connection.
   sanntidWs = new RecordingTransport({restored, request: appFetch,
-    model: document.getElementById("transkripsjon-modell").value || null});
+    model: document.getElementById("transkripsjon-modell").value || null,
+    speakers: Number(document.getElementById("n-talere-velger")?.value ?? 2)});
   if (sanntidWs.model) document.getElementById("transkripsjon-modell").value = sanntidWs.model;
   recordingArchive = sanntidWs;
   const socket = sanntidWs;

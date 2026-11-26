@@ -36,7 +36,8 @@ class RecordingArchive {
 }
 
 class RecordingTransport {
-  constructor({archive = new RecordingArchive(), request = (...args) => fetch(...args), retryMs = 3000, restored = [], model = null} = {}) {
+  constructor({archive = new RecordingArchive(), request = (...args) => fetch(...args), retryMs = 3000, restored = [], model = null, speakers = 2} = {}) {
+    this.speakers = speakers;
     this.archive = archive;
     this.request = request;
     this.retryMs = retryMs;
@@ -130,7 +131,8 @@ class RecordingTransport {
         let response;
         try {
           const modelQuery = this.model ? `&modell=${encodeURIComponent(this.model)}` : "";
-          response = await this.request(`/recordings/${this.recordingId}/chunks/${row.sequence}?start_sample=${row.start}${modelQuery}`, {
+          const speakerQuery = `&talere=${this.speakers}`;
+          response = await this.request(`/recordings/${this.recordingId}/chunks/${row.sequence}?start_sample=${row.start}${modelQuery}${speakerQuery}`, {
             method: "POST", headers: {"Content-Type": "application/octet-stream"},
             body: pcm.buffer, signal: this.controller.signal,
           });

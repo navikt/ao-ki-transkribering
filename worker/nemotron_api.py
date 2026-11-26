@@ -130,7 +130,8 @@ async def chat(request: Request):
 @app.post("/v1/audio/transcriptions")
 async def transcribe(request: Request, file: UploadFile = File(...), model: str = Form(...),
                      language: str = Form("no"), response_format: str = Form("json"),
-                     session_id: str | None = Form(None), chunk_start: float = Form(0, ge=0, le=MAX_AUDIO_SECONDS)):
+                     session_id: str | None = Form(None), chunk_start: float = Form(0, ge=0, le=MAX_AUDIO_SECONDS),
+                     n_talere: int = Form(2, ge=0, le=4)):
     if model not in app.state.speech_models:
         raise HTTPException(404, "Unknown speech model")
     if language not in {"no", "nb", "nb-NO"}:
@@ -145,7 +146,8 @@ async def transcribe(request: Request, file: UploadFile = File(...), model: str 
     async def process():
         if await request.is_disconnected():
             raise HTTPException(499, "Client disconnected while waiting for speech inference")
-        return await transcribe_audio(file, response_format, session_id, chunk_start, model)
+        return await transcribe_audio(file, response_format, session_id, chunk_start, model,
+                                      speakers=n_talere or 4)
 
     try:
         return await app.state.requests.run(process)
@@ -155,7 +157,7 @@ async def transcribe(request: Request, file: UploadFile = File(...), model: str 
         await file.close()
 
 
-async def transcribe_audio(file, response_format, session_id, chunk_start, model_name=None):
+async def transcribe_audio(file, response_format, session_id, chunk_start, model_name=None, speakers=2):
     selected_model = app.state.speech_models[model_name or MODEL_NAME]
     max_audio_seconds = getattr(selected_model, "max_audio_seconds", MAX_AUDIO_SECONDS)
     sessions = app.state.small_sessions if model_name == "nb-whisper-small" else app.state.sessions
@@ -176,7 +178,7 @@ async def transcribe_audio(file, response_format, session_id, chunk_start, model
         if app.state.diarizer is not None:
             try:
                 result = await asyncio.to_thread(sessions.transcribe, pcm, selected_model,
-                                                app.state.diarizer, session_id, chunk_start)
+                                                app.state.diarizer, session_id, chunk_start, speakers)
             except OverflowError:
                 raise HTTPException(429, "Too many active recordings") from None
             except ValueError:

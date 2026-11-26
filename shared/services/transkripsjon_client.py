@@ -102,6 +102,7 @@ async def _call_transkripsjon_service(
             "model": model or TRANSKRIPSJON_MODELL,
             "response_format": "verbose_json",
             "language": "no",
+            "n_talere": str(n_talere),
         }
         if session_id and REMOTE_DIARIZATION_MODEL:
             data.update(session_id=session_id, chunk_start=str(chunk_start))
@@ -198,12 +199,13 @@ async def transkriber_remote_pcm(
     session_id: str | None = None,
     chunk_start: float = 0,
     model: str | None = None,
+    n_talere: int = 0,
 ) -> TranskripsjonSvar:
     wav_content = _pcm_to_wav_bytes(pcm)
     return await _call_transkripsjon_service(
         filename="segment.wav",
         content=wav_content,
-        n_talere=0,
+        n_talere=n_talere,
         service_url=service_url,
         session_id=session_id,
         chunk_start=chunk_start,

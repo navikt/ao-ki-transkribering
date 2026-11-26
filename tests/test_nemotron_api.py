@@ -132,7 +132,7 @@ async def test_http_accepts_32_outstanding_requests(monkeypatch):
     release = asyncio.Event()
     processed = []
 
-    async def process(file, response_format, session_id, chunk_start, model_name):
+    async def process(file, response_format, session_id, chunk_start, model_name, speakers):
         await release.wait()
         processed.append(await file.read())
         return {"text": "Hei"}
