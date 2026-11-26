@@ -62,6 +62,22 @@ def invalid_reason(text: str) -> str | None:
     return None
 
 
+_DECORATION = re.compile(r"^(?:#{1,6}\s*)?(?:\*\*|__)?(.*?)(?:\*\*|__)?:?$")
+
+
+def clean_output(text: str) -> str:
+    """Normalize harmless decoration around the five headings and drop text before the first one."""
+    lines, started = [], False
+    for line in text.splitlines():
+        bare = _DECORATION.match(line.strip()).group(1).strip().rstrip(":").strip()
+        heading = next((h for h in HEADINGS if h.casefold() == bare.casefold()), None)
+        if heading:
+            started = True
+        if heading or started:
+            lines.append(heading or line)
+    return "\n".join(lines) if started else text
+
+
 def heading_shape(text: str) -> dict:
     """Content-free description of why headings mismatch, safe to log."""
     lines = [line.strip() for line in text.splitlines() if line.strip()]
@@ -81,7 +97,7 @@ class OutputAttempts:
     async def final(self, system, user, model, call, options):
         while True:
             try:
-                result = await call(system + (CORRECTION if self.failures else ""), user, model, **options)
+                result = clean_output(await call(system + (CORRECTION if self.failures else ""), user, model, **options))
                 reason = invalid_reason(result)
             except IncompleteModelResponse:
                 reason = "incomplete"

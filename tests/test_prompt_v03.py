@@ -18,6 +18,7 @@ from frontend.output_contract import (
     HEADINGS,
     FinalOutputError,
     OutputAttempts,
+    clean_output,
     invalid_reason,
     released_contract,
 )
@@ -147,6 +148,13 @@ def test_structurally_complete_output_is_accepted(agreements):
 ])
 def test_malformed_structure_is_rejected(text, reason):
     assert invalid_reason(text) == reason
+
+
+def test_decorated_headings_and_preamble_are_normalized():
+    decorated = ("Her er referatet:\n\n" + VALID.replace("1. Bakgrunn", "**1. Bakgrunn**")
+                 .replace("2. Det du fortalte", "## 2. Det du fortalte:").replace("4. Avtaler", "4. AVTALER"))
+    assert invalid_reason(clean_output(decorated)) is None
+    assert clean_output(REJECTED) == REJECTED
 
 
 def test_checker_does_not_claim_to_verify_content_against_source():
