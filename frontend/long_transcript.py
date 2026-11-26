@@ -178,9 +178,11 @@ async def generate(
                     result = await call(system, user, model, **output_options)
                 if not result.strip():
                     raise TranscriptProcessingError("Modellen ga et tomt svar. Prøv igjen.")
-                yield {"type": "ferdig", "tekst": result, **({"advarsler": [
+                warnings = [
                     "Kildeteksten oversteg promptens kontekst. Møtet ble behandlet i flere steg, ikke ett steg."
-                ]} if context_tokens is not None and prepared != text else {})}
+                ] if context_tokens is not None and prepared != text else []
+                warnings += output_attempts.warnings if output_attempts else []
+                yield {"type": "ferdig", "tekst": result, **({"advarsler": warnings} if warnings else {})}
                 return
             async for token, done, full in stream(system, user, model, **output_options):
                 if done:

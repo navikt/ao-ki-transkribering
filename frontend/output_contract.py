@@ -27,6 +27,11 @@ _HEADING = re.compile(r"(?:#{1,6}\s|[0-9]+\.\s)")
 _RELEASES = (STIKKORD_0_3, BASIS_0_3, UTFYLLENDE_0_3)
 
 
+SOFT_REASONS = {"headings", "empty_section", "agreement_fields"}
+SOFT_WARNING = ("Modellen holdt seg ikke til den påkrevde strukturen etter to forsøk. "
+                "Kontroller overskrifter og avtaler før referatet brukes.")
+
+
 class FinalOutputError(IncompleteModelResponse):
     def __init__(self, reason: str):
         self.reason = reason
@@ -110,6 +115,7 @@ class OutputAttempts:
 
     def __init__(self):
         self.failures = 0
+        self.warnings = []
 
     async def final(self, system, user, model, call, options):
         while True:
@@ -125,4 +131,8 @@ class OutputAttempts:
                      else agreement_shape(result) if reason == "agreement_fields" else {})
             event("llm.output_rejected", attempt=self.failures, reason=reason, model=model, **shape)
             if self.failures >= 2:
+                if reason in SOFT_REASONS and isinstance(result, str):
+                    # A summary with imperfect structure is more useful than no summary.
+                    self.warnings.append(SOFT_WARNING)
+                    return result
                 raise FinalOutputError(reason) from None

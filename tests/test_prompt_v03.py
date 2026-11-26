@@ -18,6 +18,7 @@ from frontend.output_contract import (
     HEADINGS,
     FinalOutputError,
     OutputAttempts,
+    SOFT_WARNING,
     clean_output,
     invalid_reason,
     released_contract,
@@ -210,7 +211,7 @@ async def test_corrective_attempt_reuses_source_and_only_appends_fixed_system_in
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("failure,reason", [
-    (REJECTED, "headings"), ("", "empty"), (IncompleteModelResponse("truncated"), "incomplete"),
+    ("", "empty"), (IncompleteModelResponse("truncated"), "incomplete"),
 ])
 async def test_two_failed_outputs_exhaust_the_request_budget(failure, reason):
     model = AsyncMock(side_effect=[failure, failure, VALID])
@@ -221,6 +222,15 @@ async def test_two_failed_outputs_exhaust_the_request_budget(failure, reason):
     assert isinstance(error.value, IncompleteModelResponse)
     assert isinstance(error.value, ModelResponseError)
     assert REJECTED not in str(error.value)
+
+
+@pytest.mark.asyncio
+async def test_two_structurally_invalid_outputs_return_last_output_with_warning():
+    model = AsyncMock(side_effect=[REJECTED, REJECTED, VALID])
+    attempts = OutputAttempts()
+    assert await attempts.final("Regler", "Kilde", None, model, {}) == REJECTED
+    assert model.await_count == 2
+    assert attempts.warnings == [SOFT_WARNING]
 
 
 @pytest.mark.asyncio
@@ -283,13 +293,11 @@ async def test_final_context_fallback_does_not_reset_correction_budget(last, suc
         ):
             events.append(event)
 
+    await consume()
     if success:
-        await consume()
         assert events[-1] == {"type": "ferdig", "tekst": VALID}
     else:
-        with pytest.raises(FinalOutputError):
-            await consume()
-        assert not any(event["type"] in {"token", "ferdig"} for event in events)
+        assert events[-1] == {"type": "ferdig", "tekst": REJECTED, "advarsler": [SOFT_WARNING]}
     assert any(event["type"] == "progress" for event in events)
     assert [entry.args[0] for entry in model.await_args_list] == [
         "Regler", "Regler" + CORRECTION, "Regler" + CORRECTION,
@@ -360,12 +368,11 @@ async def test_intermediate_note_failure_never_consumes_an_output_retry(failure)
 
 @pytest.mark.parametrize("profile", CURRENT_PROMPTS, ids=lambda p: p.id)
 @pytest.mark.parametrize("endpoint", ENDPOINTS)
-@pytest.mark.parametrize("outcome", ["first", "corrected", "exhausted", "empty", "incomplete", "refused"])
+@pytest.mark.parametrize("outcome", ["first", "corrected", "empty", "incomplete", "refused"])
 def test_versioned_endpoints_buffer_results_and_map_failures(monkeypatch, client, profile, endpoint, outcome):
     responses = {
         "first": [VALID],
         "corrected": [REJECTED, VALID],
-        "exhausted": [REJECTED, REJECTED],
         "empty": ["", ""],
         "incomplete": [IncompleteModelResponse("partial"), IncompleteModelResponse("partial")],
         "refused": [RefusedModelResponse("Modellen avviste forespørselen.")],
@@ -498,14 +505,13 @@ def test_endpoints_preserve_warning_after_correcting_reduced_source(monkeypatch,
 @pytest.mark.asyncio
 @pytest.mark.parametrize("profile", CURRENT_PROMPTS, ids=lambda p: p.id)
 @pytest.mark.parametrize("handling", ["referat", "rullerende_referat"])
-@pytest.mark.parametrize("outcome", ["first", "corrected", "exhausted", "empty", "incomplete", "refused"])
+@pytest.mark.parametrize("outcome", ["first", "corrected", "empty", "incomplete", "refused"])
 async def test_summary_jobs_persist_only_accepted_output(
     monkeypatch, summary_jobs, profile, handling, outcome,
 ):
     responses = {
         "first": [VALID],
         "corrected": [REJECTED, VALID],
-        "exhausted": [REJECTED, REJECTED],
         "empty": ["", ""],
         "incomplete": [IncompleteModelResponse("partial"), IncompleteModelResponse("partial")],
         "refused": [RefusedModelResponse("Modellen avviste forespørselen.")],
