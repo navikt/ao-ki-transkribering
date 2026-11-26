@@ -50,6 +50,30 @@ class NemotronDiarizer:
         return turns, cache
 
 
+def merge_to_dominant(turns, limit=2):
+    """Keep the speakers with most speech; give other turns to the nearest kept speaker's turn."""
+    totals = {}
+    for t in turns:
+        totals[t["speaker"]] = totals.get(t["speaker"], 0) + t["end"] - t["start"]
+    if len(totals) <= limit:
+        return turns
+    kept = sorted(totals, key=totals.get, reverse=True)[:limit]
+    first = {}
+    for t in turns:
+        first.setdefault(t["speaker"], t["start"])
+    names = {old: f"SPEAKER_{i:02d}" for i, old in enumerate(sorted(kept, key=first.get))}
+    anchors = [t for t in turns if t["speaker"] in names]
+    merged = []
+    for t in turns:
+        if t["speaker"] in names:
+            speaker = names[t["speaker"]]
+        else:
+            nearest = min(anchors, key=lambda a: max(a["start"] - t["end"], t["start"] - a["end"], 0))
+            speaker = names[nearest["speaker"]]
+        merged.append({**t, "speaker": speaker})
+    return merged
+
+
 def label_words(chunks, turns):
     result = []
     for chunk in chunks:
@@ -120,7 +144,8 @@ class SpeechSessions:
             result = asr.transkriber(pcm)
             relative_turns = [{**t, "start": t["start"] - chunk_start, "end": t["end"] - chunk_start}
                               for t in state.turns]
-            result = {"text": result["text"], "segments": label_words(result["chunks"], relative_turns),
+            result = {"text": result["text"],
+                      "segments": label_words(result["chunks"], merge_to_dominant(relative_turns)),
                       "duration": len(pcm) / SAMPLE_RATE, "language": "norwegian",
                       "warnings": result.get("warnings", [])}
             if session_id:

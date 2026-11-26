@@ -5,7 +5,7 @@ import threading
 import numpy as np
 import pytest
 
-from worker.transkribering.nemotron_diarization import SpeechSessions, label_words
+from worker.transkribering.nemotron_diarization import SpeechSessions, label_words, merge_to_dominant
 
 
 def engines():
@@ -69,6 +69,12 @@ def test_labels_use_overlap_and_do_not_invent_speakers_during_unassigned_speech(
     turns = [{"start": 0, "end": .7, "speaker": "SPEAKER_00"},
              {"start": 1, "end": 2, "speaker": "SPEAKER_01"}]
     assert [s["speaker"] for s in label_words(chunks, turns)] == ["SPEAKER_00", "SPEAKER_01", "SPEAKER_UNKNOWN"]
+
+
+def test_extra_speakers_merge_into_two_dominant_ones():
+    turns = [{"start": 0, "end": 10, "speaker": "SPEAKER_03"}, {"start": 10, "end": 12, "speaker": "SPEAKER_01"},
+             {"start": 12, "end": 22, "speaker": "SPEAKER_00"}, {"start": 22, "end": 23, "speaker": "SPEAKER_04"}]
+    assert [t["speaker"] for t in merge_to_dominant(turns)] == ["SPEAKER_00", "SPEAKER_00", "SPEAKER_01", "SPEAKER_01"]
 
 
 def test_distinct_recordings_can_reach_asr_concurrently_without_mixing_state():
