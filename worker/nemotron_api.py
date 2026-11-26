@@ -18,8 +18,11 @@ from worker.transkribering.nemotron_diarization import NemotronDiarizer, SpeechS
 from worker.transkribering.request_queue import QueueFull, SpeechRequestQueue
 from worker.llama_api import proxy_chat, RequestLimitMiddleware
 from worker.cohost_llama import serve as serve_llama
+from worker.transkribering import nordlyd
 
-MODEL_NAME = os.getenv("SPEECH_MODEL_NAME", "nemotron-3.5-asr-streaming-0.6b")
+MODEL_NAME = os.getenv("SPEECH_MODEL_NAME",
+                       nordlyd.MODEL_NAME if os.getenv("SPEECH_ASR_BACKEND") == "nordlyd"
+                       else "nemotron-3.5-asr-streaming-0.6b")
 MAX_UPLOAD_BYTES = 200 * 1024 * 1024
 MAX_AUDIO_SECONDS = 3 * 60 * 60
 
@@ -53,6 +56,8 @@ async def lifespan(app):
     elif backend == "faster-whisper":
         from worker.transkribering.ctranslate2_api_model import CTranslate2Transkriberer
         app.state.model = await asyncio.to_thread(CTranslate2Transkriberer)
+    elif backend == "nordlyd":
+        app.state.model = await asyncio.to_thread(nordlyd.NordlydTranskriberer)
     else:
         app.state.model = await asyncio.to_thread(hent_nemotron_modell)
     app.state.speech_models = {MODEL_NAME: app.state.model}
@@ -152,6 +157,7 @@ async def transcribe(request: Request, file: UploadFile = File(...), model: str 
 
 async def transcribe_audio(file, response_format, session_id, chunk_start, model_name=None):
     selected_model = app.state.speech_models[model_name or MODEL_NAME]
+    max_audio_seconds = getattr(selected_model, "max_audio_seconds", MAX_AUDIO_SECONDS)
     sessions = app.state.small_sessions if model_name == "nb-whisper-small" else app.state.sessions
     with tempfile.TemporaryDirectory(prefix="nemotron-") as directory:
         path = Path(directory) / "audio"
@@ -165,6 +171,8 @@ async def transcribe_audio(file, response_format, session_id, chunk_start, model
         pcm = await asyncio.to_thread(decode_audio, path)
         if session_id and (len(pcm) > 32 * 16000 or chunk_start + len(pcm) / 16000 > MAX_AUDIO_SECONDS):
             raise HTTPException(413, "Recording chunk or session exceeds its limit")
+        if len(pcm) > max_audio_seconds * nordlyd.SAMPLE_RATE:
+            raise HTTPException(413, f"Audio exceeds the model limit of {max_audio_seconds} seconds")
         if app.state.diarizer is not None:
             try:
                 result = await asyncio.to_thread(sessions.transcribe, pcm, selected_model,
@@ -186,4 +194,4 @@ async def transcribe_audio(file, response_format, session_id, chunk_start, model
         for i, chunk in enumerate(result["chunks"])
     ]
     return {"text": result["text"], "language": "norwegian", "duration": len(pcm) / 16000,
-            "segments": segments}
+            "segments": segments, **({"warnings": result["warnings"]} if result.get("warnings") else {})}

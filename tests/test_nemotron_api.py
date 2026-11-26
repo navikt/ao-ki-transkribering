@@ -179,3 +179,43 @@ async def test_disconnected_request_is_not_processed(monkeypatch):
     assert error.value.status_code == 499
     assert file.file.closed
     assert api.app.state.requests.pending == 0
+
+
+def test_nordlyd_serves_aligned_words(monkeypatch, tmp_path):
+    from worker.transkribering import nordlyd
+
+    monkeypatch.setenv("SPEECH_ASR_BACKEND", "nordlyd")
+    monkeypatch.setenv("VLLM_API_KEY", "test-model-key")
+    monkeypatch.setattr(api, "MODEL_NAME", nordlyd.MODEL_NAME)
+    monkeypatch.setattr(api, "decode_audio", lambda _: np.ones(1600, dtype=np.float32))
+    monkeypatch.setenv("NORDLYD_MODELL", str(tmp_path))
+    monkeypatch.setenv("NORDLYD_ALIGNER_MODELL", str(tmp_path))
+    (tmp_path / "inference.py").write_text(
+        """
+class NordlydASR:
+    def __init__(self, **kwargs):
+        self.aligner_loaded = False
+
+    def load_aligner(self, **kwargs):
+        self.aligner_loaded = True
+
+    def transcribe(self, path, *, target_lang, style, timestamps):
+        import soundfile
+        pcm, sample_rate = soundfile.read(path)
+        assert self.aligner_loaded
+        assert len(pcm) == 1600 and sample_rate == 16000
+        assert (target_lang, style, timestamps) == ("nob", "verbatim", True)
+        return {"text": "Hei", "truncated": True,
+                "timestamps": [{"text": "Hei", "start": 0.01, "end": 0.05}]}
+"""
+    )
+    with TestClient(api.app) as client:
+        response = client.post(
+            "/v1/audio/transcriptions",
+            headers={"Authorization": "Bearer test-model-key"},
+            files={"file": ("test.wav", wav_audio(), "audio/wav")},
+            data={"model": nordlyd.MODEL_NAME, "response_format": "verbose_json"},
+        )
+    assert response.status_code == 200, response.text
+    assert response.json()["segments"] == [{"id": 0, "text": "Hei", "start": 0.01, "end": 0.05}]
+    assert response.json()["warnings"]

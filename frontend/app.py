@@ -34,7 +34,8 @@ log = logging.getLogger(__name__)
 
 def _render_index(static):
     values = {}
-    labels = {"nb-whisper-large": "NB-Whisper Large", "nb-whisper-small": "NB-Whisper Small",
+    labels = {"nordlyd-qwen06b-preview": "Nordlyd Qwen 0.6B (preview)",
+              "nb-whisper-large": "NB-Whisper Large", "nb-whisper-small": "NB-Whisper Small",
               "borealis-12b": "Borealis 12B", "borealis-4b": "Borealis 4B"}
     choices = {
         "transcription": transcription_models(TRANSKRIPSJON_BACKEND, TRANSKRIPSJON_MODELL),
