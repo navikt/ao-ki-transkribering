@@ -157,6 +157,14 @@ def test_decorated_headings_and_preamble_are_normalized():
     assert clean_output(REJECTED) == REJECTED
 
 
+def test_unnumbered_headings_are_normalized():
+    bare = VALID
+    for heading in ("1. Bakgrunn", "2. Det du fortalte", "3. Det veilederen informerte om",
+                    "4. Avtaler", "5. Ikke avtalt ennå"):
+        bare = bare.replace(heading, "**" + heading.split(". ", 1)[1] + "**")
+    assert invalid_reason(clean_output(bare)) is None
+
+
 def test_checker_does_not_claim_to_verify_content_against_source():
     assert invalid_reason(_summary("- Hvem: fiktiv aktør | Hva: udokumentert handling | Når: aldri")) is None
 

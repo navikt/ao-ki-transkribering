@@ -70,7 +70,8 @@ def clean_output(text: str) -> str:
     lines, started = [], False
     for line in text.splitlines():
         bare = _DECORATION.match(line.strip()).group(1).strip().rstrip(":").strip()
-        heading = next((h for h in HEADINGS if h.casefold() == bare.casefold()), None)
+        bare = re.sub(r"^\d+[.)]\s*", "", bare).strip("*_ ").rstrip(":").strip()
+        heading = next((h for h in HEADINGS if h.split(". ", 1)[1].casefold() == bare.casefold()), None)
         if heading:
             started = True
         if heading or started:
