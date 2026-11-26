@@ -62,6 +62,16 @@ def invalid_reason(text: str) -> str | None:
     return None
 
 
+def heading_shape(text: str) -> dict:
+    """Content-free description of why headings mismatch, safe to log."""
+    lines = [line.strip() for line in text.splitlines() if line.strip()]
+    found = [line for line in lines if _HEADING.match(line)]
+    return {"missing": [i + 1 for i, h in enumerate(HEADINGS) if h not in lines],
+            "extra_heading_lines": len([line for line in found if line not in HEADINGS]),
+            "first_line_is_heading": bool(lines) and lines[0] == HEADINGS[0],
+            "lines": len(lines), "chars": len(text)}
+
+
 class OutputAttempts:
     """Keep the one corrective attempt across context-window fallbacks."""
 
@@ -78,6 +88,7 @@ class OutputAttempts:
             if reason is None:
                 return result
             self.failures += 1
-            event("llm.output_rejected", attempt=self.failures, reason=reason, model=model)
+            shape = heading_shape(result) if reason == "headings" else {}
+            event("llm.output_rejected", attempt=self.failures, reason=reason, model=model, **shape)
             if self.failures >= 2:
                 raise FinalOutputError(reason) from None
