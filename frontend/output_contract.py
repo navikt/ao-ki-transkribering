@@ -86,7 +86,23 @@ def heading_shape(text: str) -> dict:
     return {"missing": [i + 1 for i, h in enumerate(HEADINGS) if h not in lines],
             "extra_heading_lines": len([line for line in found if line not in HEADINGS]),
             "first_line_is_heading": bool(lines) and lines[0] == HEADINGS[0],
-            "lines": len(lines), "chars": len(text)}
+            "lines": len(lines), "chars": len(text),
+            # Short unpunctuated lines are structure (titles), not transcript content.
+            "title_like_lines": [line[:60] for line in lines
+                                 if len(line.split()) <= 8 and not line.endswith((".", "|")) and "|" not in line][:12]}
+
+
+def agreement_shape(text: str) -> dict:
+    """Content-free description of the agreement section lines."""
+    lines = [line.strip() for line in text.splitlines() if line.strip()]
+    start = next((i for i, line in enumerate(lines) if line == HEADINGS[3]), None)
+    if start is None:
+        return {"agreement_section": "missing"}
+    end = next((i for i in range(start + 1, len(lines)) if lines[i] == HEADINGS[4]), len(lines))
+    return {"agreement_lines": [{"pipes": line.count("|"), "bullet": line.startswith("- "),
+                                 "labels": [w for w in ("Hvem:", "Hva:", "Når:") if w in line],
+                                 "matches": _BULLET.fullmatch(line) is not None}
+                                for line in lines[start + 1:end]][:10]}
 
 
 class OutputAttempts:
@@ -105,7 +121,8 @@ class OutputAttempts:
             if reason is None:
                 return result
             self.failures += 1
-            shape = heading_shape(result) if reason == "headings" else {}
+            shape = (heading_shape(result) if reason == "headings"
+                     else agreement_shape(result) if reason == "agreement_fields" else {})
             event("llm.output_rejected", attempt=self.failures, reason=reason, model=model, **shape)
             if self.failures >= 2:
                 raise FinalOutputError(reason) from None
