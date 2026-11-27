@@ -102,7 +102,6 @@ async def _call_transkripsjon_service(
             "model": model or TRANSKRIPSJON_MODELL,
             "response_format": "verbose_json",
             "language": "no",
-            "n_talere": str(n_talere),
         }
         if session_id and REMOTE_DIARIZATION_MODEL:
             data.update(session_id=session_id, chunk_start=str(chunk_start))

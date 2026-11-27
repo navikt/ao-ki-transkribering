@@ -116,3 +116,21 @@ async def test_internal_transcription_path_uses_lydfil_multipart_field(monkeypat
     assert "lydfil" in kwargs["files"]
     assert "file" not in kwargs["files"]
     assert kwargs["data"] == {"n_talere": "2"}
+
+
+@pytest.mark.asyncio
+async def test_openai_request_only_sends_fields_the_gateway_allows(monkeypatch):
+    monkeypatch.setattr(transkripsjon_client, "TRANSKRIPSJON_API_PATH", "/v1/audio/transcriptions")
+    monkeypatch.setattr(transkripsjon_client, "REMOTE_DIARIZATION_MODEL", "diar")
+    response = MagicMock()
+    response.json.return_value = {"text": "Hei", "segments": []}
+    client = MagicMock()
+    client.post = AsyncMock(return_value=response)
+    context = MagicMock()
+    context.__aenter__ = AsyncMock(return_value=client)
+    context.__aexit__ = AsyncMock(return_value=False)
+    with patch("shared.services.transkripsjon_client.httpx.AsyncClient", return_value=context):
+        await _call_transkripsjon_service(filename="a.wav", content=b"x", n_talere=2, service_url="http://m",
+                                          session_id="s", chunk_start=0, model="m")
+    allowed = {"model", "file", "response_format", "language", "session_id", "chunk_start"}  # images/litellm/scoped_auth.py
+    assert set(client.post.call_args.kwargs["data"]) <= allowed
