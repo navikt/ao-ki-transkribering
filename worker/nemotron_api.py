@@ -67,10 +67,17 @@ async def lifespan(app):
             raise RuntimeError("NB-Whisper Small co-hosting requires the faster-whisper runtime")
         app.state.speech_models["nb-whisper-small"] = await asyncio.to_thread(
             CTranslate2Transkriberer, source=small_path, target=small_path + "-ct2-fp16", inference_concurrency=1)
+    nordlyd_python = os.getenv("NORDLYD_COHOST_PYTHON", "")
+    if nordlyd_python:
+        if backend == "nordlyd":
+            raise RuntimeError("Nordlyd co-hosting needs a different primary speech runtime")
+        from worker.transkribering.nordlyd_cohost import NordlydSubprocess
+        app.state.speech_models[nordlyd.MODEL_NAME] = await asyncio.to_thread(NordlydSubprocess, nordlyd_python)
     diar_path = os.getenv("NEMOTRON_DIAR_MODELL", "")
     app.state.diarizer = await asyncio.to_thread(NemotronDiarizer, diar_path, app.state.model.enhet) if diar_path else None
     app.state.sessions = SpeechSessions()
     app.state.small_sessions = SpeechSessions()
+    app.state.nordlyd_sessions = SpeechSessions()
     app.state.requests = SpeechRequestQueue(capacity=32,
                                            concurrency=32 if hasattr(app.state.model, "batch_size") else
                                            getattr(app.state.model, "inference_concurrency", 1))
@@ -80,6 +87,7 @@ async def lifespan(app):
             await asyncio.sleep(30)
             await asyncio.to_thread(app.state.sessions.purge)
             await asyncio.to_thread(app.state.small_sessions.purge)
+            await asyncio.to_thread(app.state.nordlyd_sessions.purge)
 
     task = asyncio.create_task(cleanup())
     try:
@@ -93,8 +101,10 @@ async def lifespan(app):
             await task
         app.state.sessions.records.clear()
         app.state.small_sessions.records.clear()
-        if hasattr(app.state.model, "close"):
-            await asyncio.to_thread(app.state.model.close)
+        app.state.nordlyd_sessions.records.clear()
+        for speech_model in app.state.speech_models.values():
+            if hasattr(speech_model, "close"):
+                await asyncio.to_thread(speech_model.close)
 
 
 app = FastAPI(title="Speech and diarization model API", lifespan=lifespan,
@@ -160,7 +170,8 @@ async def transcribe(request: Request, file: UploadFile = File(...), model: str 
 async def transcribe_audio(file, response_format, session_id, chunk_start, model_name=None, speakers=2):
     selected_model = app.state.speech_models[model_name or MODEL_NAME]
     max_audio_seconds = getattr(selected_model, "max_audio_seconds", MAX_AUDIO_SECONDS)
-    sessions = app.state.small_sessions if model_name == "nb-whisper-small" else app.state.sessions
+    sessions = {"nb-whisper-small": app.state.small_sessions,
+                nordlyd.MODEL_NAME: app.state.nordlyd_sessions}.get(model_name, app.state.sessions)
     with tempfile.TemporaryDirectory(prefix="nemotron-") as directory:
         path = Path(directory) / "audio"
         size = 0

@@ -63,6 +63,14 @@ spec:
               BOREALIS=gs://ao-ki-taskforce-prod-2472-modeller/borealis-4b-gguf/0438d80853b3aab5791f3ba77d4d94a7f8d8ca0e
               gcloud storage cp "$BOREALIS/borealis-4b-Q8_0.gguf" /models/borealis-4b/
               echo '799150f7ab450c459cfdd1602d097e0f15e57516c8274be35da514c935ad4776  /models/borealis-4b/borealis-4b-Q8_0.gguf' | sha256sum -c -
+              mkdir -p /models/nordlyd /models/nordlyd-aligner
+              NORDLYD=gs://ao-ki-taskforce-prod-2472-modeller/nordlyd
+              ASR=$NORDLYD/asr/3851466595f3a4229451935779bf14f83698855a
+              gcloud storage cp "$ASR/*.json" "$ASR/merges.txt" "$ASR/chat_template.jinja" "$ASR/inference.py" "$ASR/model.safetensors" /models/nordlyd/
+              echo 'fd4dd83ed5af82e75ec20af72349852283d19b81682d3c2b01de0a906e6c0448  /models/nordlyd/model.safetensors' | sha256sum -c -
+              ALIGN=$NORDLYD/aligner/d5a3eee43e9b92223ba7bd386ad91443d58ecf8f
+              gcloud storage cp "$ALIGN/*.json" "$ALIGN/merges.txt" "$ALIGN/chat_template.jinja" "$ALIGN/model.safetensors" /models/nordlyd-aligner/
+              echo '11b97f0b42e61873d3e8fd38f22d7549f553c5488e4ee1c8aafc0bfeb9fd0bab  /models/nordlyd-aligner/model.safetensors' | sha256sum -c -
           volumeMounts:
             - name: modeller
               mountPath: /models
@@ -73,7 +81,7 @@ spec:
       containers:
         - name: vllm
           # Self-hosted Whisper transcription and separate Nemotron speaker model.
-          image: europe-west4-docker.pkg.dev/ao-ki-taskforce-prod-2472/vllm/speech-cohost:20261104-small-models
+          image: europe-west4-docker.pkg.dev/ao-ki-taskforce-prod-2472/vllm/speech-cohost:20261127-nordlyd
           command: ["python", "-m", "uvicorn"]
           env:
             - name: SPEECH_ASR_BACKEND

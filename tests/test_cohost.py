@@ -120,3 +120,40 @@ async def test_llama_process_is_cleaned_up_on_normal_and_failed_body(monkeypatch
     else:
         await run()
     assert events == ["terminate"]
+
+
+def test_nordlyd_is_cohosted_with_its_own_sessions(monkeypatch):
+    from worker.transkribering import nordlyd_cohost
+
+    monkeypatch.setenv("VLLM_API_KEY", "test-model-key")
+    monkeypatch.setenv("SPEECH_ASR_BACKEND", "faster-whisper")
+    monkeypatch.delenv("WHISPER_SMALL_MODELL", raising=False)
+    monkeypatch.delenv("BOREALIS_SMALL_MODELL", raising=False)
+    monkeypatch.setenv("NEMOTRON_DIAR_MODELL", "")
+    monkeypatch.setenv("NORDLYD_COHOST_PYTHON", "/opt/nordlyd/bin/python")
+    closed = []
+
+    class Nordlyd:
+        enhet, inference_concurrency = "cuda:0", 1
+
+        def __init__(self, python):
+            assert python == "/opt/nordlyd/bin/python"
+
+        def transkriber(self, pcm):
+            return {"text": "nordlyd", "chunks": []}
+
+        def close(self):
+            closed.append(True)
+
+    monkeypatch.setattr(ctranslate2_api_model, "CTranslate2Transkriberer",
+                        lambda **kwargs: SimpleNamespace(enhet="cuda", inference_concurrency=1,
+                                                         transkriber=lambda pcm: {"text": "large", "chunks": []}))
+    monkeypatch.setattr(nordlyd_cohost, "NordlydSubprocess", Nordlyd)
+    auth = {"Authorization": "Bearer test-model-key"}
+    with TestClient(nemotron_api.app) as client:
+        for name, text in [(nemotron_api.MODEL_NAME, "large"), ("nordlyd-qwen06b-preview", "nordlyd")]:
+            response = client.post("/v1/audio/transcriptions", headers=auth,
+                                   files={"file": ("test.wav", wav_audio())}, data={"model": name})
+            assert response.json()["text"] == text
+        assert nemotron_api.app.state.nordlyd_sessions is not nemotron_api.app.state.sessions
+    assert closed == [True]

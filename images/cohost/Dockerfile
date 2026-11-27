@@ -9,9 +9,16 @@ RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg libsndfi
     && useradd --uid 10001 --create-home model
 COPY --from=speech /opt/conda /opt/conda
 ENV PATH="/opt/conda/bin:$PATH" PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 \
+    NORDLYD_COHOST_PYTHON=/opt/nordlyd-venv/bin/python \
+    NORDLYD_MODELL=/models/nordlyd NORDLYD_ALIGNER_MODELL=/models/nordlyd-aligner \
     HF_HUB_OFFLINE=1 NEMOTRON_ENHET=cuda NEMOTRON_DIAR_MODELL=/models/nemotron-diarization \
     LD_LIBRARY_PATH="/usr/local/nvidia/lib64:/usr/local/cuda/lib64"
 WORKDIR /app
+# qwen-asr pins transformers 4.x, which the diarizer's transformers 5 cannot share,
+# so Nordlyd runs as a loopback subprocess in its own venv.
+COPY requirements/api.txt requirements/nordlyd-runtime.txt requirements/
+RUN python -m venv --system-site-packages /opt/nordlyd-venv \
+    && /opt/nordlyd-venv/bin/pip install --no-cache-dir -r requirements/nordlyd-runtime.txt
 COPY shared/ shared/
 COPY worker/ worker/
 COPY k8s/model_security.py k8s/model_security.py
