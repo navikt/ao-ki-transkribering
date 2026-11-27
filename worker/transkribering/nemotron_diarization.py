@@ -39,8 +39,8 @@ class NemotronDiarizer:
         turns = []
         # Limit feature/attention memory even for a three-hour uploaded recording.
         with torch.inference_mode():
-            for start in range(0, len(pcm), 24 * SAMPLE_RATE):
-                window = pcm[start:start + 24 * SAMPLE_RATE]
+            for start in range(0, len(pcm), 32 * SAMPLE_RATE):
+                window = pcm[start:start + 32 * SAMPLE_RATE]
                 inputs = self.processor(window, sampling_rate=SAMPLE_RATE, return_tensors="pt")
                 inputs = inputs.to(self.device, dtype=self.model.dtype)
                 output = self.model(**inputs, speaker_cache=cache, num_lookahead_frames=LOOKAHEAD_FRAMES)

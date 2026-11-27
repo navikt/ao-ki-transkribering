@@ -60,7 +60,7 @@ async def test_uploaded_file_uses_bounded_sections_with_shared_speakers_and_abso
     progress = []
 
     async def model(**kwargs):
-        if len(kwargs["content"]) > 500_000:
+        if len(kwargs["content"]) > 1_000_000:
             request = httpx.Request("POST", "https://model.test/v1/audio/transcriptions")
             response = httpx.Response(413, request=request)
             raise httpx.HTTPStatusError("Payload too large", request=request, response=response)
@@ -75,9 +75,9 @@ async def test_uploaded_file_uses_bounded_sections_with_shared_speakers_and_abso
     monkeypatch.setattr(client, "TRANSKRIPSJON_API_PATH", "/v1/audio/transcriptions")
     monkeypatch.setattr(client, "_call_transkripsjon_service", model)
     result = await client.transkriber_remote(path, n_talere=2, status_callback=progress.append, model="nb-whisper-small")
-    starts = list(range(0, math.ceil(seconds - 15) + 14, 14))
+    starts = list(range(0, math.ceil(seconds - client.UPLOAD_SECTION_S) + client.UPLOAD_SECTION_S - 1, client.UPLOAD_SECTION_S - 1))
     assert [round(call["chunk_start"], 2) for call, _ in calls] == starts
-    assert [length for _, length in calls] == [min(15, seconds - start) for start in starts]
+    assert [length for _, length in calls] == [min(client.UPLOAD_SECTION_S, seconds - start) for start in starts]
     assert len({call["session_id"] for call, _ in calls}) == 1
     assert all(call["session_id"] and call["n_talere"] == 2 for call, _ in calls)
     assert all(call["model"] == "nb-whisper-small" for call, _ in calls)

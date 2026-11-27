@@ -140,6 +140,10 @@ async def _call_transkripsjon_service(
                 raise
 
 
+# Diarization is unstable on short windows (4 speakers on a 3-voice clip at 15 s, stable from 20 s).
+UPLOAD_SECTION_S = 30
+
+
 async def transkriber_remote(
     lydfil: Path,
     *,
@@ -168,7 +172,7 @@ async def transkriber_remote(
         start = 0
         while start < total:
             audio.setpos(start)
-            pcm = np.frombuffer(audio.readframes(15 * SAMPLE_RATE), dtype="<i2").astype(np.float32) / 32768
+            pcm = np.frombuffer(audio.readframes(UPLOAD_SECTION_S * SAMPLE_RATE), dtype="<i2").astype(np.float32) / 32768
             end = start + len(pcm)
             result = await _call_transkripsjon_service(
                 filename="segment.wav", content=_pcm_to_wav_bytes(pcm), n_talere=n_talere,
