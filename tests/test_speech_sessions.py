@@ -121,3 +121,19 @@ def test_speaker_limit_is_configurable():
     turns = [{"start": 0, "end": 10, "speaker": "SPEAKER_00"}, {"start": 10, "end": 18, "speaker": "SPEAKER_01"},
              {"start": 18, "end": 24, "speaker": "SPEAKER_02"}, {"start": 24, "end": 25, "speaker": "SPEAKER_03"}]
     assert [t["speaker"] for t in merge_to_dominant(turns, 3)] == ["SPEAKER_00", "SPEAKER_01", "SPEAKER_02", "SPEAKER_02"]
+
+
+def test_labels_stay_stable_across_chunks_with_shared_names():
+    names, totals = {}, {"A": 30, "B": 20, "C": 1}
+    first = [{"start": 0, "end": 5, "speaker": "B"}, {"start": 5, "end": 10, "speaker": "A"}]
+    second = [{"start": 0, "end": 5, "speaker": "A"}, {"start": 5, "end": 6, "speaker": "C"},
+              {"start": 6, "end": 9, "speaker": "B"}]
+    assert [t["speaker"] for t in merge_to_dominant(first, 2, totals, names)] == ["SPEAKER_00", "SPEAKER_01"]
+    assert [t["speaker"] for t in merge_to_dominant(second, 2, totals, names)] == [
+        "SPEAKER_01", "SPEAKER_01", "SPEAKER_00"]
+
+
+def test_words_in_short_gaps_get_nearest_speaker_not_unknown():
+    turns = [{"start": 0, "end": 1, "speaker": "SPEAKER_00"}, {"start": 3, "end": 4, "speaker": "SPEAKER_01"}]
+    chunks = [{"text": "x", "timestamp": (2.2, 2.4)}]
+    assert label_words(chunks, turns)[0]["speaker"] == "SPEAKER_01"
