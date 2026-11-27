@@ -113,7 +113,7 @@ spec:
     - name: TRANSKRIPSJON_API_PATH
       value: "/v1/audio/transcriptions"
     - name: TRANSKRIPSJON_MODELL
-      value: "nb-whisper-large"
+      value: "nordlyd-qwen06b-preview"
     - name: REMOTE_DIARIZATION_MODEL
       value: "nvidia/Nemotron-3-Diarization"
     - name: LLM_MODELL

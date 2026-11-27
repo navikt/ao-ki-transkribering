@@ -2,7 +2,7 @@
 
 
 def transcription_models(backend, default):
-    alternatives = ["nb-whisper-large", "nb-whisper-small"]
+    alternatives = ["nordlyd-qwen06b-preview", "nb-whisper-large", "nb-whisper-small"]
     return list(dict.fromkeys([default, *(alternatives if backend == "remote" and default in alternatives else [])]))
 
 

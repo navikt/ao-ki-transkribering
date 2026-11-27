@@ -6,7 +6,8 @@ from shared.services import llm_proxy_client
 
 
 def test_choices_keep_configured_defaults_and_separate_model_types():
-    assert transcription_models("remote", "nb-whisper-large") == ["nb-whisper-large", "nb-whisper-small"]
+    assert transcription_models("remote", "nordlyd-qwen06b-preview") == [
+        "nordlyd-qwen06b-preview", "nb-whisper-large", "nb-whisper-small"]
     assert summary_models("openai", "borealis-12b") == ["borealis-12b", "borealis-4b"]
     assert transcription_models("local", "local-asr") == ["local-asr"]
     assert summary_models("ollama", "local-llm") == ["local-llm"]

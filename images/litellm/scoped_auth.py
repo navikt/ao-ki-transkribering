@@ -13,11 +13,11 @@ MAX_RECORDING_SECONDS = 3 * 60 * 60
 _ROUTES = {
     ("GET", "/v1/models"): None,
     ("POST", "/v1/chat/completions"): {"borealis-12b", "borealis-4b"},
-    ("POST", "/v1/audio/transcriptions"): {"nb-whisper-large", "nb-whisper-small"},
+    ("POST", "/v1/audio/transcriptions"): {"nb-whisper-large", "nb-whisper-small", "nordlyd-qwen06b-preview"},
 }
 _FIELDS = {
     "/v1/chat/completions": {"model", "messages", "stream", "temperature", "top_p", "max_tokens", "extra_body", "response_format"},
-    "/v1/audio/transcriptions": {"model", "file", "response_format", "language", "session_id", "chunk_start"},
+    "/v1/audio/transcriptions": {"model", "file", "response_format", "language", "session_id", "chunk_start", "n_talere"},
 }
 
 
@@ -133,6 +133,8 @@ async def authorize(request: Request, api_key: str) -> str:
             try:
                 if "session_id" in payload:
                     UUID(payload["session_id"])
+                if "n_talere" in payload and not (payload["n_talere"].isdigit() and 0 <= int(payload["n_talere"]) <= 4):
+                    raise ValueError
                 offset = float(payload.get("chunk_start", 0))
                 if not math.isfinite(offset) or not 0 <= offset <= MAX_RECORDING_SECONDS:
                     raise ValueError
@@ -156,7 +158,7 @@ async def user_api_key_auth(request: Request, api_key: str):
     return UserAPIKeyAuth(
         api_key=api_key,
         key_alias=f"nais-{environment}",
-        models=["nb-whisper-large", "borealis-12b", "nb-whisper-small", "borealis-4b"],
+        models=["nb-whisper-large", "borealis-12b", "nb-whisper-small", "borealis-4b", "nordlyd-qwen06b-preview"],
         max_parallel_requests=parallel_requests,
         rpm_limit=120,
     )

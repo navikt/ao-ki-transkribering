@@ -83,6 +83,11 @@ resource "google_secret_manager_secret_version" "litellm_config" {
           model: openai/nb-whisper-small
           api_base: "${var.model_security_enabled ? "https" : "http"}://${google_compute_address.vllm_whisper_ilb.address}:8000/v1"
           api_key: ${var.model_security_enabled ? "os.environ/VLLM_API_KEY" : "none"}
+      - model_name: nordlyd-qwen06b-preview
+        litellm_params:
+          model: openai/nordlyd-qwen06b-preview
+          api_base: "${var.model_security_enabled ? "https" : "http"}://${google_compute_address.vllm_whisper_ilb.address}:8000/v1"
+          api_key: ${var.model_security_enabled ? "os.environ/VLLM_API_KEY" : "none"}
       - model_name: borealis-4b
         litellm_params:
           model: openai/borealis-4b

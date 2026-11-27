@@ -1757,7 +1757,7 @@ function _oppdaterModellvalg(id, state, locked) {
   const choices = state?.selectable_models;
   if (!select || !choices?.length) return;
   const selected = select.value || state.model;
-  const labels = {"nb-whisper-large": "NB-Whisper Large", "nb-whisper-small": "NB-Whisper Small",
+  const labels = {"nordlyd-qwen06b-preview": "Nordlyd Qwen 0.6B (preview)", "nb-whisper-large": "NB-Whisper Large", "nb-whisper-small": "NB-Whisper Small",
     "borealis-12b": "Borealis 12B", "borealis-4b": "Borealis 4B"};
   select.innerHTML = "";
   for (const model of choices) {

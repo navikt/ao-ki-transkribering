@@ -77,7 +77,7 @@ async def test_gateway_parallel_limit_preserves_key_scope(monkeypatch, configure
     assert auth.max_parallel_requests == expected
     assert auth.rpm_limit == 120
     assert auth.key_alias == "nais-prod"
-    assert auth.models == ["nb-whisper-large", "borealis-12b", "nb-whisper-small", "borealis-4b"]
+    assert auth.models == ["nb-whisper-large", "borealis-12b", "nb-whisper-small", "borealis-4b", "nordlyd-qwen06b-preview"]
 
 
 @pytest.mark.asyncio
@@ -181,6 +181,7 @@ async def test_audio_auth_accepts_multipart_and_rejects_master_key(monkeypatch):
 @pytest.mark.asyncio
 @pytest.mark.parametrize("model,route,status", [
     ("nb-whisper-small", "/v1/audio/transcriptions", 200),
+    ("nordlyd-qwen06b-preview", "/v1/audio/transcriptions", 200),
     ("borealis-4b", "/v1/chat/completions", 200),
     ("borealis-4b", "/v1/audio/transcriptions", 403),
     ("nb-whisper-small", "/v1/chat/completions", 403),
@@ -219,6 +220,16 @@ async def test_gateway_limits_repeat_penalty_without_provider_overrides(monkeypa
     async with httpx.AsyncClient(transport=httpx.ASGITransport(app=gateway_app()), base_url="https://gateway") as client:
         response = await client.post("/v1/chat/completions", headers={"Authorization": "Bearer dev-key"},
                                      json={"model": "borealis-12b", "extra_body": extra})
+    assert response.status_code == status
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("talere,status", [("0", 200), ("4", 200), ("5", 400), ("-1", 400), ("x", 400)])
+async def test_gateway_validates_speaker_count(monkeypatch, talere, status):
+    monkeypatch.setenv("NAIS_DEV_API_KEY", "dev-key")
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=gateway_app()), base_url="https://gateway") as client:
+        response = await client.post("/v1/audio/transcriptions", headers={"Authorization": "Bearer dev-key"},
+            files={"file": ("audio.wav", b"synthetic-audio")}, data={"model": "nb-whisper-large", "n_talere": talere})
     assert response.status_code == status
 
 

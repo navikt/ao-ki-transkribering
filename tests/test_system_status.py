@@ -39,7 +39,7 @@ def test_system_status_reports_ok_models(monkeypatch):
     assert data["llm"]["status"] == "ok"
     assert data["transcription"]["status"] == "ok"
     assert data["diarization"]["status"] == "degraded"
-    assert data["transcription"]["selectable_models"] == ["nb-whisper-large", "nb-whisper-small"]
+    assert data["transcription"]["selectable_models"] == ["nb-whisper-large", "nordlyd-qwen06b-preview", "nb-whisper-small"]
     assert data["llm"]["selectable_models"] == ["borealis-12b", "borealis-4b"]
 
 

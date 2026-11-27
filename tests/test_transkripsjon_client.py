@@ -132,5 +132,6 @@ async def test_openai_request_only_sends_fields_the_gateway_allows(monkeypatch):
     with patch("shared.services.transkripsjon_client.httpx.AsyncClient", return_value=context):
         await _call_transkripsjon_service(filename="a.wav", content=b"x", n_talere=2, service_url="http://m",
                                           session_id="s", chunk_start=0, model="m")
-    allowed = {"model", "file", "response_format", "language", "session_id", "chunk_start"}  # images/litellm/scoped_auth.py
+    from images.litellm.scoped_auth import _FIELDS
+    allowed = _FIELDS["/v1/audio/transcriptions"]
     assert set(client.post.call_args.kwargs["data"]) <= allowed

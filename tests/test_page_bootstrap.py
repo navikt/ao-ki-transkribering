@@ -48,7 +48,7 @@ def test_homepage_models_are_selectable_without_a_status_request(monkeypatch, lo
     for name in ("transkripsjon-modell", "referat-modell"):
         selector = page.selects[name]
         assert ("disabled" in selector["attrs"]) == local
-        assert len(selector["options"]) == (1 if local else 2)
+        assert len(selector["options"]) == (1 if local else {"transkripsjon-modell": 3, "referat-modell": 2}[name])
         assert selector["attrs"]["data-choices"] == ("single" if local else "multiple")
         assert any("selected" in option for option in selector["options"])
     assert page.assets
