@@ -129,9 +129,10 @@ test("summary jobs capture the model choice once for submission and retries", as
   assert.equal(result.modell, "borealis-4b");
 });
 
-test("Basis 0.3 is the initial template and result metadata keeps the actual release", () => {
+test("Basis 0.4 is the initial template and result metadata keeps the actual release", () => {
   const {element, run} = workspace();
-  assert.equal(run("_valgtReferatScenario()"), "basis_0_3");
+  assert.equal(run("_valgtReferatScenario()"), "basis_0_4");
+  assert.equal(run("_referatScenarioTittel('basis_0_4')"), "Basis 0.4");
   for (const version of ["1", "2", "3"]) {
     for (const title of ["Stikkord", "Basis", "Utfyllende"]) {
       assert.equal(run(`_referatScenarioTittel('${title.toLowerCase()}_0_${version}')`), `${title} 0.${version}`);
@@ -141,7 +142,7 @@ test("Basis 0.3 is the initial template and result metadata keeps the actual rel
   assert.equal(run("_valgtReferatScenario()"), "basis_0_2");
   assert.equal(run("_referatScenarioTittel('basis_0_1')"), "Basis 0.1");
   const html = fs.readFileSync(path.join(__dirname, "../frontend/static/index.html"), "utf8");
-  assert.match(html, /<option value="basis_0_3" selected>Basis 0\.3<\/option>/);
+  assert.match(html, /<option value="basis_0_4" selected>Basis 0\.4<\/option>/);
   run("_visReferatResultat('Ingen avtaler.', 'borealis-4b', [], {title:'Basis 0.1'})");
   assert.equal(element("referat-modell-info").textContent, "Modell: borealis-4b · Basis 0.1");
 });
@@ -150,8 +151,8 @@ test("three primary prompt choices precede the retained legacy group in fallback
   const html = fs.readFileSync(path.join(__dirname, "../frontend/static/index.html"), "utf8");
   const select = html.match(/<select id="referat-scenario"[\s\S]*?<\/select>/)[0];
   const primary = [...select.split("<optgroup")[0].matchAll(/<option value="([^"]+)"/g)].map(match => match[1]);
-  assert.deepEqual(primary, ["stikkord_0_3", "basis_0_3", "utfyllende_0_3"]);
-  assert.match(select, /<option value="basis_0_3" selected>/);
+  assert.deepEqual(primary, ["stikkord_0_3", "basis_0_4", "utfyllende_0_3"]);
+  assert.match(select, /<option value="basis_0_4" selected>/);
   for (const version of ["1", "2"]) {
     for (const title of ["Stikkord", "Basis", "Utfyllende"]) {
       assert.ok(select.split("<optgroup")[1].includes(`value="${title.toLowerCase()}_0_${version}">${title} 0.${version}</option>`));
@@ -162,7 +163,7 @@ test("three primary prompt choices precede the retained legacy group in fallback
 
 test("scenario discovery keeps three primary choices and groups older alternatives", async () => {
   const {element, run} = workspace();
-  element("referat-scenario").value = "basis_0_3";
+  element("referat-scenario").value = "basis_0_4";
   await run(`
     const select = document.getElementById('referat-scenario');
     select.children = [];
@@ -170,7 +171,7 @@ test("scenario discovery keeps three primary choices and groups older alternativ
     document.createElement = tag => ({tagName:tag, children:[], appendChild(child) {this.children.push(child);}});
     fetch = async () => ({ok:true, json:async()=>({scenarier:[
       {id:'stikkord_0_3', current:true, prompt:{version:'0.3'}},
-      {id:'basis_0_3', current:true, standard:true, prompt:{version:'0.3'}},
+      {id:'basis_0_4', current:true, standard:true, prompt:{version:'0.4'}},
       {id:'utfyllende_0_3', current:true, prompt:{version:'0.3'}},
       {id:'stikkord_0_2', current:false, prompt:{version:'0.2'}},
       {id:'basis_0_2', current:false, prompt:{version:'0.2'}},
@@ -182,7 +183,7 @@ test("scenario discovery keeps three primary choices and groups older alternativ
   `);
   const children = element("referat-scenario").children;
   assert.deepEqual(Array.from(children.filter(child => child.tagName === "option"), child => child.value),
-    ["stikkord_0_3", "basis_0_3", "utfyllende_0_3"]);
+    ["stikkord_0_3", "basis_0_4", "utfyllende_0_3"]);
   const legacy = children.find(child => child.tagName === "optgroup");
   assert.equal(legacy.label, "Tidligere maler");
   assert.ok(legacy.children.some(child => child.value === "veiledermote"));
@@ -190,12 +191,12 @@ test("scenario discovery keeps three primary choices and groups older alternativ
   for (const id of ["stikkord_0_2", "basis_0_2", "utfyllende_0_2"]) {
     assert.ok(legacy.children.some(child => child.value === id));
   }
-  assert.equal(children.find(child => child.value === "basis_0_3").selected, true);
+  assert.equal(children.find(child => child.value === "basis_0_4").selected, true);
   element("referat-scenario").value = "basis_0_2";
   element("referat-scenario").children = [];
   await run("lastReferatScenarier()");
   const reloaded = element("referat-scenario").children;
-  assert.equal(reloaded.find(child => child.value === "basis_0_3").selected, false);
+  assert.equal(reloaded.find(child => child.value === "basis_0_4").selected, false);
   assert.equal(reloaded.find(child => child.tagName === "optgroup").children
     .find(child => child.value === "basis_0_2").selected, true);
 });

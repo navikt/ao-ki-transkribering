@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 from worker.prompts.versions import (
-    BASIS_0_1, STIKKORD_0_1, UTFYLLENDE_0_1, BASIS_0_3, CURRENT_PROMPTS, PREVIOUS_PROMPTS, PromptVersion, load_definition,
+    BASIS_0_1, STIKKORD_0_1, UTFYLLENDE_0_1, BASIS_0_4, CURRENT_PROMPTS, PREVIOUS_PROMPTS, PromptVersion, load_definition,
 )
 
 from worker.prompts.motereferat import (
@@ -53,7 +53,7 @@ class ReferatScenario:
         return self.bruker_prompt_template.format(transkripsjon=transkripsjon)
 
 
-STANDARD_REFERAT_SCENARIO = BASIS_0_3.id
+STANDARD_REFERAT_SCENARIO = BASIS_0_4.id
 STANDARD_VEILEDER_VARIANT = "oppfolging"
 VEILEDER_VARIANTER = {
     "kartlegging": {

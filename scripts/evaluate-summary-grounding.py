@@ -201,7 +201,7 @@ if __name__ == "__main__":
     parser.add_argument("--inject-bad-draft", action="store_true", help="Require rejection of a deliberately invented approval and assignment")
     parser.add_argument("--native-url", default="", help="Optional localhost-only kubectl tunnel to the cloud GPU")
     parser.add_argument("--v03-case", choices=tuple(V03_CASES), help="Evaluate a synthetic 0.3 case; semantics require manual review")
-    parser.add_argument("--profile", choices=tuple(p.id for p in CURRENT_PROMPTS), default="basis_0_3")
+    parser.add_argument("--profile", choices=tuple(p.id for p in CURRENT_PROMPTS), default="basis_0_4")
     args = parser.parse_args()
     if args.v03_case and (args.exhaustive or args.inject_bad_draft):
         parser.error("--v03-case cannot be combined with legacy pipeline comparison or draft injection")

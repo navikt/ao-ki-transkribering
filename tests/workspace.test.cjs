@@ -182,7 +182,7 @@ test("the editor falls back to Basis 0.3 when no template is selected", async ()
   const {el, run} = await loaded();
   el("referat-scenario").value = "";
   await run("meetingWorkspace.syncPrompt()");
-  assert.equal(run("meetingWorkspace.definition.prompt.id"), "basis_0_3");
+  assert.equal(run("meetingWorkspace.definition.prompt.id"), "basis_0_4");
   assert.equal(el("workspace-prompt-fields").disabled, false);
 });
 

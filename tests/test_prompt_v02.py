@@ -36,8 +36,8 @@ def test_import_matches_markdown_source_fingerprints(profile, checksum, temperat
 def test_three_current_choices_and_old_versions_remain_discoverable():
     choices = list_referat_scenarier()
     assert [item["id"] for item in choices if item["current"]] == [p.id for p in CURRENT_PROMPTS]
-    assert [item["id"] for item in choices if item["standard"]] == ["basis_0_3"]
-    assert {p.id.replace("_0_3", suffix) for p in CURRENT_PROMPTS for suffix in ("_0_1", "_0_2")} <= {
+    assert [item["id"] for item in choices if item["standard"]] == ["basis_0_4"]
+    assert {p.id.replace("_0_3", suffix).replace("_0_4", suffix) for p in CURRENT_PROMPTS for suffix in ("_0_1", "_0_2")} <= {
         item["id"] for item in choices if not item["current"]}
 
 

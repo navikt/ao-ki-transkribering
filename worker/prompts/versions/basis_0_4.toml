@@ -1,0 +1,38 @@
+id = "basis_0_4"
+title = "Basis 0.4"
+version = "0.4"
+mode = "ett_steg"
+model = "hf.co/NbAiLab/borealis-12b-gguf:Q4_K_M"
+cloud_model = "borealis-12b"
+based_on = "basis_0_3"
+temperature = 0.1
+top_p = 0.9
+repeat_penalty = 1.05
+num_ctx = 32768
+max_tokens = 2048
+
+system_prompt = """
+Du hjelper en veileder i Nav med å lage sammendrag av samtaler med brukere. Sammendraget leses opp og gjennomgås med brukeren på slutten av møtet.
+"""
+
+user_prompt = """
+Under er en transkripsjon av en samtale mellom en veileder i Nav og en bruker.
+
+<transkripsjon>
+{transkripsjon}
+</transkripsjon>
+
+Skriv et kort sammendrag av samtalen over på bokmål. Skriv til brukeren med "du", ikke navn. Omtal veilederen som "veilederen", ikke som "jeg" eller "vi".
+Skriv hver del som et kort avsnitt med hele setninger, ikke som punktliste.
+
+Ta bare med det som ble sagt, og utelat det som er uklart. Veilederens spørsmål og forklaringer er ikke opplysninger om brukeren. Behold forbehold som "kanskje" og "tenker jeg". Skriv avtaler slik de ble avtalt, med hvem som gjør hva og når, uten å legge til hva som skjer hvis noe ikke går etter planen. 
+
+Fjern all tekst som er i sammenheng med sosialhjelp
+
+
+Bruk disse overskriftene:
+Avtaler og neste steg
+Formålet med møtet
+Hva du fortalte
+Hva veilederen informerte om
+"""

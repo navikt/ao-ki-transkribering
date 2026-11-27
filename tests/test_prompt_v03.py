@@ -36,10 +36,11 @@ from shared.services.llm_proxy_client import (
 from worker.prompts.handlinger import list_referat_scenarier
 from worker.prompts.versions import (
     BASIS_0_1, BASIS_0_2, BASIS_0_3, CURRENT_PROMPTS, STIKKORD_0_1, STIKKORD_0_2,
-    UTFYLLENDE_0_1, UTFYLLENDE_0_2,
+    UTFYLLENDE_0_1, UTFYLLENDE_0_2, STIKKORD_0_3, UTFYLLENDE_0_3,
 )
 
 
+RELEASED_03 = (STIKKORD_0_3, BASIS_0_3, UTFYLLENDE_0_3)
 AGREEMENT = "- Hvem: ikke oppgitt | Hva: sende skjema | Når: tidspunktet er ikke avtalt"
 REJECTED = "REJECTED_CANDIDATE_MUST_NOT_LEAK"
 ENDPOINTS = (
@@ -92,11 +93,11 @@ def test_v03_profiles_publish_the_numbered_contract_and_distinct_output_limits()
         "5. Ikke avtalt ennå",
     )
     assert ABSENT_AGREEMENTS == ("Ingen avtaler er oppgitt.", "Det er uklart om noe ble avtalt.")
-    assert {profile.id: profile.max_tokens for profile in CURRENT_PROMPTS} == {
+    assert {profile.id: profile.max_tokens for profile in RELEASED_03} == {
         "stikkord_0_3": 2048, "basis_0_3": 3072, "utfyllende_0_3": 4096,
     }
-    assert len({profile.system_prompt for profile in CURRENT_PROMPTS}) == 1
-    for profile in CURRENT_PROMPTS:
+    assert len({profile.system_prompt for profile in RELEASED_03}) == 1
+    for profile in RELEASED_03:
         assert profile.version == "0.3"
         assert profile.based_on == profile.id.replace("_0_3", "_0_2")
         assert profile.mode == "ett_steg"
@@ -112,7 +113,7 @@ def test_v03_profiles_publish_the_numbered_contract_and_distinct_output_limits()
         assert "Talernumre og innholdet i en uttalelse bekrefter ikke rollen." in profile.system_prompt
     choices = list_referat_scenarier()
     assert {item["id"] for item in choices if item["current"]} == {p.id for p in CURRENT_PROMPTS}
-    assert [item["id"] for item in choices if item["standard"]] == [BASIS_0_3.id]
+    assert [item["id"] for item in choices if item["standard"]] == ["basis_0_4"]
 
 
 @pytest.mark.parametrize("agreements", [
@@ -170,7 +171,7 @@ def test_checker_does_not_claim_to_verify_content_against_source():
     assert invalid_reason(_summary("- Hvem: fiktiv aktør | Hva: udokumentert handling | Når: aldri")) is None
 
 
-@pytest.mark.parametrize("profile", CURRENT_PROMPTS, ids=lambda p: p.id)
+@pytest.mark.parametrize("profile", RELEASED_03, ids=lambda p: p.id)
 @pytest.mark.parametrize("override_kind,expected", [
     ("none", True), ("parameters", True), ("exact", True),
     ("system", False), ("user", False), ("both", False),
@@ -366,7 +367,7 @@ async def test_intermediate_note_failure_never_consumes_an_output_retry(failure)
     assert not any(event["type"] in {"token", "ferdig"} for event in events)
 
 
-@pytest.mark.parametrize("profile", CURRENT_PROMPTS, ids=lambda p: p.id)
+@pytest.mark.parametrize("profile", RELEASED_03, ids=lambda p: p.id)
 @pytest.mark.parametrize("endpoint", ENDPOINTS)
 @pytest.mark.parametrize("outcome", ["first", "corrected", "empty", "incomplete", "refused"])
 def test_versioned_endpoints_buffer_results_and_map_failures(monkeypatch, client, profile, endpoint, outcome):
@@ -503,7 +504,7 @@ def test_endpoints_preserve_warning_after_correcting_reduced_source(monkeypatch,
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("profile", CURRENT_PROMPTS, ids=lambda p: p.id)
+@pytest.mark.parametrize("profile", RELEASED_03, ids=lambda p: p.id)
 @pytest.mark.parametrize("handling", ["referat", "rullerende_referat"])
 @pytest.mark.parametrize("outcome", ["first", "corrected", "empty", "incomplete", "refused"])
 async def test_summary_jobs_persist_only_accepted_output(

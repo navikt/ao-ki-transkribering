@@ -128,7 +128,7 @@ class MeetingWorkspace {
   }
 
   async syncPrompt() {
-    const scenario = this.el("referat-scenario").value || "basis_0_3";
+    const scenario = this.el("referat-scenario").value || "basis_0_4";
     if (scenario === this.definition?.prompt.id) return;
     const revision = ++this.loading;
     this.definition = null;
