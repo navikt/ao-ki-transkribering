@@ -5,15 +5,14 @@ versjonerte definisjoner, slik at dokumentasjonen ikke blir en separat kopi av p
 
 ## Tre hovedvalg
 
-De tre hovedvalgene vises i denne rekkefølgen:
+De to hovedvalgene vises i denne rekkefølgen. Stikkord-malene (0.1–0.3) er fjernet.
 
 | Valg | Form | Maksimalt svar |
 | --- | --- | --- |
-| **Stikkord 0.3** | Korte kulepunkter og stikkord | 2048 tokener |
-| **Basis 0.3** | Kort prosatekst, kulepunkter for avtaler; standard | 3072 tokener |
+| **Basis 0.4** | Kort prosatekst under fire overskrifter, ingen strukturkontroll; standard | 2048 tokener |
 | **Utfyllende 0.3** | Utfyllende prosatekst, kulepunkter for avtaler | 4096 tokener |
 
-Definisjonene ligger i `worker/prompts/versions/{stikkord,basis,utfyllende}_0_3.toml`.
+Definisjonene ligger i `worker/prompts/versions/{basis,utfyllende}_0_3.toml` og `basis_0_4.toml`.
 Utgitte versjoner er uforanderlige. 0.1 og 0.2 er uendret og fortsatt valgbare
 under **Tidligere maler**, også i statisk fallback og prompteditoren.
 
@@ -187,14 +186,12 @@ Feilmeldinger, UI-tekster og syntetiske benchmark-/testdata er ikke promptdefini
 
 | TOML-fil | Innhold |
 | --- | --- |
-| `basis_0_3.toml` | Kort prosatekst, standard, strukturkontrakt for 0.3 |
-| `stikkord_0_3.toml` | Stikkord, strukturkontrakt for 0.3 |
+| `basis_0_4.toml` | Kort prosatekst, standard, egne overskrifter, ingen strukturkontrakt |
+| `basis_0_3.toml` | Kort prosatekst, strukturkontrakt for 0.3 |
 | `utfyllende_0_3.toml` | Utfyllende prosatekst, strukturkontrakt for 0.3 |
 | `basis_0_2.toml` | Uendret medium-prompt, tidligere standard |
-| `stikkord_0_2.toml` | Uendret kort-prompt |
 | `utfyllende_0_2.toml` | Uendret lang-prompt |
 | `basis_0_1.toml` | Uendret Basis 0.1, tidligere versjon |
-| `stikkord_0_1.toml` | Kort stikkordsvariant av Basis |
 | `utfyllende_0_1.toml` | Utfyllende prosavariant av Basis |
 | `generelt_mote_0_1.toml` | Generelt møtereferat |
 | `minimalt_sammendrag_0_1.toml` | Minimalt sammendrag |

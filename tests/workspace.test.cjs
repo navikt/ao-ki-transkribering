@@ -95,7 +95,7 @@ test("invalid parameters and missing source marker block generation", async () =
 test("an out-of-order template response cannot overwrite the current draft or unlock a busy editor", async () => {
   const {el, run} = await loaded();
   run("globalThis.responses = []; appFetch = url => new Promise(resolve => responses.push(resolve));");
-  el("referat-scenario").value = "stikkord_0_1";
+  el("referat-scenario").value = "utfyllende_0_2";
   const old = run("meetingWorkspace.syncPrompt()");
   el("referat-scenario").value = "utfyllende_0_1";
   const current = run("meetingWorkspace.syncPrompt()");
@@ -103,7 +103,7 @@ test("an out-of-order template response cannot overwrite the current draft or un
     prompt:{id:'utfyllende_0_1',title:'Utfyllende'}, system_prompt:'New',user_prompt:'{transkripsjon}',
     temperature:0.2,top_p:0.9,max_tokens:3072,context_tokens:32768})});`);
   await current;
-  run(`responses[0]({ok:true,json:async()=>({prompt:{id:'stikkord_0_1'},system_prompt:'Old'})});`);
+  run(`responses[0]({ok:true,json:async()=>({prompt:{id:'utfyllende_0_2'},system_prompt:'Old'})});`);
   await old;
   assert.equal(el("workspace-system").value, "New");
   assert.equal(el("workspace-prompt-fields").disabled, true);
@@ -146,7 +146,7 @@ test("automatic summaries do not switch the user's view for an invalid draft", a
 
 test("a failed template load blocks generation and offers an explicit retry", async () => {
   const {el, run} = await loaded();
-  el("referat-scenario").value = "stikkord_0_1";
+  el("referat-scenario").value = "utfyllende_0_2";
   run("appFetch = async () => {throw new Error('offline');}");
   await run("meetingWorkspace.syncPrompt()");
   assert.equal(el("workspace-prompt-retry").hidden, false);
@@ -189,7 +189,6 @@ test("the editor falls back to Basis 0.3 when no template is selected", async ()
 test("0.3 profiles are editable with their released output budgets and reset without changing the baseline", async () => {
   const {el, run} = await loaded();
   for (const [id, title, budget] of [
-    ["stikkord_0_3", "Stikkord 0.3", 2048],
     ["basis_0_3", "Basis 0.3", 3072],
     ["utfyllende_0_3", "Utfyllende 0.3", 4096],
   ]) {

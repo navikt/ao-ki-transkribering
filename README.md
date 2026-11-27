@@ -11,8 +11,7 @@ låses for hele opptaket, også ved gjenoppretting; referatmodellen kan byttes f
 neste generering uten å transkribere lyden på nytt. I lokal modus brukes den
 konfigurerte modellen.
 
-De tre hovedmalene er **Stikkord 0.3**, **Basis 0.4** (standard) og
-**Utfyllende 0.3**. Versjon 0.1, 0.2 og Basis 0.3 er uendret og finnes sammen med eldre maler
+De to hovedmalene er **Basis 0.4** (standard) og **Utfyllende 0.3**. Versjon 0.1, 0.2 og Basis 0.3 er uendret og finnes sammen med eldre maler
 under **Tidligere maler**. 0.3 kontrollerer svarstrukturen før referatet vises,
 men bekrefter ikke at innholdet er riktig. Basis 0.4 har egne overskrifter og
 ingen strukturkontroll.

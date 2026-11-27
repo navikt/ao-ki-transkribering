@@ -65,14 +65,11 @@ class PromptVersion:
 
 
 BASIS_0_1 = PromptVersion(**load_definition("basis_0_1"))
-STIKKORD_0_1 = PromptVersion(**load_definition("stikkord_0_1"))
 UTFYLLENDE_0_1 = PromptVersion(**load_definition("utfyllende_0_1"))
 BASIS_0_2 = PromptVersion(**load_definition("basis_0_2"))
-STIKKORD_0_2 = PromptVersion(**load_definition("stikkord_0_2"))
 UTFYLLENDE_0_2 = PromptVersion(**load_definition("utfyllende_0_2"))
 BASIS_0_3 = PromptVersion(**load_definition("basis_0_3"))
-STIKKORD_0_3 = PromptVersion(**load_definition("stikkord_0_3"))
 UTFYLLENDE_0_3 = PromptVersion(**load_definition("utfyllende_0_3"))
 BASIS_0_4 = PromptVersion(**load_definition("basis_0_4"))
-CURRENT_PROMPTS = (STIKKORD_0_3, BASIS_0_4, UTFYLLENDE_0_3)
-PREVIOUS_PROMPTS = (BASIS_0_3, STIKKORD_0_2, BASIS_0_2, UTFYLLENDE_0_2)
+CURRENT_PROMPTS = (BASIS_0_4, UTFYLLENDE_0_3)
+PREVIOUS_PROMPTS = (BASIS_0_3, BASIS_0_2, UTFYLLENDE_0_2)

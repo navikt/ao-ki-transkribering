@@ -35,12 +35,12 @@ from shared.services.llm_proxy_client import (
 )
 from worker.prompts.handlinger import list_referat_scenarier
 from worker.prompts.versions import (
-    BASIS_0_1, BASIS_0_2, BASIS_0_3, CURRENT_PROMPTS, STIKKORD_0_1, STIKKORD_0_2,
-    UTFYLLENDE_0_1, UTFYLLENDE_0_2, STIKKORD_0_3, UTFYLLENDE_0_3,
+    BASIS_0_1, BASIS_0_2, BASIS_0_3, CURRENT_PROMPTS,
+    UTFYLLENDE_0_1, UTFYLLENDE_0_2, UTFYLLENDE_0_3,
 )
 
 
-RELEASED_03 = (STIKKORD_0_3, BASIS_0_3, UTFYLLENDE_0_3)
+RELEASED_03 = (BASIS_0_3, UTFYLLENDE_0_3)
 AGREEMENT = "- Hvem: ikke oppgitt | Hva: sende skjema | Når: tidspunktet er ikke avtalt"
 REJECTED = "REJECTED_CANDIDATE_MUST_NOT_LEAK"
 ENDPOINTS = (
@@ -94,7 +94,7 @@ def test_v03_profiles_publish_the_numbered_contract_and_distinct_output_limits()
     )
     assert ABSENT_AGREEMENTS == ("Ingen avtaler er oppgitt.", "Det er uklart om noe ble avtalt.")
     assert {profile.id: profile.max_tokens for profile in RELEASED_03} == {
-        "stikkord_0_3": 2048, "basis_0_3": 3072, "utfyllende_0_3": 4096,
+        "basis_0_3": 3072, "utfyllende_0_3": 4096,
     }
     assert len({profile.system_prompt for profile in RELEASED_03}) == 1
     for profile in RELEASED_03:
@@ -190,7 +190,7 @@ def test_released_policy_depends_on_exact_text_not_presence_of_full_overrides(pr
 
 
 @pytest.mark.parametrize("profile", [
-    STIKKORD_0_1, BASIS_0_1, UTFYLLENDE_0_1, STIKKORD_0_2, BASIS_0_2, UTFYLLENDE_0_2,
+    BASIS_0_1, UTFYLLENDE_0_1, BASIS_0_2, UTFYLLENDE_0_2,
 ], ids=lambda p: p.id)
 def test_prior_releases_never_gain_the_new_output_policy(profile):
     assert not released_contract(profile, None)

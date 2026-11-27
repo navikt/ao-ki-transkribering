@@ -5,7 +5,7 @@ import re
 from shared.diagnostics import event
 
 from shared.services.llm_proxy_client import IncompleteModelResponse
-from worker.prompts.versions import BASIS_0_3, STIKKORD_0_3, UTFYLLENDE_0_3
+from worker.prompts.versions import BASIS_0_3, UTFYLLENDE_0_3
 
 HEADINGS = (
     "1. Bakgrunn",
@@ -24,7 +24,7 @@ CORRECTION = (
 )
 _BULLET = re.compile(r"- Hvem: ([^|\n]+) \| Hva: ([^|\n]+) \| Når: ([^|\n]+)")
 _HEADING = re.compile(r"(?:#{1,6}\s|[0-9]+\.\s)")
-_RELEASES = (STIKKORD_0_3, BASIS_0_3, UTFYLLENDE_0_3)
+_RELEASES = (BASIS_0_3, UTFYLLENDE_0_3)
 
 
 SOFT_REASONS = {"headings", "empty_section", "agreement_fields"}

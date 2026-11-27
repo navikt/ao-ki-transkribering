@@ -1513,14 +1513,11 @@ function hentReferatFraArbeidsflate() {
 
 function _referatScenarioTittel(scenarioId) {
   const titler = {
-    stikkord_0_3: "Stikkord 0.3",
     basis_0_4: "Basis 0.4",
     basis_0_3: "Basis 0.3",
     utfyllende_0_3: "Utfyllende 0.3",
-    stikkord_0_2: "Stikkord 0.2",
     basis_0_2: "Basis 0.2",
     utfyllende_0_2: "Utfyllende 0.2",
-    stikkord_0_1: "Stikkord 0.1",
     basis_0_1: "Basis 0.1",
     utfyllende_0_1: "Utfyllende 0.1",
     minimalt_sammendrag: "Minimalt sammendrag",

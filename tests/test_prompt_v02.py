@@ -12,13 +12,12 @@ import pytest
 from frontend.routes import referat as routes
 from shared.services import llm_proxy_client
 from worker.prompts.handlinger import list_referat_scenarier
-from worker.prompts.versions import CURRENT_PROMPTS, STIKKORD_0_2, BASIS_0_2, UTFYLLENDE_0_2
+from worker.prompts.versions import CURRENT_PROMPTS, BASIS_0_2, UTFYLLENDE_0_2
 
-RELEASE_02 = (STIKKORD_0_2, BASIS_0_2, UTFYLLENDE_0_2)
+RELEASE_02 = (BASIS_0_2, UTFYLLENDE_0_2)
 
 
 @pytest.mark.parametrize("profile,checksum,temperature,repeat", [
-    (STIKKORD_0_2, "68378b5b2b2b32f440ac833350ae419fe0a4354d0bb84eab340b2289efab1201", 0.2, 1.05),
     (BASIS_0_2, "d8beff3ae211c44b438de3650025ad1db7c9aa880d6e9fab597b9b030f5d0bb9", 0.2, 1.2),
     (UTFYLLENDE_0_2, "da682c13903b44f6df202940717beb9d85f7dc48f848ab052519f6c7fd8eb5e4", 0, 1.2),
 ], ids=lambda value: getattr(value, "id", None))

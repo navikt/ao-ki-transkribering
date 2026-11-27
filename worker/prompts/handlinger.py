@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 from worker.prompts.versions import (
-    BASIS_0_1, STIKKORD_0_1, UTFYLLENDE_0_1, BASIS_0_4, CURRENT_PROMPTS, PREVIOUS_PROMPTS, PromptVersion, load_definition,
+    BASIS_0_1, UTFYLLENDE_0_1, BASIS_0_4, CURRENT_PROMPTS, PREVIOUS_PROMPTS, PromptVersion, load_definition,
 )
 
 from worker.prompts.motereferat import (
@@ -71,18 +71,11 @@ VEILEDER_VARIANTER = {
 REFERAT_SCENARIER: dict[str, ReferatScenario] = {
     **{profile.id: ReferatScenario(
         id=profile.id, tittel=profile.title,
-        beskrivelse={"stikkord": "Korte kulepunkter og stikkord.",
-                     "basis": "Kort prosa med kulepunkter for avtaler.",
+        beskrivelse={"basis": "Kort prosa med kulepunkter for avtaler.",
                      "utfyllende": "Utfyllende prosa med kulepunkter for avtaler."}[profile.id.split("_")[0]],
         system_prompt=profile.system_prompt, bruker_prompt_template=profile.user_prompt,
         max_tokens=profile.max_tokens, profile=profile,
     ) for profile in (*CURRENT_PROMPTS, *PREVIOUS_PROMPTS)},
-    STIKKORD_0_1.id: ReferatScenario(
-        id=STIKKORD_0_1.id, tittel=STIKKORD_0_1.title,
-        beskrivelse="Korte stikkord under de fem overskriftene, inntil 120 ord.",
-        system_prompt=STIKKORD_0_1.system_prompt, bruker_prompt_template=STIKKORD_0_1.user_prompt,
-        max_tokens=STIKKORD_0_1.max_tokens, profile=STIKKORD_0_1,
-    ),
     BASIS_0_1.id: ReferatScenario(
         id=BASIS_0_1.id, tittel=BASIS_0_1.title,
         beskrivelse="Kort samtalesammendrag som kan leses opp for brukeren.",

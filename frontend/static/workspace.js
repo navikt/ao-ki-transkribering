@@ -30,7 +30,7 @@ class MeetingWorkspace {
 
   el(id) { return document.getElementById(id); }
 
-  versioned(scenario) { return /^(basis|stikkord|utfyllende)_\d+_\d+$/.test(scenario); }
+  versioned(scenario) { return /^(basis|utfyllende)_\d+_\d+$/.test(scenario); }
 
   setView(view) {
     if (!["simple", "advanced"].includes(view)) return;

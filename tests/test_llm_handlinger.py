@@ -29,14 +29,11 @@ def test_referat_scenarier_lister_faste_promptvalg():
     scenarier = list_referat_scenarier()
 
     assert [scenario["id"] for scenario in scenarier] == [
-        "stikkord_0_3",
         "basis_0_4",
         "utfyllende_0_3",
         "basis_0_3",
-        "stikkord_0_2",
         "basis_0_2",
         "utfyllende_0_2",
-        "stikkord_0_1",
         "basis_0_1",
         "utfyllende_0_1",
         "minimalt_sammendrag",
