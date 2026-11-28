@@ -11,9 +11,10 @@ from worker.transkribering.nemotron_diarization import SpeechSessions, label_wor
 def engines():
     calls = []
 
-    def infer(pcm, cache):
+    def infer(pcm, cache, lookahead=0):
         calls.append((len(pcm), cache))
-        return [{"start": 0, "end": len(pcm) / 16000, "speaker": "SPEAKER_01"}], (cache or 0) + 1
+        scored = len(pcm) / 16000 - lookahead * .08
+        return [{"start": 0, "end": scored, "speaker": "SPEAKER_01"}], (cache or 0) + 1, scored
 
     asr = SimpleNamespace(transkriber=lambda pcm: {"text": "Hei", "chunks": [
         {"text": "Hei", "timestamp": (0, len(pcm) / 16000)}]})
@@ -137,3 +138,18 @@ def test_words_in_short_gaps_get_nearest_speaker_not_unknown():
     turns = [{"start": 0, "end": 1, "speaker": "SPEAKER_00"}, {"start": 3, "end": 4, "speaker": "SPEAKER_01"}]
     chunks = [{"text": "x", "timestamp": (2.2, 2.4)}]
     assert label_words(chunks, turns)[0]["speaker"] == "SPEAKER_01"
+
+
+def test_short_windows_refeed_the_unscored_lookahead_tail_with_the_next_chunk():
+    sessions = SpeechSessions()
+    asr, diar, calls = engines()
+    infer = diar.infer
+    fed = []
+    diar.infer = lambda pcm, cache, lookahead=0: (fed.append((len(pcm) / 16000, lookahead)), infer(pcm, cache, lookahead))[1]
+    audio = np.ones(15 * 16000, dtype=np.float32)
+    sessions.transcribe(audio, asr, diar, "live", 0)
+    assert sessions.records["live"].scored_end == pytest.approx(13)
+    sessions.transcribe(audio * .5, asr, diar, "live", 14)
+    # 2 s tail from the first chunk + 14 s of new audio (the first second overlaps).
+    assert fed == [(15, 25), (16, 25)]
+    assert sessions.records["live"].scored_end == pytest.approx(13 + 16 - 2)

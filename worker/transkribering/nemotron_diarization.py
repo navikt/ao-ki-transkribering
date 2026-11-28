@@ -13,7 +13,13 @@ import numpy as np
 SAMPLE_RATE = 16000
 logger = logging.getLogger(__name__)
 MAX_WORD_GAP_S = 2.0
-LOOKAHEAD_FRAMES = int(os.environ.get("NEMOTRON_DIARIZATION_LOOKAHEAD", "0"))
+FRAMES_PER_SECOND = 100
+# Short windows lose speaker identity without right context (4 speakers on a 3-voice clip at 15 s);
+# 25 frames matched offline diarization. Windows of 20 s or more need none.
+LOOKAHEAD_FRAMES = int(os.environ.get("NEMOTRON_DIARIZATION_LOOKAHEAD", "25"))
+LOOKAHEAD_MIN_CHUNK_S = 8
+LOOKAHEAD_MAX_CHUNK_S = 20
+LOOKAHEAD_SECONDS_PER_FRAME = 0.08
 
 
 class NemotronDiarizer:
@@ -25,32 +31,38 @@ class NemotronDiarizer:
         self.device = device
         self._inference_lock = threading.Lock()
 
-    def infer(self, pcm, cache=None):
+    def infer(self, pcm, cache=None, lookahead=0):
         with self._inference_lock:
             started = time.monotonic()
-            result = self._infer(pcm, cache)
+            result = self._infer(pcm, cache, lookahead)
             logger.warning("diarization_inference seconds=%.3f audio_seconds=%.3f",
                            time.monotonic() - started, len(pcm) / SAMPLE_RATE)
             return result
 
-    def _infer(self, pcm, cache=None):
+    def _infer(self, pcm, cache=None, lookahead=0):
+        """Return (turns, cache, scored_seconds); the last `lookahead` frames are attended but not scored."""
         import torch
 
         turns = []
+        scored = 0.0
         # Limit feature/attention memory even for a three-hour uploaded recording.
         with torch.inference_mode():
             for start in range(0, len(pcm), 32 * SAMPLE_RATE):
                 window = pcm[start:start + 32 * SAMPLE_RATE]
+                last = start + len(window) >= len(pcm)
                 inputs = self.processor(window, sampling_rate=SAMPLE_RATE, return_tensors="pt")
                 inputs = inputs.to(self.device, dtype=self.model.dtype)
-                output = self.model(**inputs, speaker_cache=cache, num_lookahead_frames=LOOKAHEAD_FRAMES)
+                output = self.model(**inputs, speaker_cache=cache,
+                                    num_lookahead_frames=lookahead if last else 0)
                 cache = output.speaker_cache
-                for turn in self.processor.extract_speaker_dict(output.logits, inputs.attention_mask)[0]:
+                frames = output.logits.shape[1]
+                mask = inputs.attention_mask[:, :frames]
+                scored = start / SAMPLE_RATE + frames / FRAMES_PER_SECOND
+                for turn in self.processor.extract_speaker_dict(output.logits, mask)[0]:
                     turns.append({"start": start / SAMPLE_RATE + turn["Start"],
-                                  "end": min((start + len(window)) / SAMPLE_RATE,
-                                             start / SAMPLE_RATE + turn["End"]),
+                                  "end": min(scored, start / SAMPLE_RATE + turn["End"]),
                                   "speaker": f"SPEAKER_{turn['Speaker']:02d}"})
-        return turns, cache
+        return turns, cache, min(scored, len(pcm) / SAMPLE_RATE)
 
 
 def merge_to_dominant(turns, limit=2, totals=None, names=None):
@@ -113,6 +125,8 @@ def label_words(chunks, turns):
 class Recording:
     cache: object = None
     end: float = 0
+    scored_end: float = 0
+    tail: object = field(default_factory=lambda: np.zeros(0, dtype=np.float32))
     turns: list = field(default_factory=list)
     totals: dict = field(default_factory=dict)
     names: dict = field(default_factory=dict)
@@ -157,9 +171,20 @@ class SpeechSessions:
             if session_id:
                 self.active.add(session_id)
         try:
-            overlap = max(0, round((state.end - chunk_start) * SAMPLE_RATE)) if previous else 0
-            turns, state.cache = diarizer.infer(pcm[overlap:], state.cache)
-            offset = chunk_start + overlap / SAMPLE_RATE
+            seconds = len(pcm) / SAMPLE_RATE
+            lookahead = LOOKAHEAD_FRAMES if LOOKAHEAD_MIN_CHUNK_S <= seconds < LOOKAHEAD_MAX_CHUNK_S else 0
+            # Audio whose last frames were only look-ahead is kept and fed again with the next chunk.
+            if previous and chunk_start <= state.end:
+                fresh = pcm[min(len(pcm), round((state.end - chunk_start) * SAMPLE_RATE)):]
+                feed, offset = np.concatenate([state.tail, fresh]), state.scored_end
+            else:
+                feed, offset = pcm, chunk_start
+            if lookahead and len(feed) < (lookahead * LOOKAHEAD_SECONDS_PER_FRAME + 1) * SAMPLE_RATE:
+                turns, scored = [], 0.0
+            else:
+                turns, state.cache, scored = diarizer.infer(feed, state.cache, lookahead)
+            state.tail = feed[round(scored * SAMPLE_RATE):]
+            state.scored_end = offset + scored
             state.turns.extend({**t, "start": t["start"] + offset, "end": t["end"] + offset} for t in turns)
             for t in turns:
                 state.totals[t["speaker"]] = state.totals.get(t["speaker"], 0) + t["end"] - t["start"]
